@@ -26,6 +26,7 @@ const limiter = rateLimit({
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'https://nfc-qr-code-production.up.railway.app',
   'http://localhost:3000',
   'http://localhost:19006',
 ].filter(Boolean) as string[];

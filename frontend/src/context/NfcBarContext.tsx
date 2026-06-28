@@ -109,7 +109,7 @@ const getBackendUrl = () => {
   }
 
   // Production Railway fallback (localhost/local IP network fallbacks removed)
-  return 'https://nfc-bar-production.up.railway.app/api';
+  return 'https://nfc-qr-code-production.up.railway.app/api';
 };
 
 const BACKEND_URL = getBackendUrl();
