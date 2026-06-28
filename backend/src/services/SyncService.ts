@@ -135,231 +135,223 @@ export class SyncService {
           cardId
         } = payload;
 
-        return await prisma.$transaction(async (tx) => {
-          let finalPlaceTypeId = placeTypeId;
-          let finalTableId = tableId;
+        let finalPlaceTypeId = placeTypeId;
+        let finalTableId = tableId;
 
-          // Resolve place type
-          if (!finalPlaceTypeId && payload.placeType) {
-            const ptObj = await tx.placeTypeConfig.findUnique({ where: { name: payload.placeType } });
-            if (ptObj) finalPlaceTypeId = ptObj.id;
-          }
+        // Resolve place type
+        if (!finalPlaceTypeId && payload.placeType) {
+          const ptObj = await prisma.placeTypeConfig.findUnique({ where: { name: payload.placeType } });
+          if (ptObj) finalPlaceTypeId = ptObj.id;
+        }
 
-          if (!finalPlaceTypeId) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_PLACE_TYPE_NOT_FOUND', 'Could not resolve place type');
-          }
+        if (!finalPlaceTypeId) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_PLACE_TYPE_NOT_FOUND', 'Could not resolve place type');
+        }
 
-          // Resolve table
-          if (!finalTableId && payload.tableNumber) {
-            const tableObj = await tx.table.findFirst({
-              where: { tableNumber: payload.tableNumber, placeTypeId: finalPlaceTypeId }
-            });
-            if (tableObj) finalTableId = tableObj.id;
-          }
+        // Resolve table
+        if (!finalTableId && payload.tableNumber) {
+          const tableObj = await prisma.table.findFirst({
+            where: { tableNumber: payload.tableNumber, placeTypeId: finalPlaceTypeId }
+          });
+          if (tableObj) finalTableId = tableObj.id;
+        }
 
-          if (!finalTableId) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_TABLE_NOT_FOUND', 'Could not resolve table');
-          }
+        if (!finalTableId) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_TABLE_NOT_FOUND', 'Could not resolve table');
+        }
 
-          // Conflict 1: Check active session for customer phone
-          const cleanPhone = phoneNumber.startsWith('+91') ? phoneNumber : `+91${phoneNumber}`;
-          
-          const existingCustomer = await tx.customer.findUnique({
-            where: { phoneNumber: cleanPhone },
-            include: {
-              tokens: {
-                where: { status: { in: ['active', 'extended', 'expired'] } },
-                take: 1
-              }
+        // Conflict 1: Check active session for customer phone
+        const cleanPhone = phoneNumber.startsWith('+91') ? phoneNumber : `+91${phoneNumber}`;
+        
+        const existingCustomer = await prisma.customer.findUnique({
+          where: { phoneNumber: cleanPhone },
+          include: {
+            tokens: {
+              where: { status: { in: ['active', 'extended', 'expired'] } },
+              take: 1
             }
-          });
-
-          if (existingCustomer && existingCustomer.tokens.length > 0) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_ACTIVE_SESSION', 'Customer already has an active session');
           }
-
-          // Conflict 2: Check table occupancy
-          const table = await tx.table.findUnique({ where: { id: finalTableId } });
-          if (!table) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_TABLE_NOT_FOUND', 'Table not found');
-          }
-          if (table.status !== 'available') {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_TABLE_OCCUPIED', `Table ${table.tableNumber} is already occupied`);
-          }
-
-          // Conflict 3: Check Card assignment
-          const card = cardId 
-            ? await tx.card.findUnique({ where: { id: cardId } })
-            : await tx.card.findUnique({ where: { nfcUid: nfcCardUid } });
-          if (!card) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_CARD_NOT_FOUND', 'NFC card is not registered');
-          }
-          if (card.status !== 'available') {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_CARD_ASSIGNED', 'NFC card is already assigned');
-          }
-
-          // Conflict 4: Group size vs Table capacity
-          if (personsCount > table.capacity) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_CAPACITY_EXCEEDED', `Group size of ${personsCount} exceeds table capacity of ${table.capacity}`);
-          }
-
-          // Apply check-in
-          const token = await tokenService.createToken({
-            phoneNumber: cleanPhone,
-            customerName,
-            email,
-            personsCount,
-            placeTypeId: finalPlaceTypeId,
-            tableId: finalTableId,
-            amountPaid: new Decimal(amountPaid),
-            paymentVerified: paymentVerified !== undefined ? paymentVerified : true,
-            issuedBy,
-            nfcCardUid: nfcCardUid || card.nfcUid,
-            cardId: card.id,
-            startTime: opTime,
-            deliveryMode: (payload as any).deliveryMode
-          });
-
-          await tx.syncLog.create({
-            data: {
-              operationId,
-              deviceId,
-              operationType: type,
-              payload: { tokenId: token.id, tokenNumber: token.tokenNumber },
-              status: 'SUCCESS',
-              processedAt: new Date()
-            }
-          });
-
-          return {
-            operationId,
-            status: 'SUCCESS',
-            data: { tokenId: token.id, tokenNumber: token.tokenNumber }
-          };
         });
+
+        if (existingCustomer && existingCustomer.tokens.length > 0) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_ACTIVE_SESSION', 'Customer already has an active session');
+        }
+
+        // Conflict 2: Check table occupancy
+        const table = await prisma.table.findUnique({ where: { id: finalTableId } });
+        if (!table) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_TABLE_NOT_FOUND', 'Table not found');
+        }
+        if (table.status !== 'available') {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_TABLE_OCCUPIED', `Table ${table.tableNumber} is already occupied`);
+        }
+
+        // Conflict 3: Check Card assignment
+        const card = cardId 
+          ? await prisma.card.findUnique({ where: { id: cardId } })
+          : await prisma.card.findUnique({ where: { nfcUid: nfcCardUid } });
+        if (!card) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_CARD_NOT_FOUND', 'NFC card is not registered');
+        }
+        if (card.status !== 'available') {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_CARD_ASSIGNED', 'NFC card is already assigned');
+        }
+
+        // Conflict 4: Group size vs Table capacity
+        if (personsCount > table.capacity) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_CAPACITY_EXCEEDED', `Group size of ${personsCount} exceeds table capacity of ${table.capacity}`);
+        }
+
+        // Apply check-in
+        const token = await tokenService.createToken({
+          phoneNumber: cleanPhone,
+          customerName,
+          email,
+          personsCount,
+          placeTypeId: finalPlaceTypeId,
+          tableId: finalTableId,
+          amountPaid: new Decimal(amountPaid),
+          paymentVerified: paymentVerified !== undefined ? paymentVerified : true,
+          issuedBy,
+          nfcCardUid: nfcCardUid || card.nfcUid,
+          cardId: card.id,
+          startTime: opTime,
+          deliveryMode: (payload as any).deliveryMode
+        });
+
+        await prisma.syncLog.create({
+          data: {
+            operationId,
+            deviceId,
+            operationType: type,
+            payload: { tokenId: token.id, tokenNumber: token.tokenNumber },
+            status: 'SUCCESS',
+            processedAt: new Date()
+          }
+        });
+
+        return {
+          operationId,
+          status: 'SUCCESS',
+          data: { tokenId: token.id, tokenNumber: token.tokenNumber }
+        };
       }
 
       case 'DRINK_REDEMPTION': {
         const { tokenNumber, cardUid, bartenderId } = payload;
         
-        return await prisma.$transaction(async (tx) => {
-          const token = await resolveTokenNumber(tokenNumber, cardUid);
-          if (!token) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
-          }
+        const token = await resolveTokenNumber(tokenNumber, cardUid);
+        if (!token) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
+        }
 
-          // Conflict checks
-          if (token.status === 'closed') {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_CLOSED', 'Session is already closed');
-          }
+        // Conflict checks
+        if (token.status === 'closed') {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_CLOSED', 'Session is already closed');
+        }
 
-          if (opTime > new Date(token.endTime)) {
-            // Update token status to expired dynamically
-            await tx.token.update({
-              where: { id: token.id },
-              data: { status: 'expired' }
-            });
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_EXPIRED', 'Session expired before redemption');
-          }
-
-          if (token.redemptionsUsed >= token.totalRedemptionsAllowed) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_LIMIT_EXCEEDED', 'Drink limit fully reached');
-          }
-
-          // Apply redemption
-          const result = await redemptionService.processRedemption(token.tokenNumber, bartenderId, opTime);
-
-          await tx.syncLog.create({
-            data: {
-              operationId,
-              deviceId,
-              operationType: type,
-              payload: { remaining: result.remainingRedemptions },
-              status: 'SUCCESS',
-              processedAt: new Date()
-            }
+        if (opTime > new Date(token.endTime)) {
+          // Update token status to expired dynamically
+          await prisma.token.update({
+            where: { id: token.id },
+            data: { status: 'expired' }
           });
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_EXPIRED', 'Session expired before redemption');
+        }
 
-          return {
+        if (token.redemptionsUsed >= token.totalRedemptionsAllowed) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_LIMIT_EXCEEDED', 'Drink limit fully reached');
+        }
+
+        // Apply redemption
+        const result = await redemptionService.processRedemption(token.tokenNumber, bartenderId, opTime);
+
+        await prisma.syncLog.create({
+          data: {
             operationId,
+            deviceId,
+            operationType: type,
+            payload: { remaining: result.remainingRedemptions },
             status: 'SUCCESS',
-            data: { remaining: result.remainingRedemptions }
-          };
+            processedAt: new Date()
+          }
         });
+
+        return {
+          operationId,
+          status: 'SUCCESS',
+          data: { remaining: result.remainingRedemptions }
+        };
       }
 
       case 'DRINK_UNDO': {
         const { tokenNumber, cardUid } = payload;
 
-        return await prisma.$transaction(async (tx) => {
-          const token = await resolveTokenNumber(tokenNumber, cardUid);
-          if (!token) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
-          }
+        const token = await resolveTokenNumber(tokenNumber, cardUid);
+        if (!token) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
+        }
 
-          if (token.redemptionsUsed <= 0) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_NO_REDEMPTIONS', 'No redemptions to undo');
-          }
+        if (token.redemptionsUsed <= 0) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_NO_REDEMPTIONS', 'No redemptions to undo');
+        }
 
-          const result = await redemptionService.undoRedemption(token.tokenNumber);
+        const result = await redemptionService.undoRedemption(token.tokenNumber);
 
-          await tx.syncLog.create({
-            data: {
-              operationId,
-              deviceId,
-              operationType: type,
-              payload: { remaining: result.remainingRedemptions },
-              status: 'SUCCESS',
-              processedAt: new Date()
-            }
-          });
-
-          return {
+        await prisma.syncLog.create({
+          data: {
             operationId,
+            deviceId,
+            operationType: type,
+            payload: { remaining: result.remainingRedemptions },
             status: 'SUCCESS',
-            data: { remaining: result.remainingRedemptions }
-          };
+            processedAt: new Date()
+          }
         });
+
+        return {
+          operationId,
+          status: 'SUCCESS',
+          data: { remaining: result.remainingRedemptions }
+        };
       }
 
       case 'TIME_EXTENSION': {
         const { tokenNumber, cardUid, extraMinutes, additionalAmount, approvedBy, additionalPersons } = payload;
 
-        return await prisma.$transaction(async (tx) => {
-          const token = await resolveTokenNumber(tokenNumber, cardUid);
-          if (!token) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
-          }
+        const token = await resolveTokenNumber(tokenNumber, cardUid);
+        if (!token) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
+        }
 
-          if (token.status === 'closed') {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_CLOSED', 'Session is already closed');
-          }
+        if (token.status === 'closed') {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_CLOSED', 'Session is already closed');
+        }
 
-          const updated = await tokenService.extendToken(
-            token.tokenNumber,
-            extraMinutes,
-            additionalAmount,
-            approvedBy,
-            additionalPersons
-          );
+        const updated = await tokenService.extendToken(
+          token.tokenNumber,
+          extraMinutes,
+          additionalAmount,
+          approvedBy,
+          additionalPersons
+        );
 
-          await tx.syncLog.create({
-            data: {
-              operationId,
-              deviceId,
-              operationType: type,
-              payload: { newEndTime: updated.endTime },
-              status: 'SUCCESS',
-              processedAt: new Date()
-            }
-          });
-
-          return {
+        await prisma.syncLog.create({
+          data: {
             operationId,
+            deviceId,
+            operationType: type,
+            payload: { newEndTime: updated.endTime },
             status: 'SUCCESS',
-            data: { newEndTime: updated.endTime }
-          };
+            processedAt: new Date()
+          }
         });
+
+        return {
+          operationId,
+          status: 'SUCCESS',
+          data: { newEndTime: updated.endTime }
+        };
       }
 
       case 'SESSION_CLOSE': {
