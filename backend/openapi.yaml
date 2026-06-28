@@ -1,0 +1,2092 @@
+openapi: 3.0.3
+info:
+  title: CloudShift Auth Service
+  version: v1
+  description: |
+    Multi-tenant authentication and authorization service for CloudShift.
+
+    ## Conventions
+    - All JSON request and response bodies use **snake_case** property names.
+    - Null fields are omitted from responses.
+    - Authenticated endpoints require a JWT in the `Authorization: Bearer <token>` header.
+    - Domain errors return `{ "error": "<message>" }` with an appropriate HTTP status code.
+
+    ## Authentication flows
+  contact:
+    name: CloudShift
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:5021
+    description: Local development (HTTP)
+  - url: https://localhost:7018
+    description: Local development (HTTPS)
+  - url: https://auth.cloudshift.in
+    description: Production
+
+tags:
+  - name: Health
+    description: Service health check
+  - name: Auth
+    description: User authentication, password, and email verification
+  - name: PublicKey
+    description: JWT public key and token introspection
+  - name: ServiceToken
+    description: Machine-to-machine client credentials flow
+  - name: Tenants
+    description: Tenant lifecycle and user management
+  - name: Applications
+    description: Application registry under a tenant
+  - name: Services
+    description: Service registration and secret management
+  - name: UserApps
+    description: User application access and roles
+  - name: Notifications
+    description: In-app notifications for the authenticated user
+  - name: AuditLogs
+    description: Admin audit log queries
+
+paths:
+  /:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns a plain-text confirmation that the API is running.
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service is running
+          content:
+            application/json:
+              schema:
+                type: string
+                example: CloudShift Auth API is running
+
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Register a new user account
+      operationId: signup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user and receive tokens
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Exchange refresh token for new access token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Invalidate refresh token
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Send password reset link
+      description: Always returns 200 to prevent email enumeration.
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Reset email sent if account exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: If the email exists, a password reset link has been sent.
+
+  /api/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password using token from email
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Password reset successfully. Please log in with your new password.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password with current password verification
+      description: |
+        Accepts email, tenant_id, or user_id in the request body to identify the user.
+        Does not require a Bearer token.
+      operationId: changePassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordWithUserRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Password changed successfully.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/auth/send-verification:
+    post:
+      tags: [Auth]
+      summary: Send or resend email verification link
+      description: |
+        Accepts email, tenant_id, or user_id in the request body to identify the user.
+        Does not require a Bearer token.
+      operationId: sendVerification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendVerificationRequest'
+      responses:
+        '200':
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Verification email sent.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verify email address using token from email
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Email verified successfully.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/auth/public-key:
+    get:
+      tags: [PublicKey]
+      summary: Get RSA public key for JWT validation
+      description: Returns the RSA public key in PEM format for verifying JWT signatures.
+      operationId: getPublicKey
+      security: []
+      responses:
+        '200':
+          description: Public key in PEM format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyResponse'
+
+  /api/auth/validate:
+    get:
+      tags: [PublicKey]
+      summary: Token introspection
+      description: Returns 200 if the current Bearer token is valid.
+      operationId: validateToken
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateTokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/service-token:
+    post:
+      tags: [ServiceToken]
+      summary: Issue service-to-service JWT (client credentials)
+      description: |
+        No user authentication required — the service secret is the credential.
+        Used for machine-to-machine communication between registered services.
+      operationId: issueServiceToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceTokenRequest'
+      responses:
+        '200':
+          description: Service token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceTokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/tenants:
+    post:
+      tags: [Tenants]
+      summary: Register a new tenant
+      description: Super admin only.
+      operationId: createTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Tenants]
+      summary: List all tenants
+      description: Super admin only.
+      operationId: listTenants
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tenants/{tenantId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenants]
+      summary: Get tenant details
+      operationId: getTenant
+      responses:
+        '200':
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Tenants]
+      summary: Update tenant info
+      operationId: updateTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+      responses:
+        '200':
+          description: Tenant updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/metadata:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      tags: [Tenants]
+      summary: Update tenant metadata
+      operationId: updateTenantMetadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantMetadataRequest'
+      responses:
+        '200':
+          description: Tenant metadata updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantWithMetadataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/details:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenants]
+      summary: Get tenant with full metadata and details
+      description: Returns comprehensive tenant information including settings (metadata) and updated_at timestamp.
+      operationId: getTenantWithMetadata
+      responses:
+        '200':
+          description: Tenant with full metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantWithMetadataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/status:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      tags: [Tenants]
+      summary: Update tenant status and optionally plan
+      operationId: updateTenantStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantStatusRequest'
+      responses:
+        '200':
+          description: Tenant status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/invite:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Tenants]
+      summary: Invite a new user to the tenant
+      description: Sends an email with a temporary password. User must change password on first login.
+      operationId: inviteUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteUserRequest'
+      responses:
+        '201':
+          description: User invited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/tenants/{tenantId}/users:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Tenants]
+      summary: Create user under a tenant
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Tenants]
+      summary: List users under a tenant
+      operationId: listUsers
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/users/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [Tenants]
+      summary: Get user details
+      operationId: getUser
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Tenants]
+      summary: Update user
+      operationId: updateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Tenants]
+      summary: Deactivate user (soft delete)
+      operationId: deactivateUser
+      responses:
+        '204':
+          description: User deactivated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      tags: [Applications]
+      summary: Register new application under a tenant
+      operationId: createApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationRequest'
+      responses:
+        '201':
+          description: Application created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      tags: [Applications]
+      summary: List all applications for a tenant
+      operationId: listApplications
+      responses:
+        '200':
+          description: List of applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApplicationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications/full:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Applications]
+      summary: List all applications with full payload
+      description: Returns complete application records including settings and webhook URLs.
+      operationId: listApplicationsFull
+      responses:
+        '200':
+          description: Full application list for tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantApplicationsFullResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications/{appId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/AppId'
+    get:
+      tags: [Applications]
+      summary: Get application details
+      operationId: getApplication
+      responses:
+        '200':
+          description: Application details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Applications]
+      summary: Update application
+      operationId: updateApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequest'
+      responses:
+        '200':
+          description: Application updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications/{appId}/services:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/AppId'
+    post:
+      tags: [Services]
+      summary: Register a new service
+      description: |
+        Super admin only. Returns the raw secret once — it will never be shown again.
+      operationId: registerService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterServiceRequest'
+      responses:
+        '201':
+          description: Service registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterServiceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Services]
+      summary: List all services for tenant and application
+      operationId: listServices
+      responses:
+        '200':
+          description: List of services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications/{appId}/services/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/AppId'
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags: [Services]
+      summary: Get service details
+      operationId: getService
+      responses:
+        '200':
+          description: Service details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications/{appId}/services/{id}/rotate-secret:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/AppId'
+      - $ref: '#/components/parameters/ServiceId'
+    post:
+      tags: [Services]
+      summary: Rotate service secret
+      description: Revokes existing secrets and returns a new one (shown once).
+      operationId: rotateServiceSecret
+      responses:
+        '200':
+          description: Secret rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateSecretResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications/{appId}/services/{id}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/AppId'
+      - $ref: '#/components/parameters/ServiceId'
+    post:
+      tags: [Services]
+      summary: Suspend a service
+      operationId: suspendService
+      responses:
+        '200':
+          description: Service suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Service suspended successfully.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tenants/{tenantId}/applications/{appId}/services/{id}/activate:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/AppId'
+      - $ref: '#/components/parameters/ServiceId'
+    post:
+      tags: [Services]
+      summary: Re-activate a suspended service
+      operationId: activateService
+      responses:
+        '200':
+          description: Service activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Service activated successfully.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/users/{userId}/apps:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [UserApps]
+      summary: List apps this user can access
+      operationId: getUserApps
+      responses:
+        '200':
+          description: User app access list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserAppRoleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [UserApps]
+      summary: Grant user access to an application with role
+      operationId: grantAppAccess
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantAppAccessRequest'
+      responses:
+        '201':
+          description: Access granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAppRoleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/users/{userId}/apps/{appId}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/AppId'
+    put:
+      tags: [UserApps]
+      summary: Update role, permissions, or metadata for an app
+      operationId: updateAppAccess
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAppAccessRequest'
+      responses:
+        '200':
+          description: Access updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAppRoleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [UserApps]
+      summary: Revoke app access
+      operationId: revokeAppAccess
+      responses:
+        '204':
+          description: Access revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: Get notifications for the current user
+      operationId: getNotifications
+      parameters:
+        - $ref: '#/components/parameters/NotificationLimit'
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/notifications/unread:
+    get:
+      tags: [Notifications]
+      summary: Get unread notifications for the current user
+      operationId: getUnreadNotifications
+      parameters:
+        - $ref: '#/components/parameters/NotificationLimit'
+      responses:
+        '200':
+          description: List of unread notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/notifications/summary:
+    get:
+      tags: [Notifications]
+      summary: Get notification summary (counts by status)
+      operationId: getNotificationSummary
+      responses:
+        '200':
+          description: Notification summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/notifications/{id}/mark-as-read:
+    parameters:
+      - $ref: '#/components/parameters/NotificationId'
+    post:
+      tags: [Notifications]
+      summary: Mark a notification as read
+      operationId: markNotificationAsRead
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Notification marked as read
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/notifications/mark-multiple-as-read:
+    post:
+      tags: [Notifications]
+      summary: Mark multiple notifications as read
+      operationId: markMultipleNotificationsAsRead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkMultipleAsReadRequest'
+      responses:
+        '200':
+          description: Notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/notifications/{id}:
+    parameters:
+      - $ref: '#/components/parameters/NotificationId'
+    delete:
+      tags: [Notifications]
+      summary: Delete a notification
+      operationId: deleteNotification
+      responses:
+        '200':
+          description: Notification deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Notification deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/audit-logs:
+    get:
+      tags: [AuditLogs]
+      summary: Get combined audit logs for all tenants
+      description: Admin only — useful for debugging and system monitoring.
+      operationId: getCombinedAuditLogs
+      parameters:
+        - $ref: '#/components/parameters/AuditLogLimit'
+      responses:
+        '200':
+          description: Combined user and service audit logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CombinedAuditLogsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/audit-logs/tenant/{tenantId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [AuditLogs]
+      summary: Get audit logs for a specific tenant
+      operationId: getTenantAuditLogs
+      parameters:
+        - $ref: '#/components/parameters/AuditLogLimit'
+      responses:
+        '200':
+          description: Tenant audit logs (user + service)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CombinedAuditLogsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/audit-logs/service/{serviceId}:
+    parameters:
+      - $ref: '#/components/parameters/AuditServiceId'
+    get:
+      tags: [AuditLogs]
+      summary: Get audit logs for a specific service
+      description: Service token audit logs only.
+      operationId: getServiceAuditLogs
+      parameters:
+        - $ref: '#/components/parameters/AuditLogLimit'
+      responses:
+        '200':
+          description: Service audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceTokenAuditLogDTO'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from `/api/auth/login` or `/api/auth/refresh`.
+
+  parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AppId:
+      name: appId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ServiceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AuditServiceId:
+      name: serviceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NotificationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NotificationLimit:
+      name: limit
+      in: query
+      description: Maximum number of notifications to return.
+      schema:
+        type: integer
+        format: int32
+        default: 50
+        minimum: 1
+    AuditLogLimit:
+      name: limit
+      in: query
+      description: Maximum number of audit log entries to return.
+      schema:
+        type: integer
+        format: int32
+        default: 100
+        minimum: 1
+
+  responses:
+    BadRequest:
+      description: Invalid request or token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Access denied (inactive user/tenant, unverified email, etc.)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Duplicate resource or conflicting state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ErrorResponse'
+              - type: string
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: Invalid email or password.
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    # ── Auth ──
+    SignupRequest:
+      type: object
+      required: [email, password, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        full_name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        tenant_code:
+          type: string
+          nullable: true
+        application_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    SignupResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        tenant:
+          $ref: '#/components/schemas/TenantInfo'
+        message:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        tenant_code:
+          type: string
+          nullable: true
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          format: int32
+          description: Access token lifetime in seconds.
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          format: int32
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        application_id:
+          type: string
+          format: uuid
+          nullable: true
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token:
+          type: string
+        new_password:
+          type: string
+          format: password
+
+    ChangePasswordWithUserRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+        email:
+          type: string
+          format: email
+          nullable: true
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    SendVerificationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+        application_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        tenant:
+          $ref: '#/components/schemas/TenantInfo'
+        apps:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/AppAccessInfo'
+          description: Map keyed by application code.
+
+    TenantInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+
+    AppAccessInfo:
+      type: object
+      properties:
+        application_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+        permissions: {}
+        metadata: {}
+
+    PublicKeyResponse:
+      type: object
+      properties:
+        key:
+          type: string
+          description: RSA public key in PEM format.
+
+    ValidateTokenResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        sub:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        tenant_code:
+          type: string
+
+    # ── Service Token ──
+    ServiceTokenRequest:
+      type: object
+      required: [service, secret]
+      properties:
+        service:
+          type: string
+          description: Service code.
+        secret:
+          type: string
+          format: password
+        expires_in:
+          type: integer
+          format: int32
+          nullable: true
+          description: Requested token lifetime in seconds.
+
+    ServiceTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          format: int32
+        type:
+          type: string
+          example: service
+        service_name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        issued_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    # ── Tenants ──
+    CreateTenantRequest:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        plan:
+          type: string
+          default: standard
+        domain:
+          type: string
+          nullable: true
+        logo_url:
+          type: string
+          format: uri
+          nullable: true
+
+    UpdateTenantRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        domain:
+          type: string
+          nullable: true
+        logo_url:
+          type: string
+          format: uri
+          nullable: true
+        settings:
+          type: string
+          nullable: true
+          description: JSON string of tenant settings.
+
+    UpdateTenantMetadataRequest:
+      type: object
+      required: [metadata]
+      properties:
+        metadata:
+          type: string
+          description: JSON string of tenant metadata.
+
+    UpdateTenantStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+        plan:
+          type: string
+          nullable: true
+
+    TenantResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        domain:
+          type: string
+          nullable: true
+        logo_url:
+          type: string
+          format: uri
+          nullable: true
+        plan:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    TenantWithMetadataResponse:
+      allOf:
+        - $ref: '#/components/schemas/TenantResponse'
+        - type: object
+          properties:
+            metadata:
+              type: string
+            updated_at:
+              type: string
+              format: date-time
+              nullable: true
+
+    InviteUserRequest:
+      type: object
+      required: [email, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          default: user
+        application_id:
+          type: string
+          format: uuid
+          nullable: true
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+
+    # ── Users ──
+    CreateUserRequest:
+      type: object
+      required: [email, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        password:
+          type: string
+          format: password
+          nullable: true
+        application_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateUserRequest:
+      type: object
+      required: [full_name]
+      properties:
+        full_name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        email_verified:
+          type: boolean
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Applications ──
+    CreateApplicationRequest:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+
+    UpdateApplicationRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+        settings:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+
+    ApplicationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ApplicationFullResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApplicationResponse'
+        - type: object
+          properties:
+            webhook_url:
+              type: string
+              format: uri
+              nullable: true
+            settings:
+              type: string
+            updated_at:
+              type: string
+              format: date-time
+
+    TenantApplicationsFullResponse:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        applications:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationFullResponse'
+
+    # ── Services ──
+    RegisterServiceRequest:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        service_type:
+          type: string
+          default: internal
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+        permissions:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    RegisterServiceResponse:
+      type: object
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        service_code:
+          type: string
+        tenant_id:
+          type: string
+          format: uuid
+        application_id:
+          type: string
+          format: uuid
+        secret:
+          type: string
+          description: Raw secret — shown only once at registration.
+        permissions:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+
+    ServiceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        service_type:
+          type: string
+        status:
+          type: string
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+        tenant_id:
+          type: string
+          format: uuid
+        application_id:
+          type: string
+          format: uuid
+        permissions:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RotateSecretResponse:
+      type: object
+      properties:
+        secret:
+          type: string
+          description: New raw secret — shown only once.
+        message:
+          type: string
+
+    # ── User App Access ──
+    GrantAppAccessRequest:
+      type: object
+      required: [application_id, role]
+      properties:
+        application_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+        permissions:
+          description: JSON string, array, or object.
+        metadata:
+          description: JSON string, array, or object.
+
+    UpdateAppAccessRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          nullable: true
+        permissions:
+          description: JSON string, array, or object. Omitted properties keep existing values.
+        metadata:
+          description: JSON string, array, or object. Omitted properties keep existing values.
+        is_active:
+          type: boolean
+          nullable: true
+
+    UserAppRoleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        application_id:
+          type: string
+          format: uuid
+        application_name:
+          type: string
+        application_code:
+          type: string
+        role:
+          type: string
+        permissions: {}
+        metadata: {}
+        is_active:
+          type: boolean
+
+    # ── Notifications ──
+    NotificationDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        action_url:
+          type: string
+        priority:
+          type: string
+        is_read:
+          type: boolean
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        action_taken_at:
+          type: string
+          format: date-time
+          nullable: true
+        application_id:
+          type: string
+          format: uuid
+          nullable: true
+        service_id:
+          type: string
+          format: uuid
+          nullable: true
+        metadata: {}
+        created_at:
+          type: string
+          format: date-time
+
+    NotificationSummaryResponse:
+      type: object
+      properties:
+        total_notifications:
+          type: integer
+          format: int32
+        unread_count:
+          type: integer
+          format: int32
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationDTO'
+
+    MarkMultipleAsReadRequest:
+      type: object
+      required: [notification_ids]
+      properties:
+        notification_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    # ── Audit Logs ──
+    AuditLogDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        ip_address:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        old_values: {}
+        new_values: {}
+        created_at:
+          type: string
+          format: date-time
+
+    ServiceTokenAuditLogDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        ip_address:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        details: {}
+        created_at:
+          type: string
+          format: date-time
+
+    CombinedAuditLogsResponse:
+      type: object
+      properties:
+        user_audit_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogDTO'
+        service_audit_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceTokenAuditLogDTO'
+        total_user_logs:
+          type: integer
+          format: int32
+        total_service_logs:
+          type: integer
+          format: int32
+
+security:
+  - Bearer: []

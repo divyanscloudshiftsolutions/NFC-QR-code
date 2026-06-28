@@ -1,0 +1,13 @@
+| Feature               | Prisma    | Sequelize | TypeORM | Drizzle   |
+| --------------------- | --------- | --------- | ------- | --------- |
+| TypeScript support    | Excellent | Basic     | Good    | Excellent |
+| Auto-generated types  | ✅         | ❌         | Partial | ✅         |
+| Schema-first approach | ✅         | ❌         | ❌       | ✅         |
+| Migration system      | Excellent | Average   | Good    | Good      |
+| Developer experience  | Excellent | Average   | Good    | Excellent |
+| Query performance     | Good      | Average   | Average | Excellent |
+| Learning curve        | Easy      | Easy      | Medium  | Medium    |
+| Relations handling    | Excellent | Good      | Good    | Good      |
+| Raw SQL support       | Good      | Good      | Good    | Excellent |
+| Ecosystem maturity    | High      | Very High | High    | Growing   |
+| Boilerplate           | Low       | Medium    | High    | Medium    |
