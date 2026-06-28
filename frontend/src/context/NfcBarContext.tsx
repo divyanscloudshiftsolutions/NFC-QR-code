@@ -108,14 +108,8 @@ const getBackendUrl = () => {
     return envApiUrl.trim();
   }
 
-  if (Platform.OS === 'web') {
-    return 'http://localhost:4000/api';
-  }
-  const scriptURL = NativeModules.SourceCode?.scriptURL || '';
-  const address = scriptURL.split('://')[1];
-  const host = address ? address.split('/')[0] : '';
-  const ip = host ? host.split(':')[0] : 'localhost';
-  return `http://${ip}:4000/api`;
+  // Production Railway fallback (localhost/local IP network fallbacks removed)
+  return 'https://nfc-bar-production.up.railway.app/api';
 };
 
 const BACKEND_URL = getBackendUrl();
