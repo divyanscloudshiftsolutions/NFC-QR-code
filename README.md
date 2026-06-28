@@ -46,3 +46,7 @@ Railway builds and launches the container automatically using the following step
 1. `npm install` (Installs both standard and development dependencies)
 2. `npm run build` (Generates Prisma Client binaries and compiles TypeScript into `dist/`)
 3. `npm run start` (Deploys pending PostgreSQL migrations using `prisma migrate deploy` and boots the Express server)
+
+> [!IMPORTANT]
+> **Existing Production Databases & Neon Baselining**:
+> If you are deploying to a database that already has tables, the initial deploy will fail with a `P3005` error. Please follow the baselining guide in [DEPLOYMENT.md](file:///d:/Cloud%20Shift%20Solutions%20Intern/NFC/NFC%20QR%20code/DEPLOYMENT.md) to initialize the migrations table.
