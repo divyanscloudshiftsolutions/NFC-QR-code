@@ -365,44 +365,42 @@ export class SyncService {
       case 'SESSION_CLOSE': {
         const { tokenNumber, cardUid, closedBy, eraseCard } = payload;
 
-        return await prisma.$transaction(async (tx) => {
-          const token = await resolveTokenNumber(tokenNumber, cardUid);
-          if (!token) {
-            return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
-          }
+        const token = await resolveTokenNumber(tokenNumber, cardUid);
+        if (!token) {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
+        }
 
-          if (token.status === 'closed') {
-            // Already closed - return success (idempotent checkout)
-            return {
-              operationId,
-              status: 'SUCCESS',
-              data: { message: 'Session already closed' }
-            };
-          }
-
-          const summary = await tokenService.closeToken(
-            token.tokenNumber,
-            closedBy,
-            eraseCard !== undefined ? eraseCard : true
-          );
-
-          await tx.syncLog.create({
-            data: {
-              operationId,
-              deviceId,
-              operationType: type,
-              payload: { closedAt: summary.token.closedAt },
-              status: 'SUCCESS',
-              processedAt: new Date()
-            }
-          });
-
+        if (token.status === 'closed') {
+          // Already closed - return success (idempotent checkout)
           return {
             operationId,
             status: 'SUCCESS',
-            data: { closedAt: summary.token.closedAt }
+            data: { message: 'Session already closed' }
           };
+        }
+
+        const summary = await tokenService.closeToken(
+          token.tokenNumber,
+          closedBy,
+          eraseCard !== undefined ? eraseCard : true
+        );
+
+        await prisma.syncLog.create({
+          data: {
+            operationId,
+            deviceId,
+            operationType: type,
+            payload: { closedAt: summary.token.closedAt },
+            status: 'SUCCESS',
+            processedAt: new Date()
+          }
         });
+
+        return {
+          operationId,
+          status: 'SUCCESS',
+          data: { closedAt: summary.token.closedAt }
+        };
       }
 
       case 'CARD_STATUS_UPDATE': {
