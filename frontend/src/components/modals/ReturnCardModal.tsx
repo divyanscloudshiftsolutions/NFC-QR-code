@@ -191,24 +191,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                   </Text>
                 </TouchableOpacity>
 
-                {/* Simulate Quick Returns */}
-                <Text className="text-[9px] font-semibold text-center uppercase tracking-wider mb-2" style={{ color: '#9ca3af' }}>Simulate Quick Returns:</Text>
-                <View className="flex-row gap-2 w-full justify-between mb-4">
-                  <TouchableOpacity 
-                    className="w-[48%] bg-input border border-borderDark rounded-xl p-2.5 items-center justify-center min-h-[40px]" 
-                    onPress={() => handleSimulateScan('CARD-001')}
-                  >
-                    <Text className="text-themeText font-bold text-xs" style={{ color: '#f0ede6' }}>Card 001</Text>
-                    <Text className="text-[9px] mt-0.5" style={{ color: '#9ca3af' }}>Active (PL-02)</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    className="w-[48%] bg-input border border-borderDark rounded-xl p-2.5 items-center justify-center min-h-[40px]" 
-                    onPress={() => handleSimulateScan('CARD-005')}
-                  >
-                    <Text className="text-themeText font-bold text-xs" style={{ color: '#f0ede6' }}>Card 005</Text>
-                    <Text className="text-[9px] mt-0.5" style={{ color: '#9ca3af' }}>Active (S-03)</Text>
-                  </TouchableOpacity>
-                </View>
+
 
                 {/* Also show active sessions lookup list for hybrid checkout */}
                 <Text className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 mt-2 px-1">Or Select Guest Session:</Text>

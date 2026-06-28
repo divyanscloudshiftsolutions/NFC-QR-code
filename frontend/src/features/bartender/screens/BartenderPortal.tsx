@@ -320,20 +320,7 @@ export const BartenderPortal: React.FC = () => {
                   </View>
                 </TouchableOpacity>
 
-                {/* Quick simulator triggers */}
-                <View className="bg-surface rounded-xl p-3 border border-white/5">
-                  <Text className="text-[10px] font-bold text-muted text-center uppercase tracking-wider mb-2">Simulate Card Taps:</Text>
-                  <View className="flex-row flex-wrap gap-2 justify-between">
-                    <TouchableOpacity className="w-[48%] bg-input border border-borderDark rounded-xl p-2.5 items-center mb-1 min-h-[44px] justify-center" onPress={() => handleSimulateScan('CARD-001')}>
-                      <Text className="text-themeText font-bold text-xs" style={{ color: '#f0ede6' }}>Card 001</Text>
-                      <Text className="text-[9px] mt-0.5" style={{ color: '#9ca3af' }}>Active (Lounge)</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity className="w-[48%] bg-input border border-borderDark rounded-xl p-2.5 items-center mb-1 min-h-[44px] justify-center" onPress={() => handleSimulateScan('CARD-005')}>
-                      <Text className="text-themeText font-bold text-xs" style={{ color: '#f0ede6' }}>Card 005</Text>
-                      <Text className="text-[9px] mt-0.5" style={{ color: '#9ca3af' }}>Active (Bar)</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+
               </View>
             </View>
           ) : (
@@ -372,20 +359,7 @@ export const BartenderPortal: React.FC = () => {
                 </View>
               </TouchableOpacity>
 
-              {/* Quick Card taps */}
-              <View className="bg-surface rounded-xl p-3 border border-white/5 mb-4">
-                <Text className="text-[10px] font-bold text-muted text-center uppercase tracking-wider mb-2">Simulate Card Taps:</Text>
-                <View className="flex-row flex-wrap gap-2 justify-between">
-                  <TouchableOpacity className="w-[48%] bg-input border border-borderDark rounded-xl p-2 items-center min-h-[40px] justify-center" onPress={() => handleSimulateScan('CARD-001')}>
-                    <Text className="text-themeText font-bold text-xs" style={{ color: '#f0ede6' }}>Card 001</Text>
-                    <Text className="text-[9px] mt-0.5" style={{ color: '#9ca3af' }}>Active (Lounge)</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity className="w-[48%] bg-input border border-borderDark rounded-xl p-2 items-center min-h-[40px] justify-center" onPress={() => handleSimulateScan('CARD-005')}>
-                    <Text className="text-themeText font-bold text-xs" style={{ color: '#f0ede6' }}>Card 005</Text>
-                    <Text className="text-[9px] mt-0.5" style={{ color: '#9ca3af' }}>Active (Bar)</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+
 
               {/* Active Checked-in Guests */}
               <Text className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2.5 px-1">Active Checked-in Guests:</Text>
