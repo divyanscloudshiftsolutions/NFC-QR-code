@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
-const apiURL = 'https://notificationservice-virid.vercel.app/api/email/send';
+const apiURL = process.env.NOTIFICATION_API_URL || 'https://notificationservice-virid.vercel.app/api/email/send';
 
 export interface EmailJob {
   to: string;
