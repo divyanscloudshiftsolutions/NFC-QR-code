@@ -22,6 +22,8 @@ export const AppIcon: React.FC<AppIconProps> = ({
       case 'chart': return '📈';
       case 'bell': return '🔔';
       case 'settings': return '⚙️';
+      case 'sun': return '☀️';
+      case 'moon': return '🌙';
       case 'logout': return '🚪';
       case 'check': return '✓';
       case 'wifi': return '🛜';

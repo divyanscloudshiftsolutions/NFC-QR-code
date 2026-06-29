@@ -63,7 +63,6 @@ export const MainAppShell: React.FC = () => {
 
   return (
     <View className="flex-1 w-full bg-themeBg">
-      <StatusBar barStyle="light-content" backgroundColor="#08090d" />
       
       {currentScreen === 'login' || !user ? (
         <LoginScreen />
