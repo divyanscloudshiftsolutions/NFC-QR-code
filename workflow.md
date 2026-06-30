@@ -1,37 +1,41 @@
-# Hybrid NFC Card & Email QR System Workflow
+# Hybrid NFC Card & Email QR Bar Management System
+# Complete Correct Workflow
 
-## 1. Application Startup & Configuration Loading
+## 1. Application Startup
 
 Application starts.
 
 ↓
 
-Backend connects to PostgreSQL.
+Backend server starts.
 
 ↓
 
-System loads delivery availability settings from:
+Backend connects to PostgreSQL database.
 
+↓
+
+System loads global configuration:
+
+Table:
 system_configs
 
-Values:
+Contains:
 
 - nfc_card_enabled
 - email_qr_enabled
 
 ↓
 
-TokenService.getConfiguredDeliveryAvailability()
-
-loads current settings.
+TokenService loads delivery availability settings.
 
 ↓
 
-Configuration cached in Redis.
+Redis cache updated with latest configuration.
 
 ↓
 
-Frontend starts.
+Frontend application starts.
 
 ↓
 
@@ -45,181 +49,143 @@ Frontend receives available delivery methods.
 
 Example:
 
-NFC Card: Enabled
-
-Email QR: Enabled
+NFC Card = Enabled
+Email QR = Enabled
 
 ↓
 
-Check-in screen dynamically shows available methods.
+Check-in page displays available options.
 
 Important:
 
-These settings decide what methods are available.
+Admin settings only control availability.
 
-They do not decide the customer's method.
+They do NOT change existing customer sessions.
 
-Customer method is selected during check-in.
+Existing tokens continue with their original delivery_mode.
 
 
----
 
-# 2. Admin Delivery Availability Settings
+# 2. Admin Delivery Method Control
 
+Admin Portal
+
+↓
 
 Admin opens:
 
-Admin Portal → Settings
-
-
-↓
-
-Admin controls availability:
-
-
-NFC Card
-
-ON / OFF
-
-
-Email QR
-
-ON / OFF
-
+Settings → Delivery Methods
 
 ↓
 
-Request:
+Admin changes:
+
+NFC Card ON/OFF
+
+Email QR ON/OFF
+
+↓
+
+API:
 
 PUT /api/config/delivery-methods
 
+↓
+
+Backend updates system_configs.
 
 ↓
 
-Backend updates configuration.
+New check-ins follow the updated setting.
 
 
 Example:
-
-Disable NFC Card.
-
-
-Result:
-
-New customers cannot choose NFC.
-
-
-Existing customers:
-
-continue with their existing method.
-
-
-Example:
-
-Customer A:
-
-delivery_mode = NFC_CARD
-
 
 Admin disables NFC.
 
-
-Customer A:
-
-Still works.
-
-
----
-
-# 3. Customer Check-In
-
-
-Receptionist opens Check-In.
-
-
 ↓
 
-System loads available methods.
+New customer:
+
+Cannot select NFC.
 
 
-↓
-
-Receptionist enters:
-
-
-- Customer name
-- Phone number
-- Number of persons
-- Email (required only for QR)
-
-
-↓
-
-Selects:
-
-Place Type
-
-
-↓
-
-Assigns:
-
-Available Table
-
-
-↓
-
-Receptionist selects:
-
-
-💳 NFC Card
-
-
-OR
-
-
-📧 Email QR
-
-
-↓
-
-Backend creates token.
-
-
-Token stores:
-
-
-delivery_mode
-
-
-Example:
-
-
-Token 1001
+Existing customer:
 
 delivery_mode = NFC_CARD
 
-
-Token 1002
-
-delivery_mode = EMAIL_QR
+Still works normally.
 
 
----
 
-# 4. NFC Card Check-In
+# 3. Reception Check-In Start
+
+Receptionist opens:
+
+New Check-in
 
 
-Receptionist selects:
+↓
 
-NFC Card
+Enter customer details:
 
+- Name
+- Phone Number
+- Number of Persons
+- Email (only required for Email QR)
+
+
+↓
+
+Select place type.
 
 ↓
 
 System checks:
 
-NFC availability enabled.
+Available tables.
+
+
+↓
+
+Receptionist selects delivery method:
+
+Option 1:
+NFC Card
+
+Option 2:
+Email QR
+
+
+
+# 4. NFC Card Check-In Workflow
+
+Receptionist selects:
+
+NFC_CARD
+
+
+↓
+
+Backend verifies:
+
+nfc_card_enabled = true
+
+
+↓
+
+Create customer session.
+
+Database:
+
+token.deliveryMode = NFC_CARD
+
+paymentVerified = true
+
+
+↓
+
+Generate token/session.
 
 
 ↓
@@ -229,96 +195,170 @@ Receptionist scans blank NFC card.
 
 ↓
 
-Card is linked with customer token.
+Card UID linked:
+
+card.status:
+
+AVAILABLE
+      ↓
+ASSIGNED
 
 
 ↓
 
-Card status:
+Token updated:
 
-
-AVAILABLE → ASSIGNED
-
-
-↓
-
-Table status:
-
-
-AVAILABLE → OCCUPIED
+cardUid = scanned card UID
 
 
 ↓
 
-Customer receives card.
+Selected table:
+
+AVAILABLE
+      ↓
+OCCUPIED
 
 
-Session starts.
+↓
+
+Session becomes active.
 
 
----
+↓
 
-# 5. Email QR Check-In
+Customer receives NFC card.
+
+
+↓
+
+Customer can redeem drinks.
+
+
+
+# 5. Email QR Check-In Workflow
 
 
 Receptionist selects:
 
-Email QR
+EMAIL_QR
 
 
 ↓
 
-System checks:
+Backend verifies:
 
-Email QR availability enabled.
-
-
-↓
-
-Customer email validation.
+email_qr_enabled = true
 
 
 ↓
 
-Token created.
+Email validation:
+
+Required.
 
 
 ↓
 
-Secure QR payload generated.
+Backend creates pending session.
+
+
+Database:
+
+deliveryMode = EMAIL_QR
+
+status = ACTIVE
+
+paymentVerified = false
+
+table = PENDING placeholder
 
 
 ↓
 
-Email service sends QR ticket.
+Generate secure QR token.
 
 
 ↓
 
-Email delivery status stored.
+Email service sends QR.
+
+
+Email contains:
+
+- Customer greeting
+- QR Code
+- Token details
 
 
 ↓
 
-Customer receives QR code.
+Customer receives QR.
 
 
 ↓
 
-Table status:
-
-
-AVAILABLE → OCCUPIED
+Receptionist scans customer QR.
 
 
 ↓
 
-Session starts.
+Backend verifies:
+
+- Token exists
+- QR signature valid
+- deliveryMode = EMAIL_QR
+- Token not expired
+- paymentVerified = false
 
 
----
+↓
 
-# 6. Drink Redemption
+QR accepted.
+
+
+↓
+
+Receptionist assigns real table.
+
+
+↓
+
+Manual billing/payment completed.
+
+
+↓
+
+Activation API:
+
+POST /api/check-in/activate
+
+
+Updates:
+
+paymentVerified = true
+
+table = selected table
+
+table status:
+
+AVAILABLE
+      ↓
+OCCUPIED
+
+
+↓
+
+Email QR session becomes active.
+
+
+↓
+
+Customer can redeem drinks.
+
+
+
+# 6. Drink Redemption Workflow
 
 
 Customer requests drink.
@@ -328,60 +368,113 @@ Customer requests drink.
 
 Customer presents:
 
-
 NFC Card
 
 OR
 
-QR Code
+Email QR
 
 
 ↓
 
-Request:
+Bartender scans.
 
 
-POST /api/redemptions
+↓
+
+POST:
+
+/api/redemptions
 
 
 ↓
 
 Backend checks:
 
-
-token.delivery_mode
-
-
----
-
-## NFC Customer
-
-
-Customer taps card.
-
-
-↓
-
-System validates:
-
-
-- Card assignment
+- Token exists
+- Delivery method matches
 - Token active
 - Session not expired
-- Table active
-- Drink balance available
+- paymentVerified = true
+- Remaining drinks available
+
+
+
+## NFC Redemption
+
+
+Input:
+
+Card UID
 
 
 ↓
 
-Security check:
+Backend finds:
 
-QR attempts rejected.
+cardUid
 
 
 ↓
 
-Drink count reduced.
+Checks:
+
+deliveryMode = NFC_CARD
+
+
+↓
+
+Approve.
+
+
+↓
+
+Drink count decreases.
+
+
+↓
+
+Redemption saved.
+
+
+
+## Email QR Redemption
+
+
+Input:
+
+QR token
+
+
+↓
+
+Backend validates:
+
+QR signature
+
+
+↓
+
+Checks:
+
+deliveryMode = EMAIL_QR
+
+
+↓
+
+Checks:
+
+paymentVerified = true
+
+
+↓
+
+Approve.
+
+
+↓
+
+Drink count decreases.
 
 
 ↓
@@ -389,54 +482,17 @@ Drink count reduced.
 Redemption history saved.
 
 
----
 
-## Email QR Customer
+Wrong method:
 
-
-Customer shows QR.
+Rejected.
 
 
-↓
 
-Bartender scans QR.
-
-
-↓
-
-System validates:
+# 7. Extend Time Workflow
 
 
-- QR authenticity
-- Token active
-- Expiry time
-- Drink balance
-- Table status
-
-
-↓
-
-Security check:
-
-NFC attempts rejected.
-
-
-↓
-
-Drink count reduced.
-
-
-↓
-
-Redemption history saved.
-
-
----
-
-# 7. Time Extension
-
-
-Customer requests more time.
+Customer requests extension.
 
 
 ↓
@@ -451,35 +507,32 @@ Existing token updated.
 
 Updates:
 
-
-- New expiry time
-- Extension history
+- endTime
+- extension duration
+- extension history
 
 
 ↓
 
-Same token continues.
+Same session continues.
 
 
 No new:
 
 - NFC card
 - QR code
-- Email
+- token
 
 
----
 
-# 8. Session Closure
+# 8. Session Checkout Workflow
 
 
 System checks:
 
+deliveryMode
 
-token.delivery_mode
 
-
----
 
 ## NFC Checkout
 
@@ -494,29 +547,33 @@ Receptionist scans card.
 
 ↓
 
-Session closed.
+Backend finds token.
 
 
 ↓
 
-Card reset.
+Close session.
 
 
-Card status:
+Updates:
+
+token status = closed
 
 
-ASSIGNED → AVAILABLE
+Card:
 
+ASSIGNED
+   ↓
+AVAILABLE
 
-↓
 
 Table:
 
+OCCUPIED
+   ↓
+AVAILABLE
 
-OCCUPIED → AVAILABLE
 
-
----
 
 ## Email QR Checkout
 
@@ -528,28 +585,28 @@ Customer leaves.
 
 Receptionist:
 
-
-Option 1:
-
 Scan QR
-
 
 OR
 
-
-Option 2:
-
-Search token/customer
+Search customer/token
 
 
 ↓
 
-Session closed.
+Backend validates:
+
+token active
 
 
 ↓
 
-QR becomes inactive.
+Close session.
+
+
+↓
+
+QR becomes invalid.
 
 
 ↓
@@ -557,28 +614,35 @@ QR becomes inactive.
 Table released.
 
 
----
 
-# 9. Bartender Workflow
-
-
-Bartender opens redemption screen.
+# 9. Bartender Portal Workflow
 
 
-If both enabled:
-
-
-Shows:
-
-
-- NFC scanner
-- QR scanner
-- Active sessions
+Bartender opens portal.
 
 
 ↓
 
-System accepts only correct method.
+Loads active sessions.
+
+
+Only shows:
+
+paymentVerified = true
+
+
+↓
+
+Available methods:
+
+NFC scanner
+
+QR scanner
+
+
+↓
+
+System accepts only matching method.
 
 
 NFC token:
@@ -586,134 +650,200 @@ NFC token:
 Only NFC works.
 
 
-Email token:
+EMAIL_QR token:
 
 Only QR works.
 
 
----
 
-# 10. Offline Workflow
-
-
-## NFC Mode
+# 10. Data Persistence Workflow
 
 
-Internet unavailable.
+Online Mode:
 
 
-↓
+Every operation:
 
-Receptionist can continue operations.
-
-
-- Check-in
-- Card assignment
-- Redemption
-
+Frontend
 
 ↓
 
-Operations stored locally.
-
+Backend API
 
 ↓
+
+PostgreSQL
+
+
+Database is source of truth.
+
+
+App refresh:
+
+Frontend reloads.
+
+↓
+
+Fetch:
+
+GET /tokens/active
+
+↓
+
+Restore sessions from database.
+
+
+
+No important data depends on local storage.
+
+
+
+# 11. Offline Mode
+
+
+Offline activates ONLY when:
+
+- No internet connection
+OR
+- API fails because of connectivity loss
+
+
+Offline queue stores:
+
+- check-in
+- redemption
+- updates
+
+
+Stored locally temporarily.
+
 
 Internet returns.
 
 
 ↓
 
-SyncService uploads pending operations.
+SyncService runs.
 
 
 ↓
 
-Duplicate operations prevented.
+Uploads queued operations.
 
 
----
+↓
 
-## Email QR Mode
-
-
-New QR creation requires internet.
+Backend saves to PostgreSQL.
 
 
-Because:
+↓
+
+Local queue cleared.
 
 
-- QR generation
-- Email sending
+
+# 12. Reporting Workflow
 
 
-need online service.
+Reports use database records.
 
 
-Offline:
+Tracks:
 
-
-New QR check-in blocked.
-
-
-Existing QR sessions continue if validation data is available.
-
-
----
-
-# 11. Reporting
-
-
-System records:
-
-
-- Customer details
-- Token
+- Customers
+- Tokens
 - Delivery mode
-- Card assignment
-- QR generation
-- Email status
+- NFC assignments
+- QR delivery
 - Redemptions
 - Extensions
 - Checkout
+- Revenue
 - Table usage
 
 
-Reports support:
+Pending EMAIL_QR:
+
+paymentVerified = false
+
+Excluded from:
+
+- active guests
+- redemption reports
+- sales reports
+- occupancy statistics
 
 
-NFC_CARD
+Activated sessions only included.
 
 
-EMAIL_QR
 
-
----
-
-# 12. Error Protection
+# 13. Security & Validation
 
 
 System blocks:
 
 
-- Disabled delivery method
-- Wrong scan method
-- Invalid NFC
-- Invalid QR
-- Expired token
-- Duplicate redemption
-- No remaining drinks
-- Email failure
-- Table conflict
+Disabled method
+
+↓
+
+Rejected
 
 
-Database maintains:
+Wrong scan type
+
+↓
+
+Rejected
+
+
+Invalid QR
+
+↓
+
+Rejected
+
+
+Expired token
+
+↓
+
+Rejected
+
+
+Duplicate redemption
+
+↓
+
+Rejected
+
+
+No drinks remaining
+
+↓
+
+Rejected
+
+
+Unpaid EMAIL_QR
+
+↓
+
+Cannot redeem
+
+
+Database always maintains:
 
 
 ✓ Correct token state
 
+✓ Correct delivery mode
+
 ✓ Correct customer session
 
-✓ Correct table status
+✓ Correct table occupancy
 
 ✓ Correct redemption history
+
+✓ Correct payment status
