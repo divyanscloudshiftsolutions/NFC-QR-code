@@ -3,16 +3,37 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import router from './routes';
 import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
+import Redis from 'ioredis';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 4000;
 
+// Configure Trust Proxy for Deployed Proxy Environments
+app.set('trust proxy', 1);
+
+// Configure Redis Store with In-Memory fallback for Rate Limiting
+let rateLimitStore;
+if (process.env.REDIS_URL) {
+  try {
+    const redisClient = new Redis(process.env.REDIS_URL);
+    rateLimitStore = new RedisStore({
+      // @ts-expect-error - compatibility mapping for ioredis/rate-limit-redis
+      sendCommand: (...args: string[]) => redisClient.call(args[0], ...args.slice(1)),
+    });
+    console.log('Rate limiter: Redis store initialized successfully.');
+  } catch (err) {
+    console.error('Rate limiter: Failed to initialize Redis store. Falling back to MemoryStore.', err);
+  }
+}
+
 // API Gateway Rate Limiter (B2 component in nfc.md)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per 15-minute window
+  store: rateLimitStore,
   message: {
     success: false,
     error: {

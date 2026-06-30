@@ -26,7 +26,8 @@
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
-    "prisma": "^5.10.2"
+    "prisma": "^5.10.2",
+    "rate-limit-redis": "^5.0.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
