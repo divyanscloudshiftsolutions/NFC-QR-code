@@ -78,32 +78,72 @@ export class EmailNotificationService {
 
     // Resolve the token details from database to see delivery mode and sign payload
     let qrData = tokenNumber;
+    let personsCount = 1;
+    let placeTypeName = 'Standing Bar';
+    let tableNumber = 'Pending';
     try {
       const tokenRecord = await prisma.token.findUnique({
-        where: { tokenNumber }
+        where: { tokenNumber },
+        include: {
+          customer: true,
+          placeType: true,
+          table: true
+        }
       });
-      if (tokenRecord && tokenRecord.deliveryMode === 'EMAIL_QR') {
-        const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-        qrData = jwt.sign(
-          {
-            token: tokenNumber,
-            type: 'EMAIL_QR'
-          },
-          secret
-        );
+      if (tokenRecord) {
+        personsCount = tokenRecord.personsCount;
+        placeTypeName = tokenRecord.placeType.name.replace(/_/g, ' ');
+        tableNumber = tokenRecord.table ? tokenRecord.table.tableNumber : 'Pending';
+        if (tokenRecord.deliveryMode === 'EMAIL_QR') {
+          const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
+          qrData = jwt.sign(
+            {
+              token: tokenNumber,
+              type: 'EMAIL_QR'
+            },
+            secret
+          );
+        }
       }
     } catch (e: any) {
-      console.warn(`[Email Worker] Failed to check token delivery mode, falling back to token number: ${e.message}`);
+      console.warn(`[Email Worker] Failed to check token details, falling back to defaults: ${e.message}`);
     }
 
     const subject = 'Your Lounge Entry Token QR Code';
     const rawHtml = `
-      <h3>Welcome, ${customerName}</h3>
-      <p>Your session is active. Please present this QR code to the staff when ordering drinks:</p>
-      <div style="margin: 20px 0;">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}" alt="QR Code" style="border: 2px solid #F5A623; border-radius: 8px;" />
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <h2 style="color: #D4AF37; margin-bottom: 20px;">Lounge Entry Confirmation</h2>
+        <p style="color: #475569; font-size: 16px; line-height: 1.5;">Dear ${customerName || 'Customer'},</p>
+        <p style="color: #475569; font-size: 14px; line-height: 1.5;">Welcome to Antigravity Lounge! Your digital check-in session is registered. Please present the QR code below to the staff when ordering drinks or entering the lounge:</p>
+        
+        <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}" alt="QR Code" style="border: 4px solid #D4AF37; border-radius: 8px; max-width: 250px; height: auto;" />
+          <p style="color: #64748b; font-size: 12px; margin-top: 10px; margin-bottom: 0;">Scan to verify entry</p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Token Number:</td>
+            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-family: monospace; font-weight: bold;">${tokenNumber}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Seating Area:</td>
+            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">${placeTypeName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Group Size:</td>
+            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">${personsCount} Person(s)</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Assigned Table:</td>
+            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-weight: bold;">${tableNumber}</td>
+          </tr>
+        </table>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px;">
+          <p>Thank you for choosing Antigravity Lounge.</p>
+        </div>
       </div>
-      <p><strong>Token Number:</strong> ${tokenNumber}</p>
     `;
 
     // 2. HTML Sanitization

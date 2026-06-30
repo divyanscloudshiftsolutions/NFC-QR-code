@@ -14,7 +14,8 @@ async function main() {
   await prisma.token.deleteMany({});
   await prisma.customer.deleteMany({});
   await prisma.card.deleteMany({});
-  console.log('Transaction tables and card inventory cleared.');
+  await prisma.table.deleteMany({});
+  console.log('Transaction tables, seating tables, and card inventory cleared.');
 
   // 1. Create triggers in PostgreSQL database using raw SQL
   console.log('Creating triggers...');
@@ -269,9 +270,12 @@ async function main() {
 
   // 5. Seed Tables
   console.log('Seeding tables...');
+  const seatCapacities = [2, 4, 6];
+
   // Standing Bar tables S-01 to S-15
   for (let i = 1; i <= 15; i++) {
     const tableNumber = `S-${String(i).padStart(2, '0')}`;
+    const capacity = seatCapacities[(i - 1) % seatCapacities.length];
     await prisma.table.upsert({
       where: {
         tableNumber_placeTypeId: {
@@ -280,14 +284,14 @@ async function main() {
         },
       },
       update: {
-        capacity: 2,
+        capacity,
         status: 'available',
         isActive: true,
       },
       create: {
         tableNumber,
         placeTypeId: dbPlaceTypes['STANDING_BAR'],
-        capacity: 2,
+        capacity,
         status: 'available',
         isActive: true,
       },
@@ -297,6 +301,7 @@ async function main() {
   // Premium Lounge tables L-01 to L-10
   for (let i = 1; i <= 10; i++) {
     const tableNumber = `L-${String(i).padStart(2, '0')}`;
+    const capacity = seatCapacities[(i - 1) % seatCapacities.length];
     await prisma.table.upsert({
       where: {
         tableNumber_placeTypeId: {
@@ -305,14 +310,14 @@ async function main() {
         },
       },
       update: {
-        capacity: 6,
+        capacity,
         status: 'available',
         isActive: true,
       },
       create: {
         tableNumber,
         placeTypeId: dbPlaceTypes['PREMIUM_LOUNGE'],
-        capacity: 6,
+        capacity,
         status: 'available',
         isActive: true,
       },

@@ -325,6 +325,122 @@ async function runTests() {
       assert.strictEqual(resendData.data.emailStatus, 'PENDING');
       console.log('✓ Resend email job enqueued successfully.');
 
+      // Test 13: POST /check-in/pending
+      console.log('Test 13: POST /check-in/pending');
+      const pendingRes = await fetch(`${BASE_URL}/check-in/pending`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          phoneNumber: '9876543210',
+          customerName: 'Pending Guest',
+          email: 'pending.guest@gmail.com',
+          personsCount: 2,
+          placeType: 'STANDING_BAR'
+        })
+      });
+      assert.strictEqual(pendingRes.status, 201);
+      const pendingData: any = await pendingRes.json();
+      assert.ok(pendingData.tokenNumber);
+      assert.strictEqual(pendingData.customerName, 'Pending Guest');
+      assert.strictEqual(pendingData.paymentVerified, false);
+      const pendingTokenNumber = pendingData.tokenNumber;
+      console.log('✓ Pending session check-in created successfully. Token:', pendingTokenNumber);
+
+      // Test 14: GET /check-in/verify-qr/:tokenNumber
+      console.log('Test 14: GET /check-in/verify-qr/:tokenNumber');
+      const verifyQrRes = await fetch(`${BASE_URL}/check-in/verify-qr/${pendingTokenNumber}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${jwtToken}` }
+      });
+      assert.strictEqual(verifyQrRes.status, 200);
+      const verifyQrData: any = await verifyQrRes.json();
+      assert.strictEqual(verifyQrData.tokenNumber, pendingTokenNumber);
+      assert.strictEqual(verifyQrData.paymentVerified, false);
+      console.log('✓ Pending QR session token successfully verified.');
+
+      // Test 14.1: Attempt to redeem drink for pending unpaid QR (should fail)
+      console.log('Test 14.1: Block drink redemption on pending unpaid QR');
+      // Generate a signed payload for the pending token
+      const pendingGenRes = await fetch(`${BASE_URL}/tokens/${pendingData.id}/generate-qr`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${jwtToken}` }
+      });
+      assert.strictEqual(pendingGenRes.status, 200);
+      const pendingGenData: any = await pendingGenRes.json();
+      const pendingSignedPayload = new URL(pendingGenData.data.qrImage).searchParams.get('data');
+
+      const failedRedeemRes = await fetch(`${BASE_URL}/redemptions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          payload: pendingSignedPayload,
+          presentationType: 'QR_SCAN',
+          bartenderId: adminUser.id
+        })
+      });
+      assert.strictEqual(failedRedeemRes.status, 400);
+      const failedRedeemData: any = await failedRedeemRes.json();
+      assert.strictEqual(failedRedeemData.success, false);
+      assert.strictEqual(failedRedeemData.error.message, 'Payment has not been verified for this session.');
+      console.log('✓ Correctly blocked drink redemption on unpaid QR session.');
+
+      // Test 14.2: Attempt to checkout/close unpaid pending session (should fail)
+      console.log('Test 14.2: Block checkout on pending unpaid session');
+      const failedCloseRes = await fetch(`${BASE_URL}/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          tokenNumber: pendingTokenNumber,
+          eraseCard: false
+        })
+      });
+      assert.strictEqual(failedCloseRes.status, 400);
+      const failedCloseData: any = await failedCloseRes.json();
+      assert.strictEqual(failedCloseData.error, 'Cannot close an unpaid pending QR session.');
+      console.log('✓ Correctly blocked checkout on unpaid pending session.');
+
+      // Test 15: POST /check-in/activate
+      console.log('Test 15: POST /check-in/activate');
+      // Find an available table first
+      const availableTable = await prisma.table.findFirst({
+        where: { status: 'available', placeType: { name: 'STANDING_BAR' } }
+      });
+      assert.ok(availableTable);
+      const activateRes = await fetch(`${BASE_URL}/check-in/activate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          tokenNumber: pendingTokenNumber,
+          tableNumber: availableTable.tableNumber,
+          amountPaid: 1000
+        })
+      });
+      assert.strictEqual(activateRes.status, 200);
+      const activateData: any = await activateRes.json();
+      assert.strictEqual(activateData.tokenNumber, pendingTokenNumber);
+      assert.strictEqual(activateData.paymentVerified, true);
+      assert.strictEqual(Number(activateData.amountPaid), 1000);
+      assert.strictEqual(activateData.tableNumber, availableTable.tableNumber);
+
+      // Verify that the table status in DB is occupied
+      const tableInDb = await prisma.table.findUnique({
+        where: { id: availableTable.id }
+      });
+      assert.strictEqual(tableInDb?.status, 'occupied');
+      console.log('✓ Pending session activated successfully.');
+
       console.log('\n=========================================');
       console.log('ALL EMAIL QR INTEGRATION TESTS PASSED!');
       console.log('=========================================\n');

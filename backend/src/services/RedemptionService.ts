@@ -48,7 +48,7 @@ export class RedemptionService {
         const tokens = await tx.$queryRaw<any[]>`
           SELECT id, status, end_time as "endTime", redemptions_used as "redemptionsUsed", 
                  total_redemptions_allowed as "totalRedemptionsAllowed", table_id as "tableId",
-                 delivery_mode as "deliveryMode"
+                 delivery_mode as "deliveryMode", payment_verified as "paymentVerified"
           FROM tokens
           WHERE token_number = ${tokenNumber}
           FOR UPDATE
@@ -65,6 +65,11 @@ export class RedemptionService {
         }
         if (presentationType === 'NFC_TAP' && token.deliveryMode !== 'NFC_CARD') {
           throw new Error('Email QR token cannot be redeemed via NFC tap.');
+        }
+
+        // Validate payment status
+        if (!token.paymentVerified) {
+          throw new Error('Payment has not been verified for this session.');
         }
 
         // Validate token status (allow active or extended sessions)

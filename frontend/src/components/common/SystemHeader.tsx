@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../context/NfcBarContext';
+import { useTheme } from '../../context/ThemeContext';
 import { AppIcon } from './AppIcon';
-import { useAppTheme } from '../../context/ThemeContext';
 
 interface SystemHeaderProps {
   onOpenNotifs: () => void;
@@ -11,7 +11,7 @@ interface SystemHeaderProps {
 
 export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
   const { systemMode, pendingSyncCount, lastSyncTime, notifications, setMode } = useNfcBar();
-  const { isDark, toggleTheme, colors } = useAppTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -27,23 +27,23 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
     switch (systemMode) {
       case 'online': 
         return {
-          bg: 'bg-teal/10 border-teal/20',
+          bg: isDark ? 'bg-teal/10 border-teal/20' : 'bg-[#1D4ED8]/5 border-[#1D4ED8]/10',
           dot: 'bg-teal',
-          text: colors.teal,
+          text: isDark ? '#4ECDC4' : '#1D4ED8',
           label: 'Online'
         };
       case 'syncing': 
         return {
-          bg: 'bg-gold/10 border-gold/20',
+          bg: isDark ? 'bg-gold/10 border-gold/20' : 'bg-[#C89B3C]/5 border-[#C89B3C]/10',
           dot: 'bg-gold',
-          text: colors.gold,
+          text: isDark ? '#F5A623' : '#C89B3C',
           label: `Syncing • ${lastSyncTime}`
         };
       case 'offline': 
         return {
-          bg: 'bg-muted/10 border-muted/20',
+          bg: isDark ? 'bg-muted/10 border-muted/20' : 'bg-[#7E7E82]/5 border-[#7E7E82]/10',
           dot: 'bg-muted',
-          text: colors.muted,
+          text: isDark ? colors.muted : '#7E7E82',
           label: 'Offline Mode'
         };
     }
@@ -53,8 +53,13 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
 
   return (
     <View 
-      className="flex-row justify-between items-center px-4 pb-2.5 border-b border-white/5 bg-bg"
-      style={{ paddingTop: Math.max(12, insets.top) }}
+      className="flex-row justify-between items-center px-4 pb-2.5 border-b"
+      style={{ 
+        paddingTop: Math.max(12, insets.top),
+        backgroundColor: colors.bg,
+        borderBottomColor: colors.border,
+        borderBottomWidth: 1
+      }}
     >
       <View className="flex-row items-center gap-1.5 max-w-[45%]">
         {/* Sync Capsule Status Pill */}
@@ -63,7 +68,7 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
           onPress={toggleConnection}
           activeOpacity={0.8}
         >
-          <View className={`w-1.5 h-1.5 rounded-full mr-1.5 ${capsule.dot}`} />
+          <View className={`w-1.5 h-1.5 rounded-full mr-1.5 ${capsule.dot}`} style={!isDark && capsule.dot === 'bg-teal' ? { backgroundColor: colors.teal } : {}} />
           <Text className="text-[9px] font-extrabold uppercase tracking-[0.5px]" style={{ color: capsule.text }} numberOfLines={1}>
             {capsule.label}
           </Text>
@@ -72,34 +77,36 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
         {/* Offline pending syncs indicator */}
         {systemMode === 'offline' && pendingSyncCount > 0 && (
           <View className="bg-red/10 border border-red/25 px-2.5 py-2 rounded-full min-h-[36px] justify-center">
-            <Text className="font-black text-[9px] uppercase tracking-wide" style={{ color: colors.red }}>
+            <Text className="font-black text-[9px] uppercase tracking-wide" style={{ color: '#e63946' }}>
               {pendingSyncCount} Syncs
             </Text>
           </View>
         )}
       </View>
 
-      <Text className="text-[11px] font-bold text-gold tracking-[0.5px] uppercase">🍹 Reception</Text>
+      <Text className="text-xs font-bold tracking-[0.5px] uppercase" style={{ color: colors.gold }}>🍹 Reception</Text>
 
-      <View className="flex-row gap-2">
-        {/* Dynamic Theme Toggle Button */}
+      <View className="flex-row items-center gap-2">
+        {/* Theme Toggle Button */}
         <TouchableOpacity 
-          className="w-10 h-10 rounded-full bg-surface justify-center items-center border border-white/5"
+          className="w-10 h-10 rounded-full justify-center items-center border"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
           onPress={toggleTheme}
           activeOpacity={0.8}
         >
-          <AppIcon name={isDark ? 'sun' : 'moon'} label="Toggle Theme" color={colors.text} size={18} />
+          <Text style={{ fontSize: 16 }}>{isDark ? '☀️' : '🌙'}</Text>
         </TouchableOpacity>
 
-        {/* Notifications Bell Button */}
+        {/* Notifications Icon Button */}
         <TouchableOpacity 
-          className="w-10 h-10 rounded-full bg-surface justify-center items-center border border-white/5 relative"
+          className="w-10 h-10 rounded-full justify-center items-center border relative"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
           onPress={onOpenNotifs}
           activeOpacity={0.8}
         >
           <AppIcon name="bell" label="Open Notifications" color={colors.text} size={18} />
           {unreadCount > 0 && (
-            <View className="absolute -top-0.5 -right-0.5 bg-red w-4 h-4 rounded-full justify-center items-center border border-bg">
+            <View className="absolute -top-0.5 -right-0.5 bg-red w-4 h-4 rounded-full justify-center items-center border" style={{ borderColor: colors.bg }}>
               <Text className="text-[8px] font-black" style={{ color: colors.bg }}>{unreadCount}</Text>
             </View>
           )}

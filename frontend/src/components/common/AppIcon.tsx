@@ -1,6 +1,8 @@
 import React from 'react';
 import { Text } from 'react-native';
 
+import { useTheme } from '../../context/ThemeContext';
+
 interface AppIconProps {
   name: string;
   color?: string;
@@ -10,10 +12,12 @@ interface AppIconProps {
 
 export const AppIcon: React.FC<AppIconProps> = ({ 
   name, 
-  color = '#f0ede6', 
+  color, 
   size = 20, 
   label 
 }) => {
+  const { colors } = useTheme();
+  const activeColor = color || colors.text;
   const getIcon = () => {
     switch (name) {
       case 'credit-card': return '💳';
@@ -22,8 +26,6 @@ export const AppIcon: React.FC<AppIconProps> = ({
       case 'chart': return '📈';
       case 'bell': return '🔔';
       case 'settings': return '⚙️';
-      case 'sun': return '☀️';
-      case 'moon': return '🌙';
       case 'logout': return '🚪';
       case 'check': return '✓';
       case 'wifi': return '🛜';
@@ -47,7 +49,7 @@ export const AppIcon: React.FC<AppIconProps> = ({
 
   return (
     <Text 
-      style={{ fontSize: size, color }} 
+      style={{ fontSize: size, color: activeColor }} 
       accessibilityLabel={label}
       accessibilityRole="image"
     >

@@ -1385,6 +1385,18 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
     const calculatedAmount = finalPersonsCount * parseFloat(ptConfig.ratePerPerson.toString());
     const finalAmountPaid = amountPaid !== undefined ? parseFloat(amountPaid) : calculatedAmount;
 
+    let finalIssuedBy = req.user?.id || '';
+    if (finalIssuedBy) {
+      const userExists = await prisma.user.findUnique({ where: { id: finalIssuedBy } });
+      if (!userExists) {
+        finalIssuedBy = '';
+      }
+    }
+    if (!finalIssuedBy) {
+      const fallbackUser = await prisma.user.findFirst({ where: { role: { name: 'receptionist' } } });
+      finalIssuedBy = fallbackUser?.id || (await prisma.user.findFirst())?.id || '';
+    }
+
     const token = await tokenService.createToken({
       phoneNumber: finalPhoneNumber,
       customerName: finalCustomerName,
@@ -1394,7 +1406,7 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
       tableId: finalTableId,
       amountPaid: finalAmountPaid,
       paymentVerified: paymentVerified !== undefined ? paymentVerified : true,
-      issuedBy: req.user?.id || '',
+      issuedBy: finalIssuedBy,
       nfcCardUid: deliveryMode === 'NFC_CARD' ? finalCardUid : undefined,
       cardId: card ? card.id : undefined,
     });
@@ -1424,13 +1436,378 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(201).json(responseData);
   } catch (err: any) {
     console.error(err);
-    return res.status(400).json({ success: false, error: err.message });
+    return res.status(400).json({ success: false, error: { message: err.message } });
   }
 };
 
-// Map both check-in endpoints
+const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) => {
+  const {
+    phoneNumber,
+    customerName,
+    email,
+    personsCount,
+    persons,
+    placeType,
+    placeTypeId,
+  } = req.body;
+
+  const phoneRegex = /^(?:\+91)?[6-9]\d{9}$/;
+  if (!phoneNumber || !phoneRegex.test(phoneNumber)) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Please enter a valid 10-digit Indian phone number starting with 6-9.' } });
+  }
+  const finalPhoneNumber = phoneNumber.startsWith('+91') ? phoneNumber : `+91${phoneNumber}`;
+
+  const nameRegex = /^[a-zA-Z\s.'-]{2,100}$/;
+  if (!customerName || !nameRegex.test(customerName)) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Customer name must contain only letters, spaces, periods, apostrophes, or hyphens (2-100 characters).' } });
+  }
+
+  if (!email || !email.trim()) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Email address is mandatory when system operates in EMAIL_QR mode.' } });
+  }
+  if (!validateEmail(email)) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Please enter a valid Gmail address using only lowercase letters, numbers, and dots.' } });
+  }
+  const finalEmail = email.trim().toLowerCase();
+
+  const finalPersonsCount = parseInt(personsCount || persons || '1', 10);
+  if (isNaN(finalPersonsCount) || finalPersonsCount < 1) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Persons count must be an integer greater than or equal to 1.' } });
+  }
+
+  try {
+    let finalPlaceTypeId = placeTypeId;
+    if (!finalPlaceTypeId && placeType) {
+      const ptObj = await prisma.placeTypeConfig.findUnique({ where: { name: placeType } });
+      if (ptObj) finalPlaceTypeId = ptObj.id;
+    }
+    if (!finalPlaceTypeId) {
+      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Invalid place type.' } });
+    }
+
+    const placeTypeObj = await prisma.placeTypeConfig.findUnique({ where: { id: finalPlaceTypeId } });
+    if (!placeTypeObj) {
+      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type config not found.' } });
+    }
+
+    // Check for existing active token for phone number
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { phoneNumber: finalPhoneNumber },
+      include: {
+        tokens: {
+          where: { status: { in: ['active', 'extended', 'expired'] } },
+          take: 1
+        }
+      }
+    });
+    if (existingCustomer && existingCustomer.tokens.length > 0) {
+      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Customer already has an active token.' } });
+    }
+
+    // Get or create customer
+    let customer: any = existingCustomer;
+    if (!customer) {
+      customer = await prisma.customer.create({
+        data: {
+          phoneNumber: finalPhoneNumber,
+          name: customerName,
+          email: finalEmail,
+          totalVisits: 1
+        }
+      });
+    } else {
+      customer = await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          totalVisits: { increment: 1 },
+          lastVisit: new Date(),
+          name: customerName,
+          email: finalEmail
+        }
+      });
+    }
+
+    const tokenNumber = await tokenService.generateTokenNumber();
+
+    // Create a temporary unique table row to avoid violating uq_table_active_token index
+    const tempTable = await prisma.table.create({
+      data: {
+        tableNumber: `PENDING-${tokenNumber}`,
+        placeTypeId: finalPlaceTypeId,
+        capacity: finalPersonsCount,
+        status: 'available',
+        isActive: false // hidden from active seating grids
+      }
+    });
+
+    const start = new Date();
+    const endTime = new Date(start.getTime() + placeTypeObj.baseTimeMinutes * 60 * 1000);
+    const totalRedemptionsAllowed = finalPersonsCount * placeTypeObj.redemptionsPerPerson;
+
+    let finalIssuedBy = req.user?.id || '';
+    if (finalIssuedBy) {
+      const userExists = await prisma.user.findUnique({ where: { id: finalIssuedBy } });
+      if (!userExists) {
+        finalIssuedBy = '';
+      }
+    }
+    if (!finalIssuedBy) {
+      const fallbackUser = await prisma.user.findFirst({ where: { role: { name: 'receptionist' } } });
+      finalIssuedBy = fallbackUser?.id || (await prisma.user.findFirst())?.id || '';
+    }
+
+    const token = await prisma.token.create({
+      data: {
+        tokenNumber,
+        customerId: customer.id,
+        personsCount: finalPersonsCount,
+        placeTypeId: finalPlaceTypeId,
+        tableId: tempTable.id,
+        amountPaid: 0,
+        paymentVerified: false,
+        startTime: start,
+        endTime,
+        totalRedemptionsAllowed,
+        redemptionsUsed: 0,
+        status: 'active', // keep existing active enum/status
+        issuedBy: finalIssuedBy,
+        deliveryMode: 'EMAIL_QR',
+        emailSent: false,
+        emailDeliveryStatus: 'PENDING'
+      },
+      include: {
+        customer: true,
+        placeType: true,
+        table: true
+      }
+    });
+
+    emailNotificationService.enqueueEmailJob(finalEmail, token.tokenNumber, customerName);
+
+    const responseData = {
+      id: token.id,
+      tokenNumber: token.tokenNumber,
+      phoneNumber: token.customer.phoneNumber,
+      customerName: token.customer.name,
+      email: token.customer.email,
+      persons: token.personsCount,
+      placeType: token.placeType.name,
+      tableId: token.tableId,
+      tableNumber: token.table.tableNumber,
+      amountPaid: 0,
+      paymentVerified: token.paymentVerified,
+      startTime: token.startTime.toISOString(),
+      endTime: token.endTime.toISOString(),
+      redemptionLimit: token.totalRedemptionsAllowed,
+      redemptionCount: token.redemptionsUsed,
+      status: token.status.toUpperCase(),
+      cardUid: null,
+      createdAt: token.issuedAt.toISOString(),
+    };
+
+    return res.status(201).json(responseData);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+};
+
+const verifyQrHandler = async (req: Request, res: Response) => {
+  try {
+    const { tokenNumber } = req.params;
+    let targetTokenNumber = tokenNumber;
+
+    if (tokenNumber.includes('.')) {
+      try {
+        const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
+        const decoded = jwt.verify(tokenNumber, secret) as { token: string; type: string };
+        if (decoded && decoded.token) {
+          targetTokenNumber = decoded.token;
+        }
+      } catch (err) {
+        return res.status(400).json({ success: false, error: { message: 'Invalid or expired QR code signature.' } });
+      }
+    }
+
+    const token = await prisma.token.findUnique({
+      where: { tokenNumber: targetTokenNumber },
+      include: {
+        customer: true,
+        placeType: true,
+        table: true
+      }
+    });
+
+    if (!token) {
+      return res.status(404).json({ success: false, error: { message: 'QR token not found in database.' } });
+    }
+    if (token.deliveryMode !== 'EMAIL_QR') {
+      return res.status(400).json({ success: false, error: { message: 'Token is not an Email QR token.' } });
+    }
+    if (token.paymentVerified) {
+      return res.status(400).json({ success: false, error: { message: 'This QR session has already been activated.' } });
+    }
+    if (token.status !== 'active') {
+      return res.status(400).json({ success: false, error: { message: `Token has status '${token.status}' and cannot be validated.` } });
+    }
+    const now = new Date();
+    if (new Date(token.endTime) <= now) {
+      return res.status(400).json({ success: false, error: { message: 'QR token has expired.' } });
+    }
+
+    const responseData = {
+      id: token.id,
+      tokenNumber: token.tokenNumber,
+      phoneNumber: token.customer.phoneNumber,
+      customerName: token.customer.name,
+      email: token.customer.email,
+      persons: token.personsCount,
+      placeType: token.placeType.name,
+      tableId: token.tableId,
+      tableNumber: token.table.tableNumber,
+      amountPaid: token.amountPaid,
+      paymentVerified: token.paymentVerified,
+      startTime: token.startTime.toISOString(),
+      endTime: token.endTime.toISOString(),
+      redemptionLimit: token.totalRedemptionsAllowed,
+      redemptionCount: token.redemptionsUsed,
+      status: token.status.toUpperCase(),
+      cardUid: null,
+      createdAt: token.issuedAt.toISOString(),
+    };
+
+    return res.status(200).json(responseData);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+};
+
+const activateSessionHandler = async (req: Request, res: Response) => {
+  const { tokenNumber, tableNumber, amountPaid } = req.body;
+
+  try {
+    const token = await prisma.token.findUnique({
+      where: { tokenNumber },
+      include: {
+        customer: true,
+        placeType: true
+      }
+    });
+
+    if (!token) {
+      return res.status(404).json({ success: false, error: { message: 'Token not found.' } });
+    }
+    if (token.paymentVerified) {
+      return res.status(400).json({ success: false, error: { message: 'Token is already activated.' } });
+    }
+    if (token.status !== 'active') {
+      return res.status(400).json({ success: false, error: { message: `Token has status '${token.status}' and cannot be activated.` } });
+    }
+
+    const table = await prisma.table.findFirst({
+      where: { tableNumber, placeTypeId: token.placeTypeId }
+    });
+    if (!table) {
+      return res.status(400).json({ success: false, error: { message: `Table '${tableNumber}' not found for this place type.` } });
+    }
+    if (table.status !== 'available') {
+      return res.status(400).json({ success: false, error: { message: `Table '${tableNumber}' is not available.` } });
+    }
+    if (token.personsCount > table.capacity) {
+      return res.status(400).json({ success: false, error: { message: `Group size of ${token.personsCount} exceeds table capacity of ${table.capacity}.` } });
+    }
+
+    const now = new Date();
+    // Calculate new end time starting from NOW
+    const endTime = new Date(now.getTime() + token.placeType.baseTimeMinutes * 60 * 1000);
+    const tempTableId = token.tableId;
+
+    // Perform database updates inside transaction
+    const updatedToken = await prisma.$transaction(async (tx) => {
+      const t = await tx.token.update({
+        where: { id: token.id },
+        data: {
+          tableId: table.id,
+          amountPaid: amountPaid ? parseFloat(amountPaid) : token.amountPaid,
+          paymentVerified: true,
+          status: 'active',
+          startTime: now,
+          endTime
+        },
+        include: {
+          customer: true,
+          placeType: true,
+          table: true
+        }
+      });
+
+      // Update new table status to occupied
+      await tx.table.update({
+        where: { id: table.id },
+        data: {
+          status: 'occupied'
+        }
+      });
+
+      // Update occupancy log table link
+      await tx.tableOccupancyLog.updateMany({
+        where: { tokenId: token.id },
+        data: { tableId: table.id, occupiedAt: now }
+      });
+
+      // Delete temporary table row safely
+      await tx.table.delete({
+        where: { id: tempTableId }
+      });
+
+      return t;
+    });
+
+    // Invalidate caches
+    await redisService.del(`table:available:${token.placeTypeId}`);
+    await redisService.del('table:available:all');
+    await redisService.del(`table:${table.id}:status`);
+    await redisService.setex(
+      `token:${token.tokenNumber}`,
+      86400,
+      JSON.stringify(updatedToken)
+    );
+
+    const responseData = {
+      id: updatedToken.id,
+      tokenNumber: updatedToken.tokenNumber,
+      phoneNumber: updatedToken.customer.phoneNumber,
+      customerName: updatedToken.customer.name,
+      email: updatedToken.customer.email,
+      persons: updatedToken.personsCount,
+      placeType: updatedToken.placeType.name,
+      tableId: updatedToken.tableId,
+      tableNumber: updatedToken.table.tableNumber,
+      amountPaid: updatedToken.amountPaid,
+      paymentVerified: updatedToken.paymentVerified,
+      startTime: updatedToken.startTime.toISOString(),
+      endTime: updatedToken.endTime.toISOString(),
+      redemptionLimit: updatedToken.totalRedemptionsAllowed,
+      redemptionCount: updatedToken.redemptionsUsed,
+      status: updatedToken.status.toUpperCase(),
+      cardUid: null,
+      createdAt: updatedToken.issuedAt.toISOString(),
+    };
+
+    return res.status(200).json(responseData);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+};
+
+// Map receptionist check-in endpoints
 router.post('/check-in', authenticate, authorize(['receptionist', 'admin']), checkInHandler);
 router.post('/tokens/create', authenticate, authorize(['receptionist', 'admin']), checkInHandler);
+router.post('/check-in/pending', authenticate, authorize(['receptionist', 'admin']), checkInPendingHandler);
+router.get('/check-in/verify-qr/:tokenNumber', authenticate, authorize(['receptionist', 'admin']), verifyQrHandler);
+router.post('/check-in/activate', authenticate, authorize(['receptionist', 'admin']), activateSessionHandler);
 
 // Generate QR Base64 or URL
 router.post('/tokens/:id/generate-qr', authenticate, authorize(['receptionist', 'admin']), async (req: Request, res: Response) => {
@@ -1675,6 +2052,7 @@ router.get('/tokens/active', authenticate, async (req: Request, res: Response) =
       status: t.status.toUpperCase(),
       cardUid: t.card?.nfcUid,
       createdAt: t.issuedAt.toISOString(),
+      deliveryMode: t.deliveryMode,
       table: {
         id: t.table.id,
         number: t.table.tableNumber,
@@ -1742,6 +2120,7 @@ const getTokenByIdentifier = async (req: Request, res: Response) => {
       status: token.status.toUpperCase(),
       cardUid: token.card?.nfcUid,
       createdAt: token.issuedAt.toISOString(),
+      deliveryMode: token.deliveryMode,
       table: {
         id: token.table.id,
         number: token.table.tableNumber,
@@ -2529,7 +2908,10 @@ router.get('/reports/sales', authenticate, authorize(['admin']), async (req: Req
     const { startDate, endDate } = getDateRangeFromFilter(filter as string, qStart as string, qEnd as string);
 
     const tokens = await prisma.token.findMany({
-      where: { startTime: { gte: startDate, lte: endDate } },
+      where: { 
+        startTime: { gte: startDate, lte: endDate },
+        paymentVerified: true
+      },
     });
 
     const totalCollectionsDec = tokens.reduce((acc, t) => acc.add(t.amountPaid), new Decimal(0));
@@ -2658,7 +3040,10 @@ router.get('/reports/daily', authenticate, authorize(['admin']), async (req: Req
     }
 
     const tokens = await prisma.token.findMany({
-      where: { startTime: { gte: startDate, lte: endDate } },
+      where: { 
+        startTime: { gte: startDate, lte: endDate },
+        paymentVerified: true
+      },
       include: { placeType: true }
     });
 
@@ -2859,6 +3244,7 @@ router.get('/reports/hourly-breakdown', authenticate, authorize(['admin']), asyn
     const tokens = await prisma.token.findMany({
       where: {
         startTime: { lte: endDate },
+        paymentVerified: true,
         OR: [
           { closedAt: null },
           { closedAt: { gte: startDate } }

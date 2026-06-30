@@ -1,11 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, Animated, Platform } from 'react-native';
 
+import { useTheme } from '../../../context/ThemeContext';
+
 interface SplashScreenProps {
   onFinish: () => void;
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+  const { colors } = useTheme();
   const pulseAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -42,14 +45,14 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   }, [pulseAnim, opacityAnim, onFinish]);
 
   return (
-    <Animated.View style={[styles.container, { opacity: opacityAnim }]}>
+    <Animated.View style={[styles.container, { opacity: opacityAnim, backgroundColor: colors.bg }]}>
       <Animated.View style={[styles.splashPulseCircle, { transform: [{ scale: pulseAnim }] }]}>
-        <View className="w-20 h-20 rounded-full bg-surface justify-center items-center border border-borderDark">
+        <View className="w-20 h-20 rounded-full justify-center items-center border" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
           <Text className="text-4xl text-gold">⚡</Text>
         </View>
       </Animated.View>
-      <Text className="text-[26px] font-bold text-themeText tracking-wider mb-1.5" style={{ color: '#f0ede6' }}>NFC TAP & TOKEN</Text>
-      <Text className="text-[13px] text-muted tracking-widest">Bar Management System</Text>
+      <Text className="text-[26px] font-bold text-themeText tracking-wider mb-1.5" style={{ color: colors.text }}>NFC TAP & TOKEN</Text>
+      <Text className="text-[13px] tracking-widest" style={{ color: colors.muted }}>Bar Management System</Text>
     </Animated.View>
   );
 };
@@ -57,7 +60,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#08090d',
     justifyContent: 'center',
     alignItems: 'center',
   },

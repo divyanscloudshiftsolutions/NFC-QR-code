@@ -1,109 +1,209 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useColorScheme } from 'nativewind';
+import { StatusBar, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StatusBar } from 'react-native';
 
-type Theme = 'light' | 'dark';
+export type ThemeMode = 'dark' | 'light';
+
+export interface ThemeColors {
+  bg: string;
+  themeBg: string;
+  header: string;
+  surface: string;
+  secondarySurface: string;
+  gold: string; // compatibility
+  primary: string;
+  teal: string; // compatibility
+  success: string;
+  red: string;
+  text: string;
+  themeText: string;
+  muted: string;
+  input: string;
+  themeInput: string;
+  border: string;
+  inputBorder: string;
+  divider: string;
+  goldButtonText: string;
+
+  // New Tokens
+  card: string;
+  section: string;
+  modal: string;
+  primaryButtonBg: string;
+  primaryButtonText: string;
+  secondaryButtonBg: string;
+  secondaryButtonText: string;
+  navBg: string;
+  navActive: string;
+  navInactive: string;
+  navBorder: string;
+  overlay: string;
+  chartPrimary: string;
+  chartSecondary: string;
+  chartGrid: string;
+}
+
+export const darkColors: ThemeColors = {
+  bg: '#08090D',
+  themeBg: '#08090D',
+  header: '#08090D',
+  surface: '#111318',
+  secondarySurface: '#171A22',
+  gold: '#F5A623',
+  primary: '#F5A623',
+  teal: '#22C55E',
+  success: '#22C55E',
+  red: '#EF4444',
+  text: '#F8FAFC',
+  themeText: '#F8FAFC',
+  muted: '#6B7280',
+  input: '#1A1D26',
+  themeInput: '#1A1D26',
+  border: '#374151',
+  inputBorder: '#374151',
+  divider: '#262629',
+  goldButtonText: '#08090D',
+
+  // New Tokens
+  card: '#111318',
+  section: '#111318',
+  modal: '#111318',
+  primaryButtonBg: '#F5A623',
+  primaryButtonText: '#08090D',
+  secondaryButtonBg: '#1A1D26',
+  secondaryButtonText: '#F8FAFC',
+  navBg: '#08090D',
+  navActive: '#F5A623',
+  navInactive: '#9CA3AF',
+  navBorder: '#374151',
+  overlay: 'rgba(0, 0, 0, 0.6)',
+  chartPrimary: '#F5A623',
+  chartSecondary: 'rgba(245, 166, 35, 0.1)',
+  chartGrid: '#262629',
+};
+
+export const lightColors: ThemeColors = {
+  bg: '#F9FAFB',
+  themeBg: '#F9FAFB',
+  header: '#FFFFFF',
+  surface: '#FFFFFF',
+  secondarySurface: '#F1F5F9',
+  gold: '#D4AF37',
+  primary: '#D4AF37',
+  teal: '#22C55E',
+  success: '#22C55E',
+  red: '#EF4444',
+  text: '#111827',
+  themeText: '#111827',
+  muted: '#64748B',
+  input: '#FFFFFF',
+  themeInput: '#FFFFFF',
+  border: '#CBD5E1',
+  inputBorder: '#CBD5E1',
+  divider: '#E2E8F0',
+  goldButtonText: '#FFFFFF',
+
+  // New Tokens
+  card: '#FFFFFF',
+  section: '#FFFFFF',
+  modal: '#FFFFFF',
+  primaryButtonBg: '#D4AF37',
+  primaryButtonText: '#FFFFFF',
+  secondaryButtonBg: '#FFFFFF',
+  secondaryButtonText: '#111827',
+  navBg: '#FFFFFF',
+  navActive: '#D4AF37',
+  navInactive: '#475569',
+  navBorder: '#CBD5E1',
+  overlay: 'rgba(0, 0, 0, 0.4)',
+  chartPrimary: '#D4AF37',
+  chartSecondary: 'rgba(212, 175, 55, 0.1)',
+  chartGrid: '#E2E8F0',
+};
 
 interface ThemeContextType {
-  theme: Theme;
+  themeMode: ThemeMode;
+  theme: ThemeMode; // compatibility
   isDark: boolean;
+  colors: ThemeColors;
   toggleTheme: () => void;
-  setTheme: (theme: Theme) => void;
-  colors: {
-    bg: string;
-    surface: string;
-    gold: string;
-    teal: string;
-    red: string;
-    text: string;
-    muted: string;
-    input: string;
-    border: string;
-  };
+  setThemeMode: (mode: ThemeMode) => void;
+  setTheme: (mode: ThemeMode) => void; // compatibility
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const darkColors = {
-  bg: '#08090d',
-  surface: '#111318',
-  gold: '#f5a623',
-  teal: '#4ecdc4',
-  red: '#e63946',
-  text: '#f0ede6',
-  muted: '#9ca3af',
-  input: '#1a1d26',
-  border: '#262629',
-};
-
-const lightColors = {
-  bg: '#f9f9fb',
-  surface: '#ffffff',
-  gold: '#d4af37',
-  teal: '#1c2e4a',
-  red: '#d9383a',
-  text: '#1c1c1e',
-  muted: '#7e7e82',
-  input: '#f2f2f7',
-  border: '#e5e5ea',
-};
+const THEME_STORAGE_KEY = '@nfc_bar_theme_mode';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { colorScheme, setColorScheme } = useColorScheme();
-  const [theme, setThemeState] = useState<Theme>('dark'); // Default to dark
+  const [themeMode, setThemeState] = useState<ThemeMode>('dark');
 
+  // Load saved theme from storage on mount
   useEffect(() => {
-    // Load theme from AsyncStorage on mount
-    const loadTheme = async () => {
+    const loadSavedTheme = async () => {
       try {
-        const savedTheme = await AsyncStorage.getItem('user-theme');
-        if (savedTheme === 'light' || savedTheme === 'dark') {
-          setThemeState(savedTheme as Theme);
-          setColorScheme(savedTheme as Theme);
-        } else {
-          // Default is dark
-          setThemeState('dark');
-          setColorScheme('dark');
+        const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+        if (saved === 'light' || saved === 'dark') {
+          setThemeState(saved);
         }
       } catch (e) {
-        console.error('Failed to load theme:', e);
+        console.warn('Failed to load theme mode from AsyncStorage', e);
       }
     };
-    loadTheme();
+    loadSavedTheme();
   }, []);
 
-  const setTheme = async (newTheme: Theme) => {
+  // Update system status bars whenever themeMode changes
+  useEffect(() => {
+    const isDark = themeMode === 'dark';
+    const activeColors = isDark ? darkColors : lightColors;
+    
+    // Style: light-content for dark theme, dark-content for light theme
+    StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
+    
+    // Background color (Android only)
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor(activeColors.bg, true);
+    }
+  }, [themeMode]);
+
+  const setThemeMode = async (mode: ThemeMode) => {
+    setThemeState(mode);
     try {
-      setThemeState(newTheme);
-      setColorScheme(newTheme);
-      await AsyncStorage.setItem('user-theme', newTheme);
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
     } catch (e) {
-      console.error('Failed to save theme:', e);
+      console.warn('Failed to save theme mode to AsyncStorage', e);
     }
   };
 
   const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
+    setThemeMode(themeMode === 'dark' ? 'light' : 'dark');
   };
 
-  const isDark = theme === 'dark';
+  const isDark = themeMode === 'dark';
   const colors = isDark ? darkColors : lightColors;
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme, setTheme, colors }}>
-      {/* Configure StatusBar dynamically for both iOS and Android */}
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
+    <ThemeContext.Provider value={{ 
+      themeMode, 
+      theme: themeMode, 
+      isDark, 
+      colors, 
+      toggleTheme, 
+      setThemeMode, 
+      setTheme: setThemeMode 
+    }}>
       {children}
     </ThemeContext.Provider>
   );
 };
 
-export const useAppTheme = () => {
+export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useAppTheme must be used within a ThemeProvider');
+    throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
 };
+
+export const useAppTheme = useTheme;

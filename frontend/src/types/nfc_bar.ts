@@ -90,6 +90,7 @@ export interface SessionToken {
   status: TokenStatus;
   cardUid: string;
   deliveryMode?: 'NFC_CARD' | 'EMAIL_QR';
+  paymentVerified?: boolean;
   createdAt: string;
 }
 

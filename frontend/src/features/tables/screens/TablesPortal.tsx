@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../../context/NfcBarContext';
+import { useTheme } from '../../../context/ThemeContext';
 import { Table, SessionToken, PlaceType, TableStatus, TokenStatus, UserRole } from '../../../types/nfc_bar';
 import { isTableExpiring } from '../../../context/nfc_bar_utils';
 import { AppIcon } from '../../../components/common/AppIcon';
@@ -12,12 +13,13 @@ import { useResponsive } from '../../../utils/responsive';
 
 export const TablesPortal: React.FC = () => {
   const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab } = useNfcBar();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedPlace, setSelectedPlace] = useState<PlaceType>('STANDING_BAR');
   
   const { getTableColumns } = useResponsive();
   const cols = getTableColumns();
-  const itemWidth = `${100 / cols}%` as any;
+  const itemWidth = `${(100 / cols) - 0.1}%` as any;
   const [filter, setFilter] = useState<'all' | 'available' | 'occupied' | 'expiring'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -83,11 +85,11 @@ export const TablesPortal: React.FC = () => {
     const isOccupied = table.status === TableStatus.OCCUPIED;
 
     // Determine colors/classes based on status
-    let primaryColor = '#f5a623'; // Gold default
+    let primaryColor = colors.gold; // Gold default
     let labelText = 'Occupied';
     
     if (table.status === TableStatus.MAINTENANCE) {
-      primaryColor = '#7a7d8a'; // Muted gray
+      primaryColor = colors.muted; // Muted gray
       labelText = 'Maintenance';
     } else if (table.status === TableStatus.RESERVED) {
       primaryColor = '#3b82f6'; // Blue
@@ -107,9 +109,9 @@ export const TablesPortal: React.FC = () => {
         );
       }
 
-      const chairColor = filled ? primaryColor : '#7a7d8a';
-      const bgClass = filled ? 'bg-[#f5a623]/15' : 'bg-[#151821]';
-      const borderStyle = filled ? { borderColor: primaryColor } : { borderColor: 'rgba(255,255,255,0.08)' };
+      const chairColor = filled ? primaryColor : colors.muted;
+      const bgClass = filled ? (isDark ? 'bg-gold/15' : 'bg-gold/10') : (isDark ? 'bg-[#151821]' : 'bg-[#E5E5EA]');
+      const borderStyle = filled ? { borderColor: primaryColor } : { borderColor: colors.border };
 
       return (
         <View className="items-center" style={{ flexDirection: 'column', gap: 4 }}>
@@ -132,7 +134,7 @@ export const TablesPortal: React.FC = () => {
             ]}
             className={`${bgClass}`}
           >
-            <Text style={{ color: filled ? primaryColor : 'rgba(255,255,255,0.2)', fontSize: 13, fontWeight: 'bold' }}>
+            <Text style={{ color: filled ? primaryColor : colors.muted, fontSize: 13, fontWeight: 'bold' }}>
               👤
             </Text>
           </View>
@@ -146,9 +148,12 @@ export const TablesPortal: React.FC = () => {
     };
 
     return (
-      <View className="items-center py-4 bg-[#11131c] border border-white/5 rounded-2xl mb-4">
-        <Text className="text-muted text-[10px] uppercase font-bold tracking-wider mb-4" style={{ fontFamily: Platform.OS !== 'web' ? 'System' : 'monospace' }}>
-          SEATING LAYOUT ({labelText})
+      <View 
+        className="items-center py-4 rounded-2xl mb-4 border"
+        style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+      >
+        <Text className="text-[10px] uppercase font-bold tracking-wider mb-4" style={{ color: colors.muted, fontFamily: Platform.OS !== 'web' ? 'System' : 'monospace' }}>
+          TABLE SEATING MAP ({labelText})
         </Text>
 
         <View className="flex-col items-center" style={{ gap: 8 }}>
@@ -161,13 +166,16 @@ export const TablesPortal: React.FC = () => {
 
           {/* Table surface */}
           <View
-            className="flex-row items-center justify-center rounded-2xl px-6 py-4 bg-[#151821] border border-white/5"
+            className="flex-row items-center justify-center rounded-2xl px-6 py-4 border"
             style={{
               minWidth: Math.max(120, topCount * 48),
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderWidth: 1
             }}
           >
             <View className="items-center">
-              <Text className="text-xs font-bold font-mono text-gold mb-1">
+              <Text className="text-xs font-bold font-mono mb-1" style={{ color: colors.gold }}>
                 {table.number} ({persons}/{capacity} seats)
               </Text>
               <View className="flex-row justify-center" style={{ gap: 4 }}>
@@ -175,7 +183,7 @@ export const TablesPortal: React.FC = () => {
                   <View
                     key={i}
                     className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: i < persons ? primaryColor : 'rgba(255,255,255,0.15)' }}
+                    style={{ backgroundColor: i < persons ? primaryColor : colors.muted }}
                   />
                 ))}
               </View>
@@ -197,11 +205,11 @@ export const TablesPortal: React.FC = () => {
         <View className="flex-row justify-center mt-5" style={{ gap: 16 }}>
           <View className="flex-row items-center" style={{ gap: 6 }}>
             <View className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: primaryColor }} />
-            <Text className="text-xs text-muted">Occupied ({persons})</Text>
+            <Text className="text-xs" style={{ color: colors.muted }}>Occupied ({persons})</Text>
           </View>
           <View className="flex-row items-center" style={{ gap: 6 }}>
-            <View className="w-2.5 h-2.5 rounded-full bg-white/15" />
-            <Text className="text-xs text-muted">Free ({capacity - persons})</Text>
+            <View className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors.muted }} />
+            <Text className="text-xs" style={{ color: colors.muted }}>Free ({capacity - persons})</Text>
           </View>
         </View>
       </View>
@@ -230,88 +238,94 @@ export const TablesPortal: React.FC = () => {
       statusTextColor = 'text-red';
     } else if (isOccupied) {
       statusText = 'Occupied';
-      statusTextColor = 'text-[#f5a623]';
+      statusTextColor = 'text-gold';
     }
 
+    const itemLabelColor = colors.muted;
+    const itemValueColor = colors.text;
+
     return (
-      <View className="bg-themeInput rounded-xl p-3.5 border border-white/5 mb-4">
-        <View className="flex-row justify-between py-1.5 border-b border-white/5">
-          <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Table Number</Text>
-          <Text className="text-themeText text-[11px] font-bold" style={{ color: '#f0ede6' }}>{table.number}</Text>
+      <View 
+        className="rounded-xl p-3.5 border mb-4"
+        style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+      >
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+          <Text className="text-[11px]" style={{ color: itemLabelColor }}>Table Number</Text>
+          <Text className="text-[11px] font-bold" style={{ color: itemValueColor }}>{table.number}</Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b border-white/5">
-          <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Place Type</Text>
-          <Text className="text-themeText text-[11px] font-semibold" style={{ color: '#f0ede6' }}>
-            {table.placeType === 'STANDING_BAR' ? 'Standing Bar' : 'Premium Lounge'}
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+          <Text className="text-[11px]" style={{ color: itemLabelColor }}>Place Type</Text>
+          <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
+            {table.placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
           </Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b border-white/5">
-          <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Capacity</Text>
-          <Text className="text-themeText text-[11px] font-semibold" style={{ color: '#f0ede6' }}>{table.seats} Seats</Text>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+          <Text className="text-[11px]" style={{ color: itemLabelColor }}>Capacity</Text>
+          <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>{table.seats} Seats</Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b border-white/5">
-          <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Current Occupancy</Text>
-          <Text className="text-themeText text-[11px] font-semibold" style={{ color: '#f0ede6' }}>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+          <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Occupancy</Text>
+          <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
             {isOccupied ? `${table.occupiedSeats} / ${table.totalCapacity} Seats occupied` : '0 / ' + table.seats + ' occupied'}
           </Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b border-white/5">
-          <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Current Status</Text>
-          <Text className={`text-[11px] font-bold ${statusTextColor}`}>{statusText}</Text>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+          <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Status</Text>
+          <Text className={`text-[11px] font-bold ${statusTextColor}`} style={statusTextColor === 'text-red' ? { color: '#e63946' } : statusTextColor === 'text-gold' ? { color: colors.gold } : statusTextColor === 'text-muted' ? { color: colors.muted } : statusTextColor === 'text-[#3b82f6]' ? { color: '#3b82f6' } : { color: '#22c55e' }}>{statusText}</Text>
         </View>
 
         {activeToken ? (
           <>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Current Group</Text>
-              <Text className="text-themeText text-[11px] font-bold" style={{ color: '#f0ede6' }}>{activeToken.persons} Guests</Text>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Group</Text>
+              <Text className="text-[11px] font-bold" style={{ color: itemValueColor }}>{activeToken.persons} Guests</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Session Start Time</Text>
-              <Text className="text-themeText text-[11px] font-semibold" style={{ color: '#f0ede6' }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Start Time</Text>
+              <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
                 {new Date(activeToken.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Session Time Left</Text>
-              <Text className="text-themeText text-[11px] font-bold" style={{ color: '#f0ede6' }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Time Left</Text>
+              <Text className="text-[11px] font-bold" style={{ color: isExpiring ? '#e63946' : itemValueColor }}>
                 {calculateTimeRemaining(activeToken.endTime) === 'Expired' ? 'Expired' : `${calculateTimeRemaining(activeToken.endTime)} left`}
               </Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Drinks Used / Total</Text>
-              <Text className="text-themeText text-[11px] font-semibold" style={{ color: '#f0ede6' }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Drinks Used / Total</Text>
+              <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
                 {activeToken.redemptionCount} / {activeToken.redemptionLimit}
               </Text>
             </View>
             <View className="flex-row justify-between py-1.5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Remaining Drinks</Text>
-              <Text className="text-themeText text-[11px] font-bold" style={{ color: '#f0ede6' }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Remaining Drinks</Text>
+              <Text className="text-[11px] font-bold" style={{ color: itemValueColor }}>
                 {Math.max(0, activeToken.redemptionLimit - activeToken.redemptionCount)}
               </Text>
             </View>
           </>
         ) : (
           <>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Current Group</Text>
-              <Text className="text-themeText/45 text-[11px] font-semibold" style={{ color: '#f0ede6' }}>None (Free Table)</Text>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Group</Text>
+              <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>None (Free Table)</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Session Start Time</Text>
-              <Text className="text-themeText/45 text-[11px] font-semibold" style={{ color: '#f0ede6' }}>N/A</Text>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Start Time</Text>
+              <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>N/A</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Session Time Left</Text>
-              <Text className="text-themeText/45 text-[11px] font-semibold" style={{ color: '#f0ede6' }}>N/A</Text>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Time Left</Text>
+              <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>N/A</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b border-white/5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Drinks Used / Total</Text>
-              <Text className="text-themeText/45 text-[11px] font-semibold" style={{ color: '#f0ede6' }}>N/A</Text>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Drinks Used / Total</Text>
+              <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>N/A</Text>
             </View>
             <View className="flex-row justify-between py-1.5">
-              <Text className="text-[11px]" style={{ color: '#9ca3af' }}>Remaining Drinks</Text>
-              <Text className="text-themeText/45 text-[11px] font-semibold" style={{ color: '#f0ede6' }}>N/A</Text>
+              <Text className="text-[11px]" style={{ color: itemLabelColor }}>Remaining Drinks</Text>
+              <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>N/A</Text>
             </View>
           </>
         )}
@@ -342,44 +356,64 @@ export const TablesPortal: React.FC = () => {
   });
 
   return (
-    <View className="flex-1 bg-themeBg p-4">
+    <View className="flex-1 p-4" style={{ backgroundColor: colors.bg }}>
       <View className="mb-4">
-        <Text className="text-2xl font-bold text-themeText" style={{ color: '#f0ede6' }}>Table Occupancy</Text>
+        <Text className="text-2xl font-bold" style={{ color: colors.text }}>Table Occupancy</Text>
       </View>
       
       {/* Segmented Place Types */}
-      <View className="flex-row bg-[#111318] rounded-xl p-1 border border-[#262629] mb-4">
+      <View 
+        className="flex-row rounded-xl p-1 mb-4 border"
+        style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+      >
         <TouchableOpacity 
-          className={`flex-1 py-[13px] items-center rounded-lg ${selectedPlace === 'STANDING_BAR' ? 'bg-[#1a1d26] border-[0.5px] border-gold/20' : ''}`}
+          className="flex-1 py-[13px] items-center rounded-lg"
+          style={selectedPlace === 'STANDING_BAR' ? { backgroundColor: colors.input, borderWidth: 0.5, borderColor: colors.border } : {}}
           onPress={() => setSelectedPlace('STANDING_BAR')}
         >
-          <Text className={`text-[12px] font-semibold ${selectedPlace === 'STANDING_BAR' ? 'text-gold' : 'text-muted'}`}>
-            Standing Bar
+          <Text 
+            className="text-[12px] font-semibold"
+            style={{ color: selectedPlace === 'STANDING_BAR' ? colors.gold : colors.muted }}
+          >
+            Standing Bar Area
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          className={`flex-1 py-[13px] items-center rounded-lg ${selectedPlace === 'PREMIUM_LOUNGE' ? 'bg-[#1a1d26] border-[0.5px] border-gold/20' : ''}`}
+          className="flex-1 py-[13px] items-center rounded-lg"
+          style={selectedPlace === 'PREMIUM_LOUNGE' ? { backgroundColor: colors.input, borderWidth: 0.5, borderColor: colors.border } : {}}
           onPress={() => setSelectedPlace('PREMIUM_LOUNGE')}
         >
-          <Text className={`text-[12px] font-semibold ${selectedPlace === 'PREMIUM_LOUNGE' ? 'text-gold' : 'text-muted'}`}>
-            Premium Lounge
+          <Text 
+            className="text-[12px] font-semibold"
+            style={{ color: selectedPlace === 'PREMIUM_LOUNGE' ? colors.gold : colors.muted }}
+          >
+            Premium Lounge Area
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Stats Chips Row */}
-      <View className="flex-row justify-between mb-4">
-        <View className="flex-1 items-center bg-surface border border-white/5 p-3 rounded-xl mx-1">
-          <Text className="text-lg font-bold text-themeText" style={{ color: '#f0ede6' }}>{totalCount}</Text>
-          <Text className="text-muted text-[9px] uppercase tracking-wider mt-0.5">Total</Text>
+      <View className="flex-row justify-between mb-4" style={{ marginHorizontal: -4 }}>
+        <View 
+          className="flex-1 items-center border p-3 rounded-xl mx-1"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+        >
+          <Text className="text-lg font-bold" style={{ color: colors.text }}>{totalCount}</Text>
+          <Text className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: colors.muted }}>Total</Text>
         </View>
-        <View className="flex-1 items-center bg-surface border border-white/5 p-3 rounded-xl mx-1">
-          <Text className="text-lg font-bold text-[#f59e0b]">{occupiedCount}</Text>
-          <Text className="text-muted text-[9px] uppercase tracking-wider mt-0.5">Occupied</Text>
+        <View 
+          className="flex-1 items-center border p-3 rounded-xl mx-1"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+        >
+          <Text className="text-lg font-bold" style={{ color: colors.gold }}>{occupiedCount}</Text>
+          <Text className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: colors.muted }}>Occupied</Text>
         </View>
-        <View className="flex-1 items-center bg-surface border border-white/5 p-3 rounded-xl mx-1">
-          <Text className="text-lg font-bold text-[#22c55e]">{freeCount}</Text>
-          <Text className="text-muted text-[9px] uppercase tracking-wider mt-0.5">Free</Text>
+        <View 
+          className="flex-1 items-center border p-3 rounded-xl mx-1"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+        >
+          <Text className="text-lg font-bold text-green-500">{freeCount}</Text>
+          <Text className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: colors.muted }}>Free</Text>
         </View>
       </View>
 
@@ -388,10 +422,15 @@ export const TablesPortal: React.FC = () => {
         {['all', 'available', 'occupied', 'expiring'].map(f => (
           <TouchableOpacity
             key={f}
-            className={`px-4 py-3 rounded-full bg-surface border mr-1.5 justify-center ${filter === f ? 'border-gold bg-gold/5' : 'border-borderDark'}`}
+            className="px-4 py-3 rounded-full border mr-1.5 justify-center"
+            style={{
+              backgroundColor: filter === f ? (isDark ? 'rgba(245,166,35,0.1)' : 'rgba(212,175,55,0.1)') : colors.surface,
+              borderColor: filter === f ? colors.gold : colors.border,
+              borderWidth: 1
+            }}
             onPress={() => setFilter(f as any)}
           >
-            <Text className={`text-[9px] font-bold ${filter === f ? 'text-gold' : 'text-muted'}`}>
+            <Text className="text-[9px] font-bold" style={{ color: filter === f ? colors.gold : colors.muted }}>
               {f.toUpperCase()}
             </Text>
           </TouchableOpacity>
@@ -401,17 +440,19 @@ export const TablesPortal: React.FC = () => {
       {/* Search Input bar */}
       <View className="mb-3">
         <TextInput 
-          className="bg-surface text-themeText border border-borderDark rounded-xl py-3 px-4 text-xs" style={{ color: '#f0ede6' }}
+          className="border rounded-xl py-3 px-4 text-xs font-semibold"
+          style={{ backgroundColor: colors.input, borderColor: colors.inputBorder, color: colors.text, borderWidth: 1 }}
           placeholder="Search Table ID... (e.g. S-03)"
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.muted}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          autoCorrect={false}
         />
       </View>
 
-      {/* Table grid nodes */}
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
-        <View className="flex-row flex-wrap pb-6" style={{ marginHorizontal: -6 }}>
+      {/* Table grid layout map */}
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, paddingBottom: 20 }}>
           {filteredTables.map(table => {
             const activeToken = sessions.find(s => s.tableNumber === table.number && s.status === TokenStatus.ACTIVE);
             const isOccupied = table.status === TableStatus.OCCUPIED;
@@ -422,7 +463,7 @@ export const TablesPortal: React.FC = () => {
             
             if (table.status === TableStatus.MAINTENANCE) {
               statusColor = 'bg-[#7a7d8a]'; // Gray
-              statusTextColor = '#9ca3af';
+              statusTextColor = colors.muted;
               statusText = 'Maintenance';
             } else if (table.status === TableStatus.RESERVED) {
               statusColor = 'bg-[#3b82f6]'; // Blue
@@ -434,25 +475,27 @@ export const TablesPortal: React.FC = () => {
               statusText = 'Expiring Soon';
             } else if (isOccupied) {
               statusColor = 'bg-[#f5a623]'; // Amber
-              statusTextColor = '#f5a623';
+              statusTextColor = colors.gold;
               statusText = 'Occupied';
             }
 
             return (
-              <View key={table.id} style={{ width: itemWidth, padding: 6 }}>
+              <View key={table.id} style={{ width: itemWidth, padding: 4 }}>
                 <TouchableOpacity
-                  style={{ minHeight: 124 }}
-                  className={`w-full bg-surface rounded-xl p-3.5 border
-                    ${isExp ? 'border-red bg-red/5 shadow-red/20 shadow-lg' : 'border-borderDark'}
-                    ${table.status === TableStatus.AVAILABLE ? 'border-green-500/10' : ''}
-                    ${table.status === TableStatus.RESERVED ? 'border-blue-500/10' : ''}
-                  `}
+                  style={{ 
+                    minHeight: 110,
+                    backgroundColor: isExp ? (isDark ? 'rgba(230,57,70,0.05)' : 'rgba(230,57,70,0.08)') : colors.surface,
+                    borderColor: isExp ? '#e63946' : (table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.3)') : (table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.3)') : colors.border)),
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    padding: 10
+                  }}
                   onPress={() => handleTableTap(table)}
                   activeOpacity={0.8}
                 >
                   {/* Header Row */}
                   <View className="flex-row justify-between items-center mb-1">
-                    <Text className="font-mono text-[13px] font-bold" style={{ color: '#f5a623' }}>{table.number}</Text>
+                    <Text className="font-mono text-[13px] font-bold" style={{ color: colors.gold }}>{table.number}</Text>
                     <View className="flex-row items-center gap-1.5">
                       <Text className="text-[8px] font-bold uppercase" style={{ color: statusTextColor }}>
                         {statusText}
@@ -462,8 +505,8 @@ export const TablesPortal: React.FC = () => {
                   </View>
 
                   {/* Place Type Label */}
-                  <Text className="text-muted text-[10px] mb-2 leading-4">
-                    {table.placeType === 'STANDING_BAR' ? 'Standing Bar' : 'Premium Lounge'}
+                  <Text className="text-[10px] mb-2 leading-4" style={{ color: colors.muted }}>
+                    {table.placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
                   </Text>
 
                   {/* Capacity & Occupancy Display */}
@@ -471,20 +514,20 @@ export const TablesPortal: React.FC = () => {
                     <View className="gap-1.5 mt-1">
                       <View className="flex-row items-center gap-1">
                         <Text className="text-[10px]">👥</Text>
-                        <Text className="text-themeText text-[10px] font-bold" style={{ color: '#f0ede6' }}>
+                        <Text className="text-[10px] font-bold" style={{ color: colors.text }}>
                           {activeToken.persons}/{table.seats} Pax
                         </Text>
                       </View>
                       <View className="flex-row items-center gap-1">
                         <Text className="text-[10px]">⏱</Text>
-                        <Text className={`text-[10px] font-bold ${isExp ? 'text-red' : 'text-themeText'}`} style={{ color: isExp ? '#e63946' : '#f0ede6' }}>
+                        <Text className="text-[10px] font-bold" style={{ color: isExp ? '#e63946' : colors.text }}>
                           {calculateTimeRemaining(activeToken.endTime) === 'Expired' ? 'Expired' : `${calculateTimeRemaining(activeToken.endTime)}`}
                         </Text>
                       </View>
                       {/* Miniature token drink balance indicator */}
                       <View className="flex-row items-center gap-1 mt-0.5">
                         <Text className="text-[10px]">🍹</Text>
-                        <Text className="text-themeText text-[9px] font-semibold" style={{ color: '#f0ede6' }}>
+                        <Text className="text-[9px] font-semibold" style={{ color: colors.text }}>
                           {activeToken.redemptionCount}/{activeToken.redemptionLimit} coupons
                         </Text>
                       </View>
@@ -492,7 +535,7 @@ export const TablesPortal: React.FC = () => {
                   ) : (
                     <View className="flex-row items-center gap-1 mt-1">
                       <Text className="text-[10px]">👥</Text>
-                      <Text className="text-muted text-[10px] font-semibold">{table.seats} Seats Cap</Text>
+                      <Text className="text-[10px] font-semibold" style={{ color: colors.muted }}>{table.seats} Seats Cap</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -503,26 +546,29 @@ export const TablesPortal: React.FC = () => {
       </ScrollView>
 
       {/* LEGEND BAR */}
-      <View className="flex-row justify-around py-3 border-t border-white/5 bg-themeBg">
+      <View 
+        className="flex-row justify-around py-3 border-t"
+        style={{ borderTopColor: colors.border, backgroundColor: colors.bg }}
+      >
         <View className="flex-row items-center gap-1.5">
           <View className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
-          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: '#9ca3af' }}>Free</Text>
+          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Free</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
           <View className="w-1.5 h-1.5 rounded-full bg-[#f5a623]" />
-          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: '#9ca3af' }}>Occupied</Text>
+          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Occupied</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
           <View className="w-1.5 h-1.5 rounded-full bg-[#e63946]" />
-          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: '#9ca3af' }}>Expiring</Text>
+          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Expiring</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
           <View className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: '#9ca3af' }}>Reserved</Text>
+          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Reserved</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
           <View className="w-1.5 h-1.5 rounded-full bg-[#7a7d8a]" />
-          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: '#9ca3af' }}>Maint</Text>
+          <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Maint</Text>
         </View>
       </View>
 
@@ -536,33 +582,48 @@ export const TablesPortal: React.FC = () => {
         <View className="flex-1 bg-black/65 justify-end">
           {selectedTable && (
             <View 
-              className="bg-surface rounded-t-[20px] p-4 border-t border-white/10"
+              className="rounded-t-[20px] p-4 border-t"
               style={{ 
                 paddingBottom: insets.bottom + 16,
-                minHeight: 380 + insets.bottom 
+                marginTop: insets.top + 10,
+                maxHeight: '90%',
+                backgroundColor: colors.surface,
+                borderTopColor: colors.border,
+                borderTopWidth: 1
               }}
             >
               {/* Header */}
-              <View className="flex-row justify-between items-center pb-3 mb-4 border-b border-white/5">
+              <View className="flex-row justify-between items-center pb-3 mb-2 border-b" style={{ borderBottomColor: colors.border }}>
                 <View>
-                  <Text className="text-base font-bold text-themeText" style={{ color: '#f0ede6' }}>Seating Node {selectedTable.number}</Text>
-                  <Text className="text-muted text-[11px]">
+                  <Text className="text-base font-bold" style={{ color: colors.text }}>Table {selectedTable.number}</Text>
+                  <Text className="text-[11px]" style={{ color: colors.muted }}>
                     {selectedTable.placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => setIsBottomSheetOpen(false)} className="w-11 h-11 rounded-full bg-themeInput justify-center items-center">
-                  <AppIcon name="x" label="Close details" color="#7a7d8a" size={18} />
+                <TouchableOpacity 
+                  onPress={() => setIsBottomSheetOpen(false)} 
+                  className="w-11 h-11 rounded-full justify-center items-center border"
+                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                >
+                  <AppIcon name="x" label="Close details" color={colors.muted} size={18} />
                 </TouchableOpacity>
               </View>
- 
-              {/* VISUAL SEATING BLUEPRINT */}
-              {renderTableLayout(selectedTable, selectedSession)}
- 
-              {/* Structured Metadata Details List */}
-              {renderMetadataDetails(selectedTable, selectedSession)}
- 
+
+              {/* Scrollable content area */}
+              <ScrollView 
+                style={{ flexGrow: 0, flexShrink: 1 }} 
+                contentContainerStyle={{ paddingVertical: 4 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* VISUAL SEATING BLUEPRINT */}
+                {renderTableLayout(selectedTable, selectedSession)}
+
+                {/* Structured Metadata Details List */}
+                {renderMetadataDetails(selectedTable, selectedSession)}
+              </ScrollView>
+
               {/* Actions row */}
-              <View className="mt-2">
+              <View className="mt-3">
                 {selectedTable.status === TableStatus.AVAILABLE ? (
                   <TouchableOpacity 
                     className="w-full bg-[#22c55e] py-[15px] rounded-xl items-center justify-center mb-1.5" 
@@ -578,23 +639,30 @@ export const TablesPortal: React.FC = () => {
  
                 {selectedSession && user?.role !== UserRole.MANAGER && (
                   <View className="flex-row gap-2.5 mb-1.5">
-                    <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" onPress={handleCloseSession}>
+                    <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" style={{ borderColor: '#e63946' }} onPress={handleCloseSession}>
                       <Text className="font-bold text-sm" style={{ color: '#e63946' }}>Close Session</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center" onPress={handleExtend}>
-                      <Text className="font-bold text-[13px]" style={{ color: '#08090d' }}>Extend Time</Text>
+                    <TouchableOpacity className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" style={{ borderColor: colors.gold }} onPress={handleExtend}>
+                      <Text className="font-bold text-[13px]" style={{ color: colors.goldButtonText }}>Extend Time</Text>
                     </TouchableOpacity>
                   </View>
                 )}
  
                 {selectedSession && user?.role === UserRole.MANAGER && (
-                  <View className="bg-themeInput rounded-xl p-3 mb-2 border border-white/5 items-center justify-center">
-                    <Text className="text-[11px] font-semibold" style={{ color: '#9ca3af' }}>Read-only access for Manager role</Text>
+                  <View 
+                    className="rounded-xl p-3 mb-2 border items-center justify-center"
+                    style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+                  >
+                    <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>Read-only access for Manager role</Text>
                   </View>
                 )}
  
-                <TouchableOpacity className="w-full bg-themeInput py-[15px] rounded-xl items-center justify-center" onPress={() => setIsBottomSheetOpen(false)}>
-                  <Text className="text-themeText font-bold text-sm" style={{ color: '#f0ede6' }}>Dismiss</Text>
+                <TouchableOpacity 
+                  className="w-full py-[15px] rounded-xl items-center justify-center border" 
+                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                  onPress={() => setIsBottomSheetOpen(false)}
+                >
+                  <Text className="font-bold text-sm" style={{ color: colors.text }}>Dismiss</Text>
                 </TouchableOpacity>
               </View>
             </View>

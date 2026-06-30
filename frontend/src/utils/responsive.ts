@@ -28,9 +28,9 @@ export const useResponsive = () => {
    */
   const getTableColumns = () => {
     if (isLargeScreen) return 6;
-    if (isTablet) return 5;
-    if (width > 480) return 4; // Landscape or large phone screen
-    return 3; // Default portrait mobile
+    if (isTablet) return 4;
+    if (width > 480) return 3; // Landscape or large phone screen
+    return 2; // Default portrait mobile
   };
 
   return {

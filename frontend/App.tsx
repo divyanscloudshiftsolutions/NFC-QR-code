@@ -1,7 +1,7 @@
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NfcBarProvider } from './src/context/NfcBarContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { NfcBarProvider } from './src/context/NfcBarContext';
 import MainAppShell from './src/app/navigation/MainAppShell';
 import './global.css';
 

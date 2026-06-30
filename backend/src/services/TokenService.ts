@@ -87,10 +87,20 @@ export class TokenService {
     const dateStr = `${yy}${mm}${dd}`;
     const cacheKey = `daily-sequence:${dateStr}`;
     
-    const sequence = await redisService.incr(cacheKey);
+    let sequence = await redisService.incr(cacheKey);
     await redisService.expire(cacheKey, 86400); // 24 hours
     
-    return `BAR-${dateStr}-${sequence.toString().padStart(5, '0')}`;
+    let tokenNumber = `BAR-${dateStr}-${sequence.toString().padStart(5, '0')}`;
+    
+    // Safety check: ensure it does not exist in the database (e.g. if Redis key was cleared/wiped)
+    let exists = await prisma.token.findUnique({ where: { tokenNumber } });
+    while (exists) {
+      sequence = await redisService.incr(cacheKey);
+      tokenNumber = `BAR-${dateStr}-${sequence.toString().padStart(5, '0')}`;
+      exists = await prisma.token.findUnique({ where: { tokenNumber } });
+    }
+    
+    return tokenNumber;
   }
 
   async getTokenByNumber(tokenNumber: string): Promise<any | null> {
@@ -284,9 +294,8 @@ export class TokenService {
       return token;
     });
 
-    if (deliveryMode === 'EMAIL_QR' || process.env.TOKEN_TYPE === 'EMAIL') {
-      const email = request.email || `${request.phoneNumber.replace('+', '')}@cloudshiftsolutions.in`;
-      emailNotificationService.enqueueEmailJob(email, token.tokenNumber, request.customerName);
+    if (deliveryMode === 'EMAIL_QR' && request.email) {
+      emailNotificationService.enqueueEmailJob(request.email.trim().toLowerCase(), token.tokenNumber, request.customerName);
     }
 
     return token;
@@ -423,6 +432,11 @@ export class TokenService {
       // Verify token is in a valid state to be closed
       if (token.status !== 'active' && token.status !== 'extended' && token.status !== 'expired') {
         throw new Error(`Cannot close token with status: ${token.status}`);
+      }
+
+      // Prevent closing unpaid pending QR sessions
+      if (token.deliveryMode === 'EMAIL_QR' && !token.paymentVerified) {
+        throw new Error('Cannot close an unpaid pending QR session.');
       }
 
       const totalTimeUsedMinutes = Math.floor(
