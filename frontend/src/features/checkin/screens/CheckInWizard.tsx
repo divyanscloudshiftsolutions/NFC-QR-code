@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView, 
   ActivityIndicator, StyleSheet, Platform, Alert, Modal
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { SessionToken, PlaceType, TableStatus, TokenStatus } from '../../../types/nfc_bar';
@@ -23,6 +24,7 @@ export const CheckInWizard: React.FC = () => {
   const cols = getTableColumns();
   const itemWidth = `${(100 / cols) - 0.1}%` as any;
   const [step, setStep] = useState<number>(1);
+  const [permission, requestPermission] = useCameraPermissions();
   
   const initialMode = nfcEnabled ? 'NFC_CARD' : 'EMAIL_QR';
   const [selectedDeliveryMode, setSelectedDeliveryMode] = useState<'NFC_CARD' | 'EMAIL_QR'>(initialMode);
@@ -42,6 +44,14 @@ export const CheckInWizard: React.FC = () => {
       setSelectedDeliveryMode('NFC_CARD');
     }
   }, [nfcEnabled, emailQrEnabled]);
+
+  useEffect(() => {
+    if (step === 5) {
+      if (permission && !permission.granted && permission.canAskAgain) {
+        requestPermission();
+      }
+    }
+  }, [step, permission]);
 
   // Form values
   const [fullName, setFullName] = useState('');
@@ -315,15 +325,48 @@ export const CheckInWizard: React.FC = () => {
               A pending check-in session has been created. The QR code has been dispatched to {email.toLowerCase()}.
             </Text>
 
-            {/* Simulated Bounding Box for Scanner */}
+            {/* Real Camera scanner or fallback view */}
             <View 
-              className="w-full h-44 rounded-xl items-center justify-center mb-4 border relative overflow-hidden"
-              style={{ backgroundColor: colors.input, borderColor: colors.border }}
+              className="w-full h-56 rounded-2xl items-center justify-center mb-4 border relative overflow-hidden bg-black"
+              style={{ borderColor: colors.border }}
             >
-              <Text className="text-3xl mb-2">📷</Text>
-              <Text className="text-xs" style={{ color: colors.muted }}>Simulated QR Scanner Active</Text>
+              {permission && permission.granted ? (
+                <CameraView
+                  style={StyleSheet.absoluteFill}
+                  facing="back"
+                  onBarcodeScanned={async ({ data }) => {
+                    if (data && data !== scannedToken && !isVerifyingQr) {
+                      setScannedToken(data);
+                      setIsVerifyingQr(true);
+                      const verifiedToken = await verifyQrCode(data);
+                      setIsVerifyingQr(false);
+                      if (verifiedToken) {
+                        setQrVerificationSuccess(true);
+                        setStep(2); // Proceed to Table Selection
+                      } else {
+                        setQrVerificationError('Invalid or expired QR token.');
+                      }
+                    }
+                  }}
+                />
+              ) : (
+                <View className="items-center justify-center p-4">
+                  <Text className="text-3xl mb-2">📷</Text>
+                  <Text className="text-xs text-center mb-3" style={{ color: '#9CA3AF' }}>
+                    Camera permission is required to scan QR codes.
+                  </Text>
+                  {permission && permission.canAskAgain && (
+                    <TouchableOpacity 
+                      className="bg-gold px-4 py-2 rounded-lg"
+                      onPress={requestPermission}
+                    >
+                      <Text className="font-bold text-xs" style={{ color: colors.goldButtonText }}>Grant Permission</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
               <View 
-                className="absolute left-4 right-4 h-[1px] bg-red"
+                className="absolute left-4 right-4 h-[1.5px] bg-red"
                 style={{ top: '50%' }}
               />
             </View>

@@ -4,6 +4,7 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView, 
   ActivityIndicator, StyleSheet
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,6 +33,23 @@ export const BartenderPortal: React.FC = () => {
   const [scannedCardUid, setScannedCardUid] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [enteredToken, setEnteredToken] = useState('');
+  const [permission, requestPermission] = useCameraPermissions();
+
+  const handleQrScan = async () => {
+    setErrorMessage('');
+    setScannedCardUid(null);
+    setActiveSession(null);
+
+    if (permission && !permission.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        setErrorMessage('Camera permission is required to scan QR codes.');
+        setBartenderState('error');
+        return;
+      }
+    }
+    setBartenderState('scanning');
+  };
   
   // Scanned Session cache
   const [activeSession, setActiveSession] = useState<SessionToken | null>(null);
@@ -417,6 +435,19 @@ export const BartenderPortal: React.FC = () => {
                 </View>
               </View>
 
+              {/* Start QR Scan Target */}
+              <TouchableOpacity 
+                className="w-full bg-gold rounded-[20px] py-4 items-center justify-center shadow-xl border mb-3"
+                style={{ borderColor: colors.gold }}
+                onPress={handleQrScan}
+                activeOpacity={0.85}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Text style={{ fontSize: 16 }}>📷</Text>
+                  <Text className="font-black text-sm tracking-widest uppercase" style={{ color: colors.goldButtonText }}>START QR SCAN</Text>
+                </View>
+              </TouchableOpacity>
+
               {/* Start NFC Scan Target */}
               <TouchableOpacity 
                 className="w-full bg-gold rounded-[20px] py-4 items-center justify-center shadow-xl border mb-4"
@@ -468,10 +499,35 @@ export const BartenderPortal: React.FC = () => {
 
       {/* SCANNING ACTIVE STATE */}
       {bartenderState === 'scanning' && (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={colors.teal} />
-          <Text className="text-sm font-bold mt-4 uppercase tracking-wider" style={{ color: colors.text }}>Scanning Smart Tag...</Text>
-          <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Interfacing credentials via NFC link</Text>
+        <View className="flex-1 rounded-2xl items-center justify-center relative overflow-hidden bg-black min-h-[350px]">
+          {emailQrEnabled && permission && permission.granted ? (
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              onBarcodeScanned={({ data }) => {
+                if (data && data !== scannedCardUid) {
+                  setScannedCardUid(data);
+                  handleTokenLookup(data);
+                }
+              }}
+            />
+          ) : (
+            <View className="items-center justify-center p-4">
+              <ActivityIndicator size="large" color={colors.teal} />
+              <Text className="text-sm font-bold mt-4 uppercase tracking-wider" style={{ color: colors.text }}>Scanning Smart Tag...</Text>
+              <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Interfacing credentials via NFC link</Text>
+            </View>
+          )}
+          <View 
+            className="absolute left-4 right-4 h-[1.5px] bg-red"
+            style={{ top: '50%' }}
+          />
+          <TouchableOpacity 
+            className="absolute bottom-4 bg-red px-5 py-2.5 rounded-xl border border-red"
+            onPress={() => setBartenderState('idle')}
+          >
+            <Text className="text-white font-bold text-xs uppercase tracking-wider">Cancel Scan</Text>
+          </TouchableOpacity>
         </View>
       )}
 
