@@ -17,13 +17,64 @@ async function main() {
   await prisma.table.deleteMany({});
   console.log('Transaction tables, seating tables, and card inventory cleared.');
 
-  // 1. Drop obsolete PostgreSQL triggers (business logic is now in the app tier)
-  console.log('Cleaning up obsolete triggers...');
-  await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS trigger_update_table_on_token_creation ON tokens;`).catch(() => {});
-  await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS trigger_update_table_on_token_close ON tokens;`).catch(() => {});
-  await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS update_table_on_token_creation();`).catch(() => {});
-  await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS update_table_on_token_close();`).catch(() => {});
-  console.log('Triggers cleaned.');
+  // 1. Create triggers in PostgreSQL database using raw SQL
+  console.log('Creating triggers...');
+
+  const creationTriggerFunction = `
+    CREATE OR REPLACE FUNCTION update_table_on_token_creation()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        UPDATE tables 
+        SET status = 'occupied',
+            current_token_id = NEW.id,
+            occupied_since = NEW.start_time,
+            last_assigned_at = NEW.start_time,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = NEW.table_id;
+        
+        INSERT INTO table_occupancy_logs (id, table_id, token_id, occupied_at)
+        VALUES (gen_random_uuid(), NEW.table_id, NEW.id, NEW.start_time);
+        
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+  `;
+
+  const closeTriggerFunction = `
+    CREATE OR REPLACE FUNCTION update_table_on_token_close()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        IF OLD.status != 'closed' AND NEW.status = 'closed' THEN
+            UPDATE tables 
+            SET status = 'available',
+                current_token_id = NULL,
+                occupied_since = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = NEW.table_id AND current_token_id = NEW.id;
+            
+            UPDATE table_occupancy_logs 
+            SET vacated_at = NEW.closed_at
+            WHERE table_id = NEW.table_id AND token_id = NEW.id AND vacated_at IS NULL;
+        END IF;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+  `;
+
+  await prisma.$executeRawUnsafe(creationTriggerFunction);
+  await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS trigger_update_table_on_token_creation ON tokens;`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER trigger_update_table_on_token_creation
+    AFTER INSERT ON tokens
+    FOR EACH ROW
+    WHEN (NEW.status = 'active')
+    EXECUTE FUNCTION update_table_on_token_creation();
+  `);
+
+  await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS trigger_update_table_on_token_close ON tokens;`);
+  await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS update_table_on_token_close();`);
+
+  console.log('Triggers successfully installed.');
 
   // Create partial unique indexes and check constraints
   console.log('Creating unique indexes and check constraints...');
@@ -299,14 +350,6 @@ async function main() {
     create: {
       configKey: 'email_qr_enabled',
       configValue: 'true',
-    },
-  });
-  await prisma.systemConfig.upsert({
-    where: { configKey: 'maintenance_duration_minutes' },
-    update: {},
-    create: {
-      configKey: 'maintenance_duration_minutes',
-      configValue: '5',
     },
   });
   console.log('System configs seeded.');

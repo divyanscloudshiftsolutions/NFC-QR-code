@@ -27,48 +27,100 @@ const formatRedemptionTime = (timestampStr: string) => {
 };
 
 export const BartenderPortal: React.FC = () => {
-  const { sessions, redeemDrinkForCard, undoDrinkRedemption, tokenType, nfcEnabled, emailQrEnabled, user, closeSessionManual, closeSessionByQr } = useNfcBar();
+  const { sessions, redeemDrinkForCard, undoDrinkRedemption, tokenType, nfcEnabled, emailQrEnabled, fetchLatestState, showToast } = useNfcBar();
   const { colors, isDark } = useTheme();
   const [bartenderState, setBartenderState] = useState<'idle' | 'scanning' | 'scanned' | 'depleted' | 'error'>('idle');
   const [scannedCardUid, setScannedCardUid] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [enteredToken, setEnteredToken] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
-  
-  // Close Section Action States
-  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+
+  // Session Close Workflows
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [tokenToClose, setTokenToClose] = useState<string | null>(null);
   const [isClosingSession, setIsClosingSession] = useState(false);
-  const [isQrCloseMode, setIsQrCloseMode] = useState(false);
+  const [scanningForClose, setScanningForClose] = useState(false);
+
+  const handleConfirmCloseSession = (tokenNum: string) => {
+    setTokenToClose(tokenNum);
+    setShowCloseConfirm(true);
+  };
+
+  const executeCloseSession = async () => {
+    if (!tokenToClose) return;
+    setIsClosingSession(true);
+    try {
+      const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+      const res = await fetch(`${BACKEND_URL}/sessions/${tokenToClose}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ eraseCard: true })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Section successfully closed', 'success');
+        setShowCloseConfirm(false);
+        setTokenToClose(null);
+        setBartenderState('idle');
+        setActiveSession(null);
+        await fetchLatestState();
+      } else {
+        showToast(data.error || 'Failed to close section', 'danger');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error occurred', 'danger');
+    } finally {
+      setIsClosingSession(false);
+    }
+  };
+
+  const handleQrScanForClose = () => {
+    setScanningForClose(true);
+  };
+
+  const handleQrCodeScannedForClose = async (qrData: string) => {
+    if (!qrData) return;
+    setScanningForClose(false);
+    setIsClosingSession(true);
+    try {
+      const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+      const res = await fetch(`${BACKEND_URL}/sessions/close-by-qr`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ qrData, eraseCard: true })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Section successfully closed via QR scan', 'success');
+        setBartenderState('idle');
+        setActiveSession(null);
+        await fetchLatestState();
+      } else {
+        showToast(data.error || 'Failed to close section via QR', 'danger');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error occurred', 'danger');
+    } finally {
+      setIsClosingSession(false);
+    }
+  };
 
   const handleQrScan = async () => {
     setErrorMessage('');
     setScannedCardUid(null);
     setActiveSession(null);
-    setIsQrCloseMode(false);
 
     if (permission && !permission.granted) {
       const res = await requestPermission();
       if (!res.granted) {
         setErrorMessage('Camera permission is required to scan QR codes.');
         setBartenderState('error');
-        return;
-      }
-    }
-    setBartenderState('scanning');
-  };
-
-  const handleQrCloseScan = async () => {
-    setErrorMessage('');
-    setScannedCardUid(null);
-    setActiveSession(null);
-    setIsQrCloseMode(true);
-
-    if (permission && !permission.granted) {
-      const res = await requestPermission();
-      if (!res.granted) {
-        setErrorMessage('Camera permission is required to scan QR codes.');
-        setBartenderState('error');
-        setIsQrCloseMode(false);
         return;
       }
     }
@@ -529,21 +581,9 @@ export const BartenderPortal: React.FC = () => {
               style={StyleSheet.absoluteFill}
               facing="back"
               onBarcodeScanned={({ data }) => {
-                if (data) {
-                  if (isQrCloseMode) {
-                    setIsClosingSession(true);
-                    closeSessionByQr(data).then(res => {
-                      setIsClosingSession(false);
-                      setIsQrCloseMode(false);
-                      if (res.success) {
-                        setBartenderState('idle');
-                        setActiveSession(null);
-                      }
-                    });
-                  } else if (data !== scannedCardUid) {
-                    setScannedCardUid(data);
-                    handleTokenLookup(data);
-                  }
+                if (data && data !== scannedCardUid) {
+                  setScannedCardUid(data);
+                  handleTokenLookup(data);
                 }
               }}
             />
@@ -656,25 +696,24 @@ export const BartenderPortal: React.FC = () => {
               </TouchableOpacity>
             )}
 
-            {/* Close Section Actions Block */}
-            {(user?.role === 'admin' || user?.role === 'receptionist' || user?.role === 'bartender') && (
-              <View className="flex-row gap-3 mb-4 mt-2">
-                <TouchableOpacity 
-                  className="flex-1 bg-red/10 border border-red/20 py-3.5 rounded-xl items-center justify-center min-h-[48px]" 
-                  onPress={() => setIsCloseConfirmOpen(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text className="text-red font-extrabold text-xs uppercase tracking-wider">Close Section</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  className="flex-grow flex-1 bg-gold/10 border border-gold/25 py-3.5 rounded-xl items-center justify-center min-h-[48px]" 
-                  onPress={handleQrCloseScan}
-                  activeOpacity={0.8}
-                >
-                  <Text className="text-gold font-extrabold text-xs uppercase tracking-wider">Scan QR</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Session Controls */}
+            <Text className="text-[10px] font-bold uppercase tracking-wider mt-4 mb-2" style={{ color: colors.muted }}>Session Controls</Text>
+            <View className="flex-row gap-3 mb-4">
+              <TouchableOpacity 
+                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px] bg-red/10" 
+                style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                onPress={() => handleConfirmCloseSession(activeSession.tokenNumber)}
+              >
+                <Text className="font-bold text-xs text-red">Close Section</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
+                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+                onPress={handleQrScanForClose}
+              >
+                <Text className="font-bold text-xs" style={{ color: colors.text }}>Scan QR</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Serve / Next Buttons */}
             <View className="flex-row gap-3 mt-2">
@@ -731,25 +770,24 @@ export const BartenderPortal: React.FC = () => {
               </TouchableOpacity>
             )}
 
-            {/* Close Section Actions Block */}
-            {(user?.role === 'admin' || user?.role === 'receptionist' || user?.role === 'bartender') && (
-              <View className="flex-row gap-3 mb-4 mt-2">
-                <TouchableOpacity 
-                  className="flex-1 bg-red/10 border border-red/20 py-3.5 rounded-xl items-center justify-center min-h-[48px]" 
-                  onPress={() => setIsCloseConfirmOpen(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text className="text-red font-extrabold text-xs uppercase tracking-wider">Close Section</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  className="flex-grow flex-1 bg-gold/10 border border-gold/25 py-3.5 rounded-xl items-center justify-center min-h-[48px]" 
-                  onPress={handleQrCloseScan}
-                  activeOpacity={0.8}
-                >
-                  <Text className="text-gold font-extrabold text-xs uppercase tracking-wider">Scan QR</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Session Controls */}
+            <Text className="text-[10px] font-bold uppercase tracking-wider mt-4 mb-2" style={{ color: colors.muted }}>Session Controls</Text>
+            <View className="flex-row gap-3 mb-4">
+              <TouchableOpacity 
+                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px] bg-red/10" 
+                style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                onPress={() => handleConfirmCloseSession(activeSession.tokenNumber)}
+              >
+                <Text className="font-bold text-xs text-red">Close Section</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
+                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+                onPress={handleQrScanForClose}
+              >
+                <Text className="font-bold text-xs" style={{ color: colors.text }}>Scan QR</Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity 
               className="bg-gold py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
@@ -784,49 +822,65 @@ export const BartenderPortal: React.FC = () => {
         </View>
       )}
 
-      {/* CONFIRM MANUAL CLOSE MODAL */}
-      {isCloseConfirmOpen && activeSession && (
-        <View className="absolute inset-0 z-50 items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.65)' }}>
-          <View className="w-[85%] rounded-[24px] p-6 border shadow-2xl" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
-            <Text className="text-lg font-black mb-3 text-center" style={{ color: colors.text }}>Close Section</Text>
-            <Text className="text-xs leading-5 text-center mb-6" style={{ color: colors.muted }}>
-              Are you sure you want to close this guest session? This action will:{"\n"}
-              • Close the active guest session{"\n"}
-              • Vacate the assigned table ({activeSession.tableNumber}){"\n"}
-              • Move the table into Maintenance mode
+      {/* Confirmation Modal */}
+      {showCloseConfirm && (
+        <View style={StyleSheet.absoluteFill} className="bg-black/60 items-center justify-center z-50 p-6">
+          <View className="rounded-[20px] p-6 w-full max-w-[340px] border shadow-2xl" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+            <Text className="font-extrabold text-base mb-2" style={{ color: colors.text }}>Close Section</Text>
+            <Text className="text-xs leading-5 mb-6" style={{ color: colors.muted }}>
+              Are you sure you want to close this section? This will end the customer's active session and temporarily place the section under maintenance.
             </Text>
             <View className="flex-row gap-3">
-              <TouchableOpacity
-                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]"
+              <TouchableOpacity 
+                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
                 style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
-                onPress={() => setIsCloseConfirmOpen(false)}
+                onPress={() => {
+                  setShowCloseConfirm(false);
+                  setTokenToClose(null);
+                }}
                 disabled={isClosingSession}
               >
                 <Text className="font-bold text-xs" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                className="flex-[2] bg-red-600 py-3 rounded-xl items-center justify-center min-h-[44px]"
-                style={{ backgroundColor: '#EF4444' }}
-                onPress={async () => {
-                  setIsClosingSession(true);
-                  const res = await closeSessionManual(activeSession.tokenNumber);
-                  setIsClosingSession(false);
-                  setIsCloseConfirmOpen(false);
-                  if (res.success) {
-                    setBartenderState('idle');
-                    setActiveSession(null);
-                  }
-                }}
+              <TouchableOpacity 
+                className="flex-1 bg-red py-3 rounded-xl items-center justify-center min-h-[44px] border" 
+                style={{ borderColor: '#ef4444' }}
+                onPress={executeCloseSession}
                 disabled={isClosingSession}
               >
                 {isClosingSession ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text className="text-white font-extrabold text-xs">Yes, Close Section</Text>
+                  <Text className="font-bold text-xs text-white">Yes, Close Section</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      )}
+
+      {/* QR Scan Overlay for Close */}
+      {scanningForClose && (
+        <View style={StyleSheet.absoluteFill} className="bg-black z-50 items-center justify-center">
+          {permission && permission.granted ? (
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              onBarcodeScanned={({ data }) => {
+                if (data) {
+                  handleQrCodeScannedForClose(data);
+                }
+              }}
+            />
+          ) : (
+            <ActivityIndicator size="large" color={colors.teal} />
+          )}
+          <TouchableOpacity 
+            className="absolute bottom-10 bg-red px-6 py-3 rounded-xl border border-red"
+            onPress={() => setScanningForClose(false)}
+          >
+            <Text className="text-white font-extrabold text-xs uppercase tracking-wider">Cancel QR Scan</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>

@@ -1259,13 +1259,13 @@ router.patch('/tables/:id/status', authenticate, async (req: Request, res: Respo
       });
     }
 
-    // Update status and clear maintenance timers on manual override
+    // Update status
     const updated = await prisma.table.update({
       where: { id },
       data: {
         status: targetStatus,
-        maintenanceStart: null,
-        maintenanceEnd: null
+        maintenanceStart: targetStatus !== 'maintenance' ? null : undefined,
+        maintenanceEnd: targetStatus !== 'maintenance' ? null : undefined,
       },
       include: { placeType: true }
     });
@@ -2364,12 +2364,14 @@ const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) 
 router.post('/checkout', authenticate, authorize(['receptionist', 'admin']), checkoutSessionHandler);
 router.put('/tokens/:tokenNumber/close', authenticate, authorize(['receptionist', 'admin']), checkoutSessionHandler);
 
-// Manual Close Session (by Button)
-router.post('/sessions/:tokenNumber/close', authenticate, authorize(['receptionist', 'bartender', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+// Manual Close Section Route
+router.post('/sessions/:tokenNumber/close', authenticate, authorize(['admin', 'receptionist', 'bartender']), async (req: AuthenticatedRequest, res: Response) => {
   const { tokenNumber } = req.params;
+  const { eraseCard } = req.body;
+
   const tokenRegex = /^BAR-\d{8}-\d{5}$/;
-  if (!tokenRegex.test(tokenNumber) || tokenNumber.length !== 18) {
-    return res.status(400).json({ error: 'Token number must be exactly 18 characters in format BAR-YYYYMMDD-XXXXX.' });
+  if (!tokenNumber || !tokenRegex.test(tokenNumber) || tokenNumber.length !== 18) {
+    return res.status(400).json({ error: 'Token number must be in format BAR-YYYYMMDD-XXXXX.' });
   }
 
   try {
@@ -2377,18 +2379,21 @@ router.post('/sessions/:tokenNumber/close', authenticate, authorize(['receptioni
       tokenNumber,
       req.user?.id || '',
       CloseReason.MANUAL,
-      true
+      eraseCard !== undefined ? eraseCard : true
     );
 
     return res.json({
       success: true,
-      message: 'Session closed manually and section placed under maintenance.',
-      data: {
+      message: 'Section closed successfully',
+      summary: {
         tokenNumber: summary.token.tokenNumber,
         customerName: summary.token.customer.name,
         tableNumber: summary.token.table.tableNumber,
         durationMinutes: summary.sessionSummary.totalTimeUsedMinutes,
-        amountPaid: parseFloat(summary.token.amountPaid.toString())
+        allocatedMinutes: summary.sessionSummary.timeAllocatedMinutes,
+        redemptionsUsed: summary.sessionSummary.totalRedemptionsUsed,
+        redemptionLimit: summary.token.totalRedemptionsAllowed,
+        amountPaid: parseFloat(summary.token.amountPaid.toString()),
       }
     });
   } catch (err: any) {
@@ -2400,35 +2405,81 @@ router.post('/sessions/:tokenNumber/close', authenticate, authorize(['receptioni
   }
 });
 
-// QR Code Assisted Close Session
-router.post('/sessions/close-by-qr', authenticate, authorize(['receptionist', 'bartender', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
-  const { token } = req.body;
-  if (!token) {
-    return res.status(400).json({ error: 'Token number is required' });
+// QR Code Assisted Close Section Route
+router.post('/sessions/close-by-qr', authenticate, authorize(['admin', 'receptionist', 'bartender']), async (req: AuthenticatedRequest, res: Response) => {
+  const { qrData, eraseCard } = req.body;
+
+  if (!qrData) {
+    return res.status(400).json({ error: 'QR data is required.' });
+  }
+
+  // Support legacy JWT decoding or direct token validation
+  let tokenNumber = qrData;
+  if (qrData.startsWith('ey')) {
+    try {
+      const decoded: any = jwt.decode(qrData);
+      if (decoded && decoded.tokenNumber) {
+        tokenNumber = decoded.tokenNumber;
+      }
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid legacy QR code signature.' });
+    }
   }
 
   const tokenRegex = /^BAR-\d{8}-\d{5}$/;
-  if (!tokenRegex.test(token) || token.length !== 18) {
-    return res.status(400).json({ error: 'Token number must be exactly 18 characters in format BAR-YYYYMMDD-XXXXX.' });
+  if (!tokenRegex.test(tokenNumber) || tokenNumber.length !== 18) {
+    return res.status(400).json({ error: 'Scanned QR does not contain a valid token number.' });
   }
 
   try {
+    // 1. Validation Checks before closing
+    const token = await prisma.token.findUnique({
+      where: { tokenNumber },
+      include: { table: true }
+    });
+
+    if (!token) {
+      return res.status(404).json({ error: 'Token not found.' });
+    }
+
+    if (token.status === 'closed') {
+      return res.status(409).json({ error: 'This session has already been closed.' });
+    }
+
+    if (token.status !== 'active' && token.status !== 'extended' && token.status !== 'expired') {
+      return res.status(400).json({ error: `Cannot close token with status: ${token.status}` });
+    }
+
+    if (token.deliveryMode === 'EMAIL_QR' && !token.paymentVerified) {
+      return res.status(400).json({ error: 'Cannot close an unpaid pending QR session.' });
+    }
+
+    // Verify section is currently occupied
+    const table = token.table;
+    if (!table || table.status !== 'occupied') {
+      return res.status(400).json({ error: 'Assigned table/section is not currently marked occupied.' });
+    }
+
+    // 2. Perform closure using centralized service
     const summary = await tokenService.closeSession(
-      token,
+      tokenNumber,
       req.user?.id || '',
       CloseReason.QR_SCAN,
-      true
+      eraseCard !== undefined ? eraseCard : true
     );
 
     return res.json({
       success: true,
-      message: 'Session closed via QR scan and section placed under maintenance.',
-      data: {
+      message: 'Section successfully closed via QR scan',
+      summary: {
         tokenNumber: summary.token.tokenNumber,
         customerName: summary.token.customer.name,
         tableNumber: summary.token.table.tableNumber,
         durationMinutes: summary.sessionSummary.totalTimeUsedMinutes,
-        amountPaid: parseFloat(summary.token.amountPaid.toString())
+        allocatedMinutes: summary.sessionSummary.timeAllocatedMinutes,
+        redemptionsUsed: summary.sessionSummary.totalRedemptionsUsed,
+        redemptionLimit: summary.token.totalRedemptionsAllowed,
+        amountPaid: parseFloat(summary.token.amountPaid.toString()),
       }
     });
   } catch (err: any) {

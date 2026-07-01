@@ -5,7 +5,6 @@ import router from './routes';
 import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import Redis from 'ioredis';
-import tokenService from './services/TokenService';
 
 dotenv.config();
 
@@ -109,12 +108,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(Number(port), '0.0.0.0', async () => {
+app.listen(Number(port), '0.0.0.0', () => {
   console.log(`Backend server listening on port ${port}`);
-  try {
-    await tokenService.reconcileMaintenanceTables();
-    console.log('Maintenance tables checked and reconciled on startup.');
-  } catch (err) {
-    console.error('Failed to reconcile maintenance tables on startup:', err);
-  }
 });

@@ -1,6 +1,5 @@
-import { PrismaClient, CloseReason } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import redisService from './RedisService';
 import tokenService from './TokenService';
 import redemptionService from './RedemptionService';
 import s3Service from './S3Service';
@@ -372,10 +371,9 @@ export class SyncService {
           };
         }
 
-        const summary = await tokenService.closeSession(
+        const summary = await tokenService.closeToken(
           token.tokenNumber,
           closedBy,
-          CloseReason.CHECKOUT,
           eraseCard !== undefined ? eraseCard : true
         );
 

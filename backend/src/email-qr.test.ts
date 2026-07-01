@@ -21,6 +21,7 @@ async function cleanupDb() {
   await prisma.tableOccupancyLog.deleteMany({});
   await prisma.token.deleteMany({});
   await prisma.customer.deleteMany({});
+  await prisma.table.deleteMany({ where: { tableNumber: { startsWith: 'PENDING-' } } });
   
   // Reset all cards to available
   await prisma.card.updateMany({
@@ -456,82 +457,127 @@ async function runTests() {
       });
       assert.strictEqual(tableInDb?.status, 'occupied');
       console.log('✓ Pending session activated successfully.');
- 
-      // Test 16: Global Close Section Workflow & Maintenance Verification
-      console.log('Test 16: Global Close Section Workflow & Maintenance Verification');
-      
-      // 1. Manually close the active session using the new button-mimicking route
-      const closeSessionRes = await fetch(`${BASE_URL}/sessions/${pendingTokenNumber}/close`, {
+
+      // Test 16: Close Section & Maintenance Verification
+      console.log('\nTest 16: Manual Session Close and Maintenance Workflow');
+      const closeRes = await fetch(`${BASE_URL}/sessions/${activateData.tokenNumber}/close`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${jwtToken}`
-        }
+        },
+        body: JSON.stringify({ eraseCard: true })
       });
-      assert.strictEqual(closeSessionRes.status, 200);
-      const closeSessionData: any = await closeSessionRes.json();
-      assert.strictEqual(closeSessionData.success, true);
-      assert.ok(closeSessionData.message.includes('placed under maintenance'));
+      assert.strictEqual(closeRes.status, 200);
+      const closeData: any = await closeRes.json();
+      assert.strictEqual(closeData.success, true);
+      assert.strictEqual(closeData.summary.tokenNumber, activateData.tokenNumber);
 
-      // Verify DB Token status is closed and reason is MANUAL
-      const tokenInDb = await prisma.token.findUnique({
-        where: { tokenNumber: pendingTokenNumber }
+      // Verify DB values for Token and Table
+      const closedToken = await prisma.token.findUnique({
+        where: { tokenNumber: activateData.tokenNumber }
       });
-      assert.strictEqual(tokenInDb?.status, 'closed');
-      assert.strictEqual(tokenInDb?.closeReason, 'MANUAL');
+      assert.strictEqual(closedToken?.status, 'closed');
+      assert.strictEqual(closedToken?.closeReason, 'MANUAL');
 
-      // Verify DB Table status is maintenance and has timestamps
-      const tableInDbAfterClose = await prisma.table.findUnique({
+      const maintTable = await prisma.table.findUnique({
         where: { id: availableTable.id }
       });
-      assert.strictEqual(tableInDbAfterClose?.status, 'maintenance');
-      assert.ok(tableInDbAfterClose?.maintenanceStart);
-      assert.ok(tableInDbAfterClose?.maintenanceEnd);
+      assert.strictEqual(maintTable?.status, 'maintenance');
+      assert.ok(maintTable?.maintenanceStart);
+      assert.ok(maintTable?.maintenanceEnd);
+      console.log('✓ Manual session close and maintenance status transition verified.');
 
-      // 2. Verify idempotency - second close request should return 409 Conflict
-      const secondCloseRes = await fetch(`${BASE_URL}/sessions/${pendingTokenNumber}/close`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
-        }
-      });
-      assert.strictEqual(secondCloseRes.status, 409);
-      const secondCloseData: any = await secondCloseRes.json();
-      assert.strictEqual(secondCloseData.error, 'This session has already been closed.');
-      console.log('✓ Idempotency of Close Session verified successfully.');
-
-      // 3. Verify lazy-evaluation table reconciliation
-      console.log('Verifying lazy-evaluation table reconciliation...');
-      // Set the maintenanceEnd time to be in the past (1 minute ago)
+      // Simulate 5 minutes elapsed and reconcile
+      console.log('Simulating maintenance expiration and lazy recovery...');
       await prisma.table.update({
         where: { id: availableTable.id },
         data: {
-          maintenanceEnd: new Date(Date.now() - 60000)
+          maintenanceEnd: new Date(Date.now() - 1000) // 1 second ago
         }
       });
 
-      // Call the occupancy endpoint (which triggers reconcileMaintenanceTables)
+      // Call tables occupancy to trigger lazy recovery
       const occupancyRes = await fetch(`${BASE_URL}/tables/occupancy`, {
-        headers: {
-          'Authorization': `Bearer ${jwtToken}`
-        }
+        headers: { 'Authorization': `Bearer ${jwtToken}` }
       });
       assert.strictEqual(occupancyRes.status, 200);
 
-      // Verify table is back to available and timestamps are null
-      const tableAfterReconciliation = await prisma.table.findUnique({
+      const recoveredTable = await prisma.table.findUnique({
         where: { id: availableTable.id }
       });
-      assert.strictEqual(tableAfterReconciliation?.status, 'available');
-      assert.strictEqual(tableAfterReconciliation?.maintenanceStart, null);
-      assert.strictEqual(tableAfterReconciliation?.maintenanceEnd, null);
-      console.log('✓ Lazy-evaluation table reconciliation verified successfully.');
+      assert.strictEqual(recoveredTable?.status, 'available');
+      assert.strictEqual(recoveredTable?.maintenanceStart, null);
+      assert.strictEqual(recoveredTable?.maintenanceEnd, null);
+      console.log('✓ Table successfully recovered from maintenance lazily.');
+
+      // QR Close Verification
+      console.log('\nTest 17: QR Code Assisted Session Close');
+      // Create a new session for QR close test
+      const qrCheckInRes = await fetch(`${BASE_URL}/check-in/pending`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          customerName: 'QR Close Guest',
+          phoneNumber: '9999999992',
+          email: 'qr.close@gmail.com',
+          personsCount: 2,
+          placeType: 'STANDING_BAR'
+        })
+      });
+      const qrCheckInData: any = await qrCheckInRes.json();
+      assert.strictEqual(qrCheckInRes.status, 201);
+      const qrToken = qrCheckInData.tokenNumber;
+
+      // Activate session
+      const qrActivateRes = await fetch(`${BASE_URL}/check-in/activate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({
+          tokenNumber: qrToken,
+          tableNumber: availableTable.tableNumber,
+          amountPaid: 1000
+        })
+      });
+      assert.strictEqual(qrActivateRes.status, 200);
+
+      // Verify it is occupied
+      const occupiedTable2 = await prisma.table.findUnique({ where: { id: availableTable.id } });
+      assert.strictEqual(occupiedTable2?.status, 'occupied');
+
+      // Close by QR
+      const qrCloseRes = await fetch(`${BASE_URL}/sessions/close-by-qr`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({ qrData: qrToken, eraseCard: true })
+      });
+      assert.strictEqual(qrCloseRes.status, 200);
+      const qrCloseData: any = await qrCloseRes.json();
+      assert.strictEqual(qrCloseData.success, true);
+
+      // Verify session closed with QR_SCAN close reason
+      const qrClosedToken = await prisma.token.findUnique({ where: { tokenNumber: qrToken } });
+      assert.strictEqual(qrClosedToken?.status, 'closed');
+      assert.strictEqual(qrClosedToken?.closeReason, 'QR_SCAN');
+
+      // Verify table is back to maintenance
+      const maintTable2 = await prisma.table.findUnique({ where: { id: availableTable.id } });
+      assert.strictEqual(maintTable2?.status, 'maintenance');
+      console.log('✓ QR assisted session close successfully verified.');
 
       console.log('\n=========================================');
       console.log('ALL EMAIL QR INTEGRATION TESTS PASSED!');
       console.log('=========================================\n');
- 
+
       server.close();
       process.exit(0);
 

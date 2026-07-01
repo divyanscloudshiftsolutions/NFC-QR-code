@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TouchableOpacity, TextInput, ScrollView, 
-  Platform, Modal, ActivityIndicator
+  Platform, Modal
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../../context/NfcBarContext';
@@ -12,7 +12,7 @@ import { AppIcon } from '../../../components/common/AppIcon';
 import { useResponsive } from '../../../utils/responsive';
 
 export const TablesPortal: React.FC = () => {
-  const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab, closeSessionManual } = useNfcBar();
+  const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab } = useNfcBar();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedPlace, setSelectedPlace] = useState<PlaceType>('STANDING_BAR');
@@ -26,10 +26,6 @@ export const TablesPortal: React.FC = () => {
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [selectedSession, setSelectedSession] = useState<SessionToken | null>(null);
-  
-  // Close confirmation states
-  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
-  const [isClosingSession, setIsClosingSession] = useState(false);
 
   useEffect(() => {
     setOverlayActive(isBottomSheetOpen);
@@ -643,7 +639,7 @@ export const TablesPortal: React.FC = () => {
  
                 {selectedSession && user?.role !== UserRole.MANAGER && (
                   <View className="flex-row gap-2.5 mb-1.5">
-                    <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" style={{ borderColor: '#e63946' }} onPress={() => setIsCloseConfirmOpen(true)}>
+                    <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" style={{ borderColor: '#e63946' }} onPress={handleCloseSession}>
                       <Text className="font-bold text-sm" style={{ color: '#e63946' }}>Close Session</Text>
                     </TouchableOpacity>
                     <TouchableOpacity className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" style={{ borderColor: colors.gold }} onPress={handleExtend}>
@@ -673,58 +669,6 @@ export const TablesPortal: React.FC = () => {
           )}
         </View>
       </Modal>
-
-      {/* CONFIRM MANUAL CLOSE MODAL */}
-      {isCloseConfirmOpen && selectedSession && (
-        <Modal
-          visible={isCloseConfirmOpen}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setIsCloseConfirmOpen(false)}
-        >
-          <View className="flex-1 items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.65)' }}>
-            <View className="w-[85%] rounded-[24px] p-6 border shadow-2xl" style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}>
-              <Text className="text-lg font-black mb-3 text-center" style={{ color: colors.text }}>Close Section</Text>
-              <Text className="text-xs leading-5 text-center mb-6" style={{ color: colors.muted }}>
-                Are you sure you want to close this guest session? This action will:{"\n"}
-                • Close the active guest session{"\n"}
-                • Vacate the assigned table ({selectedSession.tableNumber}){"\n"}
-                • Move the table into Maintenance mode
-              </Text>
-              <View className="flex-row gap-3">
-                <TouchableOpacity
-                  className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]"
-                  style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1 }}
-                  onPress={() => setIsCloseConfirmOpen(false)}
-                  disabled={isClosingSession}
-                >
-                  <Text className="font-bold text-xs" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  className="flex-[2] py-3 rounded-xl items-center justify-center min-h-[44px]"
-                  style={{ backgroundColor: '#EF4444' }}
-                  onPress={async () => {
-                    setIsClosingSession(true);
-                    const res = await closeSessionManual(selectedSession.tokenNumber);
-                    setIsClosingSession(false);
-                    setIsCloseConfirmOpen(false);
-                    if (res.success) {
-                      setIsBottomSheetOpen(false);
-                    }
-                  }}
-                  disabled={isClosingSession}
-                >
-                  {isClosingSession ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text className="text-white font-extrabold text-xs">Yes, Close Section</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
     </View>
   );
 };

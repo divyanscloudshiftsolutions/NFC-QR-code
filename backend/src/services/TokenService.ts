@@ -1,4 +1,4 @@
-import { PrismaClient, CloseReason, TokenStatus } from '@prisma/client';
+import { PrismaClient, CloseReason } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import redisService from './RedisService';
 import emailNotificationService from './EmailNotificationService';
@@ -244,26 +244,6 @@ export class TokenService {
         }
       });
 
-      // Update Table status to occupied and set references
-      await tx.table.update({
-        where: { id: request.tableId },
-        data: {
-          status: 'occupied',
-          currentTokenId: token.id,
-          occupiedSince: start,
-          lastAssignedAt: start
-        }
-      });
-
-      // Insert TableOccupancyLog
-      await tx.tableOccupancyLog.create({
-        data: {
-          tableId: request.tableId,
-          tokenId: token.id,
-          occupiedAt: start
-        }
-      });
-
       // Update Card status to assigned and set current_token_id (1-to-1 schema relation)
       if (deliveryMode === 'NFC_CARD' && cardId) {
         await tx.card.update({
@@ -276,6 +256,7 @@ export class TokenService {
         });
       }
 
+      // Note: Table status and occupancy logs are updated automatically by trigger in PostgreSQL!
       // Invalidate caches manually to keep in sync
       await redisService.del(`table:available:${request.placeTypeId}`);
       await redisService.del('table:available:all');
@@ -304,7 +285,7 @@ export class TokenService {
       );
 
       return token;
-    }, { timeout: 20000 });
+    });
 
     if (deliveryMode === 'EMAIL_QR' && request.email) {
       emailNotificationService.enqueueEmailJob(request.email.trim().toLowerCase(), token.tokenNumber, request.customerName);
@@ -426,13 +407,10 @@ export class TokenService {
     if (expiredTables.length > 0) {
       await prisma.$transaction(async (tx) => {
         for (const table of expiredTables) {
-          const freshTable = await tx.table.findUnique({ where: { id: table.id } });
-          if (
-            freshTable &&
-            freshTable.status === 'maintenance' &&
-            freshTable.maintenanceEnd &&
-            freshTable.maintenanceEnd <= now
-          ) {
+          const freshTable = await tx.table.findUnique({
+            where: { id: table.id }
+          });
+          if (freshTable && freshTable.status === 'maintenance' && freshTable.maintenanceEnd && freshTable.maintenanceEnd <= now) {
             await tx.table.update({
               where: { id: table.id },
               data: {
@@ -452,19 +430,20 @@ export class TokenService {
   async closeSession(
     tokenNumber: string,
     closedBy: string,
-    reason: CloseReason,
-    eraseCard: boolean = true
+    closeReason: CloseReason,
+    eraseCard: boolean
   ): Promise<SessionSummary> {
     const now = new Date();
     return await prisma.$transaction(async (tx) => {
-      // 1. Acquire row lock on Token to handle race conditions
+      // 1. Pessimistic row-locking on Token
       const tokens = await tx.$queryRaw<any[]>`
-        SELECT id, status, table_id as "tableId", customer_id as "customerId",
-               start_time as "startTime", end_time as "endTime",
-               total_redemptions_allowed as "totalRedemptionsAllowed", redemptions_used as "redemptionsUsed",
-               delivery_mode as "deliveryMode", payment_verified as "paymentVerified"
+        SELECT id, status, "table_id" as "tableId", "customer_id" as "customerId",
+               "start_time" as "startTime", "end_time" as "endTime",
+               "total_redemptions_allowed" as "totalRedemptionsAllowed", "redemptions_used" as "redemptionsUsed",
+               "delivery_mode" as "deliveryMode", "payment_verified" as "paymentVerified"
         FROM tokens
         WHERE token_number = ${tokenNumber}
+        LIMIT 1
         FOR UPDATE
       `;
 
@@ -474,7 +453,7 @@ export class TokenService {
 
       const token = tokens[0];
 
-      // Idempotency check: if already closed, throw Conflict error
+      // Idempotency check: if already closed, throw CONFLICT error
       if (token.status === 'closed') {
         const error = new Error('This session has already been closed.') as any;
         error.code = 'CONFLICT';
@@ -491,39 +470,34 @@ export class TokenService {
         throw new Error('Cannot close an unpaid pending QR session.');
       }
 
-      // Fetch full token info for returning
-      const fullToken = await tx.token.findUniqueOrThrow({
+      const totalTimeUsedMinutes = Math.floor(
+        (now.getTime() - new Date(token.startTime).getTime()) / 60000
+      );
+
+      const fullToken = await tx.token.findUnique({
         where: { id: token.id },
         include: {
           customer: true,
           placeType: true,
           table: true,
           card: true,
+          redemptions: true,
           extensions: true
         }
       });
 
-      const totalTimeUsedMinutes = Math.floor(
-        (now.getTime() - fullToken.startTime.getTime()) / 60000
-      );
+      if (!fullToken) throw new Error('Token details not found');
 
-      const totalExtensionMinutes = fullToken.extensions.reduce((acc, ext) => acc + ext.extraMinutes, 0);
+      const totalExtensionMinutes = fullToken.extensions.reduce((acc: number, ext: any) => acc + ext.extraMinutes, 0);
 
-      // Read maintenance duration configuration
-      const mConfig = await tx.systemConfig.findUnique({
-        where: { configKey: 'maintenance_duration_minutes' }
-      });
-      const maintenanceDuration = mConfig ? parseInt(mConfig.configValue, 10) : 5;
-      const maintenanceEndTime = new Date(now.getTime() + maintenanceDuration * 60 * 1000);
-
-      // Update Token
+      // Update token status
       const updatedToken = await tx.token.update({
         where: { id: token.id },
         data: {
-          status: TokenStatus.closed,
+          status: 'closed',
           closedAt: now,
           closedBy,
-          closeReason: reason
+          closeReason
         },
         include: {
           customer: true,
@@ -532,19 +506,23 @@ export class TokenService {
         }
       });
 
-      // Update Table to maintenance mode
+      // Update table status to maintenance (5 minutes duration)
+      const maintenanceDurationMs = 5 * 60000;
+      const maintenanceStart = now;
+      const maintenanceEnd = new Date(now.getTime() + maintenanceDurationMs);
+
       await tx.table.update({
         where: { id: token.tableId },
         data: {
           status: 'maintenance',
           currentTokenId: null,
           occupiedSince: null,
-          maintenanceStart: now,
-          maintenanceEnd: maintenanceEndTime
+          maintenanceStart,
+          maintenanceEnd
         }
       });
 
-      // Update Occupancy Log with vacated time
+      // Update occupancy logs
       await tx.tableOccupancyLog.updateMany({
         where: {
           tableId: token.tableId,
@@ -573,21 +551,29 @@ export class TokenService {
       if (fullToken.card) {
         await redisService.del(`token:active:${fullToken.card.nfcUid}`);
       }
-      await redisService.del(`table:available:${fullToken.placeTypeId}`);
+      await redisService.del(`table:available:${token.placeTypeId}`);
       await redisService.del('table:available:all');
       await redisService.del(`table:${token.tableId}:status`);
 
       return {
         token: updatedToken,
         sessionSummary: {
-          totalRedemptionsUsed: fullToken.redemptionsUsed,
-          redemptionsUnused: fullToken.totalRedemptionsAllowed - fullToken.redemptionsUsed,
+          totalRedemptionsUsed: token.redemptionsUsed,
+          redemptionsUnused: token.totalRedemptionsAllowed - token.redemptionsUsed,
           totalTimeUsedMinutes,
           timeAllocatedMinutes: fullToken.placeType.baseTimeMinutes,
           timeExtensionMinutes: totalExtensionMinutes
         }
       };
-    }, { timeout: 20000 });
+    });
+  }
+
+  async closeToken(
+    tokenNumber: string,
+    closedBy: string,
+    eraseCard: boolean
+  ): Promise<SessionSummary> {
+    return this.closeSession(tokenNumber, closedBy, CloseReason.CHECKOUT, eraseCard);
   }
 }
 

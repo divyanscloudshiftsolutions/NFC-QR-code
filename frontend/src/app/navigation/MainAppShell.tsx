@@ -147,57 +147,18 @@ export const MainAppShell: React.FC = () => {
         className="absolute top-20 z-[9999] gap-2 self-center"
         style={isCentered ? { width: '90%', maxWidth: 380 } : { left: 16, right: 16 }}
       >
-        {toasts.map(toast => {
-          // Compute toast styles based on state
-          const getToastStyle = (type: string) => {
-            switch (type) {
-              case 'success': 
-                return {
-                  bg: isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.1)',
-                  border: '#22c55e',
-                  text: isDark ? '#4ade80' : '#15803d',
-                  icon: '🟢 '
-                };
-              case 'warning': 
-                return {
-                  bg: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
-                  border: '#f59e0b',
-                  text: isDark ? '#fbbf24' : '#b45309',
-                  icon: '🟡 '
-                };
-              case 'danger': 
-                return {
-                  bg: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                  border: '#ef4444',
-                  text: isDark ? '#f87171' : '#b91c1c',
-                  icon: '🔴 '
-                };
-              default: 
-                return {
-                  bg: colors.card,
-                  border: colors.border,
-                  text: colors.text,
-                  icon: 'ℹ️ '
-                };
-            }
-          };
-          const style = getToastStyle(toast.type);
-          return (
-            <View 
-              key={toast.id} 
-              className="py-3 px-4 rounded-xl shadow-2xl border flex-row items-center justify-center"
-              style={{ 
-                borderColor: style.border, 
-                backgroundColor: style.bg,
-                borderWidth: 1.5,
-              }}
-            >
-              <Text className="text-[12px] font-black text-center leading-4" style={{ color: style.text }}>
-                {style.icon}{toast.message}
-              </Text>
-            </View>
-          );
-        })}
+        {toasts.map(toast => (
+          <View 
+            key={toast.id} 
+            className={`py-3 px-4 rounded-xl shadow-lg border ${getToastBg(toast.type)}`}
+            style={{ 
+              borderColor: colors.border, 
+              backgroundColor: toast.type ? undefined : colors.surface 
+            }}
+          >
+            <Text className="text-[12px] font-bold text-center leading-4" style={{ color: toast.type ? '#ffffff' : colors.text }}>{toast.message}</Text>
+          </View>
+        ))}
       </View>
 
       {/* NOTIFICATIONS MODAL PANEL */}
