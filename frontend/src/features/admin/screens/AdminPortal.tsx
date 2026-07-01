@@ -919,7 +919,7 @@ export const AdminPortal: React.FC = () => {
       {/* Add Table Modal */}
       <Modal visible={isAddModalOpen} transparent animationType="slide">
         <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="bg-transparent border border-gold/20 rounded-2xl p-5 shadow-2xl">
+          <View className="rounded-2xl p-5 shadow-2xl border" style={{ backgroundColor: colors.modal || colors.card, borderColor: colors.border, borderWidth: 1.5 }}>
             <Text className="text-base font-bold text-gold mb-4">Add Seating Table</Text>
             
             <View className="mb-4">
@@ -1004,7 +1004,7 @@ export const AdminPortal: React.FC = () => {
       {/* Edit Table Modal */}
       <Modal visible={isEditModalOpen} transparent animationType="slide">
         <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="bg-transparent border border-gold/20 rounded-2xl p-5 shadow-2xl">
+          <View className="rounded-2xl p-5 shadow-2xl border" style={{ backgroundColor: colors.modal || colors.card, borderColor: colors.border, borderWidth: 1.5 }}>
             <Text className="text-base font-bold text-gold mb-4">Edit Table {selectedTable?.number}</Text>
 
             <View className="mb-6">
@@ -1223,7 +1223,7 @@ export const AdminPortal: React.FC = () => {
       {/* Add Staff Modal */}
       <Modal visible={isAddStaffOpen} transparent animationType="slide">
         <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="bg-transparent border border-gold/20 rounded-2xl p-5 shadow-2xl">
+          <View className="rounded-2xl p-5 shadow-2xl border" style={{ backgroundColor: colors.modal || colors.card, borderColor: colors.border, borderWidth: 1.5 }}>
             <Text className="text-base font-bold text-gold mb-4">Add Staff Account</Text>
             
             <View className="mb-4">
@@ -1354,7 +1354,7 @@ export const AdminPortal: React.FC = () => {
       {/* Edit Staff Modal */}
       <Modal visible={isEditStaffOpen} transparent animationType="slide">
         <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="bg-transparent border border-gold/20 rounded-2xl p-5 shadow-2xl">
+          <View className="rounded-2xl p-5 shadow-2xl border" style={{ backgroundColor: colors.modal || colors.card, borderColor: colors.border, borderWidth: 1.5 }}>
             <Text className="text-base font-bold text-gold mb-4">Edit Staff Profile</Text>
             
             <View className="mb-4">
@@ -1510,7 +1510,7 @@ export const AdminPortal: React.FC = () => {
       {/* Edit Rate Modal */}
       <Modal visible={isEditRateOpen} transparent animationType="slide">
         <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="bg-transparent border border-gold/20 rounded-2xl p-5 shadow-2xl">
+          <View className="rounded-2xl p-5 shadow-2xl border" style={{ backgroundColor: colors.modal || colors.card, borderColor: colors.border, borderWidth: 1.5 }}>
             <Text className="text-base font-bold text-gold mb-4">Edit Rate Configuration</Text>
             
             <View className="mb-4">
