@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 import assert from 'assert';
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
@@ -211,7 +212,9 @@ async function runTests() {
 
       // Test 8: Verify QR Code signature (Invalid/Forged signature)
       console.log('Test 8: POST /qr/verify (Invalid signature)');
-      const verifyInvalidRes = await fetch(`${BASE_URL}/qr/verify`, {
+      
+      // A. Forged raw token UID (returns 404 because it is not a valid JWT and doesn't exist in DB)
+      const verifyInvalidResRaw = await fetch(`${BASE_URL}/qr/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -219,11 +222,24 @@ async function runTests() {
         },
         body: JSON.stringify({ token: signedPayload + 'forged' })
       });
-      assert.strictEqual(verifyInvalidRes.status, 400);
-      const verifyInvalidData: any = await verifyInvalidRes.json();
+      assert.strictEqual(verifyInvalidResRaw.status, 404);
+      console.log('✓ Rejected forged raw token UID (404).');
+
+      // B. Forged legacy JWT (returns 400 QR_INVALID_SIGNATURE)
+      const forgedJwt = 'header.payload.signature-forged';
+      const verifyInvalidResJwt = await fetch(`${BASE_URL}/qr/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({ token: forgedJwt })
+      });
+      assert.strictEqual(verifyInvalidResJwt.status, 400);
+      const verifyInvalidData: any = await verifyInvalidResJwt.json();
       assert.strictEqual(verifyInvalidData.success, false);
       assert.strictEqual(verifyInvalidData.error.code, 'QR_INVALID_SIGNATURE');
-      console.log('✓ Rejected forged QR code payload.');
+      console.log('✓ Rejected forged legacy JWT token (400).');
 
       // Test 9: Redeem QR token via unified /redemptions endpoint
       console.log('Test 9: POST /redemptions (Valid QR_SCAN)');
@@ -440,11 +456,82 @@ async function runTests() {
       });
       assert.strictEqual(tableInDb?.status, 'occupied');
       console.log('✓ Pending session activated successfully.');
+ 
+      // Test 16: Global Close Section Workflow & Maintenance Verification
+      console.log('Test 16: Global Close Section Workflow & Maintenance Verification');
+      
+      // 1. Manually close the active session using the new button-mimicking route
+      const closeSessionRes = await fetch(`${BASE_URL}/sessions/${pendingTokenNumber}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        }
+      });
+      assert.strictEqual(closeSessionRes.status, 200);
+      const closeSessionData: any = await closeSessionRes.json();
+      assert.strictEqual(closeSessionData.success, true);
+      assert.ok(closeSessionData.message.includes('placed under maintenance'));
+
+      // Verify DB Token status is closed and reason is MANUAL
+      const tokenInDb = await prisma.token.findUnique({
+        where: { tokenNumber: pendingTokenNumber }
+      });
+      assert.strictEqual(tokenInDb?.status, 'closed');
+      assert.strictEqual(tokenInDb?.closeReason, 'MANUAL');
+
+      // Verify DB Table status is maintenance and has timestamps
+      const tableInDbAfterClose = await prisma.table.findUnique({
+        where: { id: availableTable.id }
+      });
+      assert.strictEqual(tableInDbAfterClose?.status, 'maintenance');
+      assert.ok(tableInDbAfterClose?.maintenanceStart);
+      assert.ok(tableInDbAfterClose?.maintenanceEnd);
+
+      // 2. Verify idempotency - second close request should return 409 Conflict
+      const secondCloseRes = await fetch(`${BASE_URL}/sessions/${pendingTokenNumber}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        }
+      });
+      assert.strictEqual(secondCloseRes.status, 409);
+      const secondCloseData: any = await secondCloseRes.json();
+      assert.strictEqual(secondCloseData.error, 'This session has already been closed.');
+      console.log('✓ Idempotency of Close Session verified successfully.');
+
+      // 3. Verify lazy-evaluation table reconciliation
+      console.log('Verifying lazy-evaluation table reconciliation...');
+      // Set the maintenanceEnd time to be in the past (1 minute ago)
+      await prisma.table.update({
+        where: { id: availableTable.id },
+        data: {
+          maintenanceEnd: new Date(Date.now() - 60000)
+        }
+      });
+
+      // Call the occupancy endpoint (which triggers reconcileMaintenanceTables)
+      const occupancyRes = await fetch(`${BASE_URL}/tables/occupancy`, {
+        headers: {
+          'Authorization': `Bearer ${jwtToken}`
+        }
+      });
+      assert.strictEqual(occupancyRes.status, 200);
+
+      // Verify table is back to available and timestamps are null
+      const tableAfterReconciliation = await prisma.table.findUnique({
+        where: { id: availableTable.id }
+      });
+      assert.strictEqual(tableAfterReconciliation?.status, 'available');
+      assert.strictEqual(tableAfterReconciliation?.maintenanceStart, null);
+      assert.strictEqual(tableAfterReconciliation?.maintenanceEnd, null);
+      console.log('✓ Lazy-evaluation table reconciliation verified successfully.');
 
       console.log('\n=========================================');
       console.log('ALL EMAIL QR INTEGRATION TESTS PASSED!');
       console.log('=========================================\n');
-
+ 
       server.close();
       process.exit(0);
 

@@ -21,15 +21,17 @@ export class RedemptionService {
     // 1. Resolve tokenNumber
     let tokenNumber = payload;
     if (presentationType === 'QR_SCAN') {
-      try {
-        const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-        const decoded = jwt.verify(payload, secret) as { token: string; type: string };
-        if (decoded.type !== 'EMAIL_QR') {
-          throw new Error('Invalid token type in QR code');
+      if (payload.includes('.')) {
+        try {
+          const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
+          const decoded = jwt.verify(payload, secret) as { token: string; type: string };
+          if (decoded.type !== 'EMAIL_QR') {
+            throw new Error('Invalid token type in QR code');
+          }
+          tokenNumber = decoded.token;
+        } catch (err: any) {
+          throw new Error('Invalid QR payload signature or forgery detected.');
         }
-        tokenNumber = decoded.token;
-      } catch (err: any) {
-        throw new Error('Invalid QR payload signature or forgery detected.');
       }
     }
 

@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, CloseReason } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { tableService } from './services/TableService';
 import { tokenService } from './services/TokenService';
@@ -62,53 +62,76 @@ export interface AuthenticatedRequest extends Request {
 // MIDDLEWARES
 // ==========================================
 
-export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    jwt.verify(token, jwtSecret, async (err, decoded) => {
-      if (err) {
-        // Local verification failed, attempt external validation
-        try {
-          const validateRes = await fetchWithTimeout(`${authApiUrl}/api/auth/validate`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          }, 2000);
 
-          if (validateRes.ok) {
-            const data = await validateRes.json();
-            if (data && data.valid && data.sub) {
-              const localUser = await prisma.user.findFirst({
-                where: {
-                  OR: [
-                    { id: data.sub },
-                    { username: data.email ? data.email.split('@')[0] : undefined }
-                  ]
-                },
-                include: { role: true }
-              });
-
-              if (localUser && localUser.isActive) {
-                req.user = {
-                  id: localUser.id,
-                  username: localUser.username,
-                  role: localUser.role.name,
-                  fullName: localUser.fullName
-                };
-                return next();
-              }
-            }
+    try {
+      // 1. Try local session lookup
+      const session = await prisma.staffSession.findFirst({
+        where: {
+          id: token,
+          expiresAt: { gt: new Date() }
+        },
+        include: {
+          user: {
+            include: { role: true }
           }
-        } catch (extErr: any) {
-          console.warn(`External token validation failed/timed out: ${extErr.message}`);
         }
-        return res.status(403).json({ success: false, error: { code: 'AUTH_002', message: 'Invalid or expired token' } });
+      });
+
+      if (session && session.user && session.user.isActive) {
+        req.user = {
+          id: session.user.id,
+          username: session.user.username,
+          role: session.user.role.name,
+          fullName: session.user.fullName
+        };
+        return next();
       }
-      req.user = decoded as AuthenticatedRequest['user'];
-      next();
-    });
+    } catch (dbErr) {
+      console.warn(`Local session DB lookup failed: ${dbErr}`);
+    }
+
+    // 2. Fallback to external validation (e.g. federated auth api validation)
+    try {
+      const validateRes = await fetchWithTimeout(`${authApiUrl}/api/auth/validate`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }, 2000);
+
+      if (validateRes.ok) {
+        const data = await validateRes.json();
+        if (data && data.valid && data.sub) {
+          const localUser = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { id: data.sub },
+                { username: data.email ? data.email.split('@')[0] : undefined }
+              ]
+            },
+            include: { role: true }
+          });
+
+          if (localUser && localUser.isActive) {
+            req.user = {
+              id: localUser.id,
+              username: localUser.username,
+              role: localUser.role.name,
+              fullName: localUser.fullName
+            };
+            return next();
+          }
+        }
+      }
+    } catch (extErr: any) {
+      console.warn(`External token validation failed/timed out: ${extErr.message}`);
+    }
+
+    return res.status(403).json({ success: false, error: { code: 'AUTH_002', message: 'Invalid or expired token' } });
   } else {
     res.status(401).json({ success: false, error: { code: 'AUTH_003', message: 'Authorization header missing' } });
   }
@@ -277,22 +300,18 @@ router.post('/auth/login', async (req: Request, res: Response) => {
         }
       }).catch(() => {});
 
-      const accessToken = jwt.sign(
-        { id: finalUser.id, username: finalUser.username, role: finalUser.role.name, fullName: finalUser.fullName },
-        jwtSecret,
-        { expiresIn: '8h' }
-      );
-      const refreshToken = jwt.sign(
-        { id: finalUser.id, username: finalUser.username },
-        jwtSecret,
-        { expiresIn: '7d' }
-      );
+      const session = await prisma.staffSession.create({
+        data: {
+          userId: finalUser.id,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+        }
+      });
 
       return res.json({
         success: true,
-        token: accessToken,
-        accessToken,
-        refreshToken,
+        token: session.id,
+        accessToken: session.id,
+        refreshToken: 'no-jwt-refresh-needed',
         user: {
           id: finalUser.id,
           username: finalUser.username,
@@ -364,23 +383,18 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       }
     }).catch(() => {});
 
-    const accessToken = jwt.sign(
-      { id: user.id, username: user.username, role: user.role.name, fullName: user.fullName },
-      jwtSecret,
-      { expiresIn: '8h' }
-    );
-
-    const refreshToken = jwt.sign(
-      { id: user.id, username: user.username },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
+    const session = await prisma.staffSession.create({
+      data: {
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      }
+    });
 
     return res.json({
       success: true,
-      token: accessToken,
-      accessToken,
-      refreshToken,
+      token: session.id,
+      accessToken: session.id,
+      refreshToken: 'no-jwt-refresh-needed',
       user: {
         id: user.id,
         username: user.username,
@@ -399,6 +413,22 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     console.error(err);
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERR', message: err.message } });
   }
+});
+
+// Logout User (Authenticated)
+router.post('/auth/logout', authenticate, async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      await prisma.staffSession.delete({
+        where: { id: token }
+      });
+    } catch (err) {
+      console.warn(`Logout: Session deletion failed (it might have already been deleted): ${err}`);
+    }
+  }
+  return res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // Register User (Admin Only)
@@ -1229,10 +1259,14 @@ router.patch('/tables/:id/status', authenticate, async (req: Request, res: Respo
       });
     }
 
-    // Update status
+    // Update status and clear maintenance timers on manual override
     const updated = await prisma.table.update({
       where: { id },
-      data: { status: targetStatus },
+      data: {
+        status: targetStatus,
+        maintenanceStart: null,
+        maintenanceEnd: null
+      },
       include: { placeType: true }
     });
 
@@ -1874,13 +1908,17 @@ router.post('/qr/verify', authenticate, authorize(['bartender', 'receptionist', 
   }
 
   try {
-    const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-    const decoded = jwt.verify(token, secret) as { token: string; type: string };
-    if (decoded.type !== 'EMAIL_QR') {
-      return res.status(400).json({ success: false, error: { message: 'Invalid token type in QR code' } });
+    let targetTokenNumber = token;
+    if (token.includes('.')) {
+      const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
+      const decoded = jwt.verify(token, secret) as { token: string; type: string };
+      if (decoded.type !== 'EMAIL_QR') {
+        return res.status(400).json({ success: false, error: { message: 'Invalid token type in QR code' } });
+      }
+      targetTokenNumber = decoded.token;
     }
 
-    const tokenRecord = await tokenService.getTokenByNumber(decoded.token);
+    const tokenRecord = await tokenService.getTokenByNumber(targetTokenNumber);
     if (!tokenRecord) {
       return res.status(404).json({ success: false, error: { message: 'Token not found' } });
     }
@@ -2291,9 +2329,10 @@ const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) 
       return res.status(400).json({ error: 'Token number or card UID is required' });
     }
 
-    const summary = await tokenService.closeToken(
+    const summary = await tokenService.closeSession(
       finalTokenNumber,
       req.user?.id || '',
+      CloseReason.CHECKOUT,
       eraseCard !== undefined ? eraseCard : true
     );
 
@@ -2324,6 +2363,82 @@ const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) 
 
 router.post('/checkout', authenticate, authorize(['receptionist', 'admin']), checkoutSessionHandler);
 router.put('/tokens/:tokenNumber/close', authenticate, authorize(['receptionist', 'admin']), checkoutSessionHandler);
+
+// Manual Close Session (by Button)
+router.post('/sessions/:tokenNumber/close', authenticate, authorize(['receptionist', 'bartender', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  const { tokenNumber } = req.params;
+  const tokenRegex = /^BAR-\d{8}-\d{5}$/;
+  if (!tokenRegex.test(tokenNumber) || tokenNumber.length !== 18) {
+    return res.status(400).json({ error: 'Token number must be exactly 18 characters in format BAR-YYYYMMDD-XXXXX.' });
+  }
+
+  try {
+    const summary = await tokenService.closeSession(
+      tokenNumber,
+      req.user?.id || '',
+      CloseReason.MANUAL,
+      true
+    );
+
+    return res.json({
+      success: true,
+      message: 'Session closed manually and section placed under maintenance.',
+      data: {
+        tokenNumber: summary.token.tokenNumber,
+        customerName: summary.token.customer.name,
+        tableNumber: summary.token.table.tableNumber,
+        durationMinutes: summary.sessionSummary.totalTimeUsedMinutes,
+        amountPaid: parseFloat(summary.token.amountPaid.toString())
+      }
+    });
+  } catch (err: any) {
+    console.error(err);
+    if (err.code === 'CONFLICT' || err.message === 'This session has already been closed.') {
+      return res.status(409).json({ error: 'This session has already been closed.' });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// QR Code Assisted Close Session
+router.post('/sessions/close-by-qr', authenticate, authorize(['receptionist', 'bartender', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'Token number is required' });
+  }
+
+  const tokenRegex = /^BAR-\d{8}-\d{5}$/;
+  if (!tokenRegex.test(token) || token.length !== 18) {
+    return res.status(400).json({ error: 'Token number must be exactly 18 characters in format BAR-YYYYMMDD-XXXXX.' });
+  }
+
+  try {
+    const summary = await tokenService.closeSession(
+      token,
+      req.user?.id || '',
+      CloseReason.QR_SCAN,
+      true
+    );
+
+    return res.json({
+      success: true,
+      message: 'Session closed via QR scan and section placed under maintenance.',
+      data: {
+        tokenNumber: summary.token.tokenNumber,
+        customerName: summary.token.customer.name,
+        tableNumber: summary.token.table.tableNumber,
+        durationMinutes: summary.sessionSummary.totalTimeUsedMinutes,
+        amountPaid: parseFloat(summary.token.amountPaid.toString())
+      }
+    });
+  } catch (err: any) {
+    console.error(err);
+    if (err.code === 'CONFLICT' || err.message === 'This session has already been closed.') {
+      return res.status(409).json({ error: 'This session has already been closed.' });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
 
 // ==========================================
 // 4. BARTENDER / REDEMPTION ENDPOINTS

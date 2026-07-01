@@ -68,6 +68,8 @@ interface NfcBarContextType {
   undoDrinkRedemption: (cardUid: string) => { success: boolean; remaining?: number; error?: string };
   extendSessionTime: (tokenNumber: string, extraHours: number) => boolean;
   closeGuestSession: (tokenNumber: string) => boolean;
+  closeSessionManual: (tokenNumber: string) => Promise<{ success: boolean; error?: string }>;
+  closeSessionByQr: (qrTokenNumber: string) => Promise<{ success: boolean; error?: string }>;
 
   // Table management
   addTable: (tableNumber: string, placeType: string, capacity: number) => Promise<boolean>;
@@ -158,6 +160,57 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [activeReturnCardUid, setReturnCardUid] = useState<string | null>(null);
   const [isOverlayActive, setOverlayActive] = useState(false);
   const [preselectedTableNumber, setPreselectedTableNumber] = useState<string | null>(null);
+
+  const forceLogoutForExpiredSession = async () => {
+    setUser(null);
+    setUserToken(null);
+    setCurrentScreen('splash');
+    setTimeout(() => {
+      setCurrentScreen('login');
+    }, 100);
+    showToast('Session expired. Please log in again.', 'warning', 4000);
+    await AsyncStorage.removeItem('nfc_bar_user');
+    await AsyncStorage.removeItem('nfc_bar_user_token');
+  };
+
+  // Global HTTP interceptor for 403 AUTH_002 redirection
+  useEffect(() => {
+    const originalFetch = (globalThis as any).fetch || (window as any).fetch;
+    const interceptedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const response = await originalFetch(input, init);
+      
+      if (response.status === 403) {
+        try {
+          const clone = response.clone();
+          const data = await clone.json();
+          if (data && data.error && (data.error.code === 'AUTH_002' || data.error.message?.toLowerCase().includes('token'))) {
+            console.warn('API Interceptor: Unauthorized (403 AUTH_002). Redirecting to login.');
+            const urlString = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url || '');
+            if (!urlString.includes('/auth/login') && !urlString.includes('/auth/logout')) {
+              forceLogoutForExpiredSession();
+            }
+          }
+        } catch (e) {
+          // ignore parsing error
+        }
+      }
+      return response;
+    };
+    
+    if (typeof globalThis !== 'undefined') {
+      (globalThis as any).fetch = interceptedFetch as any;
+    } else if (typeof window !== 'undefined') {
+      (window as any).fetch = interceptedFetch as any;
+    }
+    
+    return () => {
+      if (typeof globalThis !== 'undefined') {
+        (globalThis as any).fetch = originalFetch as any;
+      } else if (typeof window !== 'undefined') {
+        (window as any).fetch = originalFetch as any;
+      }
+    };
+  }, [userToken]);
 
   const fetchLatestState = async (token?: string) => {
     const activeToken = token || userToken;
@@ -471,8 +524,18 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (isOnline) {
         setSystemMode('online');
-        // trigger auto-sync
-        syncQueuedOperations();
+        AsyncStorage.getItem('nfc_bar_user_token').then(tok => {
+          if (tok && tok.startsWith('offline-mock-')) {
+            forceLogoutForExpiredSession();
+            showToast('Connection restored. Please log in to resume online operations.', 'info', 5000);
+          } else {
+            // trigger auto-sync
+            syncQueuedOperations();
+          }
+        }).catch(() => {
+          // fallback auto-sync
+          syncQueuedOperations();
+        });
       } else {
         setSystemMode('offline');
       }
@@ -583,6 +646,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setUser(savedUser);
           const offlineToken = `offline-mock-${savedUser.id}`;
           setUserToken(offlineToken);
+          setSystemMode('offline');
           await AsyncStorage.setItem('nfc_bar_user', JSON.stringify(savedUser));
           await AsyncStorage.setItem('nfc_bar_user_token', offlineToken);
           setCurrentScreen('app');
@@ -985,6 +1049,63 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     showToast(`Released table ${session.tableNumber} and closed session`, 'success');
     return true;
+  };
+
+  // CENTRALIZED CLOSE SESSION MANUAL
+  const closeSessionManual = async (tokenNumber: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/sessions/${tokenNumber}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken || ''}`
+        }
+      });
+
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        showToast('Session manually closed successfully.', 'success');
+        await fetchLatestState();
+        return { success: true };
+      } else {
+        const errMsg = data?.error || 'Failed to close session manually.';
+        showToast(errMsg, 'danger');
+        return { success: false, error: errMsg };
+      }
+    } catch (e) {
+      console.log('Error closing session manually:', e);
+      showToast('Network error closing session.', 'danger');
+      return { success: false, error: 'Network error' };
+    }
+  };
+
+  // CENTRALIZED CLOSE SESSION BY QR
+  const closeSessionByQr = async (qrTokenNumber: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/sessions/close-by-qr`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken || ''}`
+        },
+        body: JSON.stringify({ token: qrTokenNumber })
+      });
+
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        showToast('Session successfully closed via QR scan.', 'success');
+        await fetchLatestState();
+        return { success: true };
+      } else {
+        const errMsg = data?.error || 'Failed to close session via QR scan.';
+        showToast(errMsg, 'danger');
+        return { success: false, error: errMsg };
+      }
+    } catch (e) {
+      console.log('Error closing session by QR:', e);
+      showToast('Network error closing session.', 'danger');
+      return { success: false, error: 'Network error' };
+    }
   };
 
   // Return Card flow state actions
@@ -1475,6 +1596,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       login, logout, setTab, showToast, triggerNotification, markNotificationsAsRead,
       setMode, updateDeliveryAvailability, simulateSync,
       checkInGuest, createPendingSession, verifyQrCode, activatePendingSession, redeemDrinkForCard, undoDrinkRedemption, extendSessionTime, closeGuestSession,
+      closeSessionManual, closeSessionByQr,
       addTable, editTable, updateTableStatus, deleteTable,
       fetchUsers, registerStaff, updateStaff, updateStaffStatus,
       fetchCards, updateCardStatus,

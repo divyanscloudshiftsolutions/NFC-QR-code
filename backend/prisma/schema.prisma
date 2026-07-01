@@ -37,20 +37,22 @@ model PlaceTypeConfig {
 }
 
 model Table {
-  id             String               @id @default(uuid())
-  tableNumber    String               @map("table_number")
-  placeTypeId    String               @map("place_type_id")
-  placeType      PlaceTypeConfig      @relation(fields: [placeTypeId], references: [id])
-  capacity       Int                  @default(2)
-  status         String               @default("available") // available, occupied, reserved, maintenance
-  currentTokenId String?              @map("current_token_id")
-  occupiedSince  DateTime?            @map("occupied_since")
-  lastAssignedAt DateTime?            @map("last_assigned_at")
-  isActive       Boolean              @default(true) @map("is_active")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime?            @updatedAt @map("updated_at")
-  tokens         Token[]              @relation("TableTokens")
-  occupancyLogs  TableOccupancyLog[]
+  id               String               @id @default(uuid())
+  tableNumber      String               @map("table_number")
+  placeTypeId      String               @map("place_type_id")
+  placeType        PlaceTypeConfig      @relation(fields: [placeTypeId], references: [id])
+  capacity         Int                  @default(2)
+  status           TableStatus          @default(available)
+  currentTokenId   String?              @map("current_token_id")
+  occupiedSince    DateTime?            @map("occupied_since")
+  lastAssignedAt   DateTime?            @map("last_assigned_at")
+  isActive         Boolean              @default(true) @map("is_active")
+  maintenanceStart DateTime?            @map("maintenance_start")
+  maintenanceEnd   DateTime?            @map("maintenance_end")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime?            @updatedAt @map("updated_at")
+  tokens           Token[]              @relation("TableTokens")
+  occupancyLogs    TableOccupancyLog[]
 
   @@unique([tableNumber, placeTypeId])
   @@map("tables")
@@ -72,13 +74,14 @@ model Token {
   endTime                 DateTime            @map("end_time")
   totalRedemptionsAllowed Int                 @map("total_redemptions_allowed")
   redemptionsUsed         Int                 @default(0) @map("redemptions_used")
-  status                  String              @default("active") @map("status") // active, expired, closed, extended
+  status                  TokenStatus         @default(active)
   issuedBy                String              @map("issued_by")
   creator                 User                @relation("TokenIssuedBy", fields: [issuedBy], references: [id])
   issuedAt                DateTime            @default(now()) @map("issued_at")
   closedAt                DateTime?           @map("closed_at")
   closedBy                String?             @map("closed_by")
   closer                  User?               @relation("TokenClosedBy", fields: [closedBy], references: [id])
+  closeReason             CloseReason?        @map("close_reason")
   card                    Card?               @relation("CardCurrentToken")
   deliveryMode            String              @default("NFC_CARD") @map("delivery_mode") // NFC_CARD, EMAIL_QR
   emailSent               Boolean             @default(false) @map("email_sent")
@@ -161,6 +164,7 @@ model User {
   tokensClosed     Token[]          @relation("TokenClosedBy")
   tokenExtensions  TokenExtension[]
   rateCardChanges  RateLog[]
+  sessions         StaffSession[]
 
   @@map("users")
 }
@@ -220,4 +224,35 @@ model SystemConfig {
   updatedBy   String?  @map("updated_by")
 
   @@map("system_configs")
+}
+
+model StaffSession {
+  id        String   @id @default(uuid()) @map("id")
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("staff_sessions")
+}
+
+enum TableStatus {
+  available
+  occupied
+  reserved
+  maintenance
+}
+
+enum TokenStatus {
+  active
+  expired
+  closed
+  extended
+}
+
+enum CloseReason {
+  MANUAL
+  QR_SCAN
+  CHECKOUT
+  SESSION_EXPIRED
 }

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import redisService from './RedisService';
+import tokenService from './TokenService';
 
 const prisma = new PrismaClient();
 
@@ -154,6 +155,7 @@ export class TableService {
   }
 
   async getTableOccupancy(placeTypeId?: string): Promise<OccupancyReport> {
+    await tokenService.reconcileMaintenanceTables();
     const tables = await prisma.table.findMany({
       where: placeTypeId ? { placeTypeId, isActive: true } : { isActive: true },
       include: {

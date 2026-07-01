@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, CloseReason, TokenStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import redisService from './RedisService';
 import emailNotificationService from './EmailNotificationService';
@@ -68,14 +68,7 @@ export class TokenService {
   }
 
   generateQRTokenPayload(tokenNumber: string): string {
-    const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-    return jwt.sign(
-      {
-        token: tokenNumber,
-        type: 'EMAIL_QR'
-      },
-      secret
-    );
+    return tokenNumber;
   }
 
   async generateTokenNumber(): Promise<string> {
@@ -251,6 +244,26 @@ export class TokenService {
         }
       });
 
+      // Update Table status to occupied and set references
+      await tx.table.update({
+        where: { id: request.tableId },
+        data: {
+          status: 'occupied',
+          currentTokenId: token.id,
+          occupiedSince: start,
+          lastAssignedAt: start
+        }
+      });
+
+      // Insert TableOccupancyLog
+      await tx.tableOccupancyLog.create({
+        data: {
+          tableId: request.tableId,
+          tokenId: token.id,
+          occupiedAt: start
+        }
+      });
+
       // Update Card status to assigned and set current_token_id (1-to-1 schema relation)
       if (deliveryMode === 'NFC_CARD' && cardId) {
         await tx.card.update({
@@ -263,7 +276,6 @@ export class TokenService {
         });
       }
 
-      // Note: Table status and occupancy logs are updated automatically by trigger in PostgreSQL!
       // Invalidate caches manually to keep in sync
       await redisService.del(`table:available:${request.placeTypeId}`);
       await redisService.del('table:available:all');
@@ -292,7 +304,7 @@ export class TokenService {
       );
 
       return token;
-    });
+    }, { timeout: 20000 });
 
     if (deliveryMode === 'EMAIL_QR' && request.email) {
       emailNotificationService.enqueueEmailJob(request.email.trim().toLowerCase(), token.tokenNumber, request.customerName);
@@ -402,25 +414,65 @@ export class TokenService {
     });
   }
 
-  async closeToken(
-    tokenNumber: string,
-    closedBy: string,
-    eraseCard: boolean
-  ): Promise<SessionSummary> {
-    return await prisma.$transaction(async (tx) => {
-      const token = await tx.token.findUnique({
-        where: { tokenNumber },
-        include: {
-          customer: true,
-          placeType: true,
-          table: true,
-          card: true,
-          redemptions: true,
-          extensions: true
+  async reconcileMaintenanceTables(): Promise<void> {
+    const now = new Date();
+    const expiredTables = await prisma.table.findMany({
+      where: {
+        status: 'maintenance',
+        maintenanceEnd: { lte: now }
+      }
+    });
+
+    if (expiredTables.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        for (const table of expiredTables) {
+          const freshTable = await tx.table.findUnique({ where: { id: table.id } });
+          if (
+            freshTable &&
+            freshTable.status === 'maintenance' &&
+            freshTable.maintenanceEnd &&
+            freshTable.maintenanceEnd <= now
+          ) {
+            await tx.table.update({
+              where: { id: table.id },
+              data: {
+                status: 'available',
+                maintenanceStart: null,
+                maintenanceEnd: null
+              }
+            });
+            await redisService.del(`table:${table.id}:status`);
+          }
         }
       });
+      await redisService.del('table:available:all');
+    }
+  }
 
-      if (!token) throw new Error('Token not found');
+  async closeSession(
+    tokenNumber: string,
+    closedBy: string,
+    reason: CloseReason,
+    eraseCard: boolean = true
+  ): Promise<SessionSummary> {
+    const now = new Date();
+    return await prisma.$transaction(async (tx) => {
+      // 1. Acquire row lock on Token to handle race conditions
+      const tokens = await tx.$queryRaw<any[]>`
+        SELECT id, status, table_id as "tableId", customer_id as "customerId",
+               start_time as "startTime", end_time as "endTime",
+               total_redemptions_allowed as "totalRedemptionsAllowed", redemptions_used as "redemptionsUsed",
+               delivery_mode as "deliveryMode", payment_verified as "paymentVerified"
+        FROM tokens
+        WHERE token_number = ${tokenNumber}
+        FOR UPDATE
+      `;
+
+      if (!tokens || tokens.length === 0) {
+        throw new Error('Token not found');
+      }
+
+      const token = tokens[0];
 
       // Idempotency check: if already closed, throw Conflict error
       if (token.status === 'closed') {
@@ -439,18 +491,39 @@ export class TokenService {
         throw new Error('Cannot close an unpaid pending QR session.');
       }
 
+      // Fetch full token info for returning
+      const fullToken = await tx.token.findUniqueOrThrow({
+        where: { id: token.id },
+        include: {
+          customer: true,
+          placeType: true,
+          table: true,
+          card: true,
+          extensions: true
+        }
+      });
+
       const totalTimeUsedMinutes = Math.floor(
-        (new Date().getTime() - token.startTime.getTime()) / 60000
+        (now.getTime() - fullToken.startTime.getTime()) / 60000
       );
 
-      const totalExtensionMinutes = token.extensions.reduce((acc, ext) => acc + ext.extraMinutes, 0);
+      const totalExtensionMinutes = fullToken.extensions.reduce((acc, ext) => acc + ext.extraMinutes, 0);
 
+      // Read maintenance duration configuration
+      const mConfig = await tx.systemConfig.findUnique({
+        where: { configKey: 'maintenance_duration_minutes' }
+      });
+      const maintenanceDuration = mConfig ? parseInt(mConfig.configValue, 10) : 5;
+      const maintenanceEndTime = new Date(now.getTime() + maintenanceDuration * 60 * 1000);
+
+      // Update Token
       const updatedToken = await tx.token.update({
         where: { id: token.id },
         data: {
-          status: 'closed',
-          closedAt: new Date(),
-          closedBy
+          status: TokenStatus.closed,
+          closedAt: now,
+          closedBy,
+          closeReason: reason
         },
         include: {
           customer: true,
@@ -459,41 +532,62 @@ export class TokenService {
         }
       });
 
+      // Update Table to maintenance mode
+      await tx.table.update({
+        where: { id: token.tableId },
+        data: {
+          status: 'maintenance',
+          currentTokenId: null,
+          occupiedSince: null,
+          maintenanceStart: now,
+          maintenanceEnd: maintenanceEndTime
+        }
+      });
+
+      // Update Occupancy Log with vacated time
+      await tx.tableOccupancyLog.updateMany({
+        where: {
+          tableId: token.tableId,
+          tokenId: token.id,
+          vacatedAt: null
+        },
+        data: { vacatedAt: now }
+      });
+
       // Update card status if requested
-      if (token.card && eraseCard) {
+      if (fullToken.card && eraseCard) {
         await tx.card.update({
-          where: { id: token.card.id },
+          where: { id: fullToken.card.id },
           data: {
             status: 'available',
-            returnedAt: new Date(),
+            returnedAt: now,
             writeCycles: { increment: 1 },
-            currentTokenId: null // Clear the relation reference
+            currentTokenId: null
           }
         });
       }
 
-      // Note: Table status and occupancy logs are updated automatically by trigger in PostgreSQL!
       // Invalidate caches
       await redisService.del(`token:${tokenNumber}`);
-      await redisService.del(`customer:active:${token.customer.phoneNumber}`);
-      if (token.card) {
-        await redisService.del(`token:active:${token.card.nfcUid}`);
+      await redisService.del(`customer:active:${fullToken.customer.phoneNumber}`);
+      if (fullToken.card) {
+        await redisService.del(`token:active:${fullToken.card.nfcUid}`);
       }
-      await redisService.del(`table:available:${token.placeTypeId}`);
+      await redisService.del(`table:available:${fullToken.placeTypeId}`);
       await redisService.del('table:available:all');
       await redisService.del(`table:${token.tableId}:status`);
 
       return {
         token: updatedToken,
         sessionSummary: {
-          totalRedemptionsUsed: token.redemptionsUsed,
-          redemptionsUnused: token.totalRedemptionsAllowed - token.redemptionsUsed,
+          totalRedemptionsUsed: fullToken.redemptionsUsed,
+          redemptionsUnused: fullToken.totalRedemptionsAllowed - fullToken.redemptionsUsed,
           totalTimeUsedMinutes,
-          timeAllocatedMinutes: token.placeType.baseTimeMinutes,
+          timeAllocatedMinutes: fullToken.placeType.baseTimeMinutes,
           timeExtensionMinutes: totalExtensionMinutes
         }
       };
-    });
+    }, { timeout: 20000 });
   }
 }
 

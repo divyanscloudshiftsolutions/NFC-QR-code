@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 import assert from 'assert';
 import express from 'express';
 import { PrismaClient } from '@prisma/client';

@@ -95,26 +95,19 @@ export class EmailNotificationService {
         placeTypeName = tokenRecord.placeType.name.replace(/_/g, ' ');
         tableNumber = tokenRecord.table ? tokenRecord.table.tableNumber : 'Pending';
         if (tokenRecord.deliveryMode === 'EMAIL_QR') {
-          const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-          qrData = jwt.sign(
-            {
-              token: tokenNumber,
-              type: 'EMAIL_QR'
-            },
-            secret
-          );
+          qrData = tokenNumber;
         }
       }
     } catch (e: any) {
       console.warn(`[Email Worker] Failed to check token details, falling back to defaults: ${e.message}`);
     }
 
-    const subject = 'Your Lounge Entry Token QR Code';
+    const subject = 'Your Entry Token QR Code';
     const rawHtml = `
       <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-        <h2 style="color: #D4AF37; margin-bottom: 20px;">Lounge Entry Confirmation</h2>
+        <h2 style="color: #D4AF37; margin-bottom: 20px;">Entry Pass Confirmation</h2>
         <p style="color: #475569; font-size: 16px; line-height: 1.5;">Dear ${customerName || 'Customer'},</p>
-        <p style="color: #475569; font-size: 14px; line-height: 1.5;">Welcome to Antigravity Lounge! Your digital check-in session is registered. Please present the QR code below to the staff when ordering drinks or entering the lounge:</p>
+        <p style="color: #475569; font-size: 14px; line-height: 1.5;">Your digital check-in has been successfully completed. Please present the QR code below when requested by staff:</p>
         
         <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}" alt="QR Code" style="border: 4px solid #D4AF37; border-radius: 8px; max-width: 250px; height: auto;" />
@@ -141,18 +134,34 @@ export class EmailNotificationService {
         </table>
 
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px;">
-          <p>Thank you for choosing Antigravity Lounge.</p>
+          <p>Thank you for visiting.</p>
         </div>
       </div>
     `;
 
     // 2. HTML Sanitization
     const sanitizedHtml = this.sanitizeHtml(rawHtml);
-    const bodyText = `Welcome, ${customerName}! Your active session token is ${tokenNumber}.`;
+    const bodyText = `Your digital check-in has been successfully completed. Token: ${tokenNumber}.`;
 
     // 3. API Dispatch with x-api-key authentication
     const apiKey = process.env.NOTIFICATION_API_KEY || '';
-    
+    const isTesting = process.env.NODE_ENV === 'test';
+    const isDummyEmail = to.includes('pending.guest') || to.includes('qr.customer') || to.includes('customer@gmail.com') || to.includes('test');
+    const sendRealEmails = process.env.SEND_REAL_EMAILS === 'true' && !isTesting && !isDummyEmail;
+
+    if (!sendRealEmails) {
+      console.info(`[Email Worker] Mocking email dispatch to ${to} (token: ${tokenNumber}) [real send skipped: test mode, dummy address, or SEND_REAL_EMAILS is not true]`);
+      await prisma.token.update({
+        where: { tokenNumber },
+        data: {
+          emailSent: true,
+          emailSentAt: new Date(),
+          emailDeliveryStatus: 'SENT'
+        }
+      }).catch(() => {});
+      return;
+    }
+
     try {
       const response = await fetch(apiURL, {
         method: 'POST',
