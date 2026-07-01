@@ -1,10 +1,10 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model Customer {
@@ -23,36 +23,36 @@ model Customer {
 model PlaceTypeConfig {
   id                   String    @id @default(uuid())
   name                 String    @unique
-  ratePerPerson        Decimal   @db.Decimal(10, 2) @map("rate_per_person")
+  ratePerPerson        Decimal   @map("rate_per_person") @db.Decimal(10, 2)
   baseTimeMinutes      Int       @map("base_time_minutes")
   redemptionsPerPerson Int       @default(2) @map("redemptions_per_person")
   isActive             Boolean   @default(true) @map("is_active")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime? @updatedAt @map("updated_at")
+  rateLogs             RateLog[]
   tables               Table[]
   tokens               Token[]
-  rateLogs             RateLog[]
 
   @@map("place_types")
 }
 
 model Table {
-  id               String               @id @default(uuid())
-  tableNumber      String               @map("table_number")
-  placeTypeId      String               @map("place_type_id")
-  placeType        PlaceTypeConfig      @relation(fields: [placeTypeId], references: [id])
-  capacity         Int                  @default(2)
-  status           TableStatus          @default(available)
-  currentTokenId   String?              @map("current_token_id")
-  occupiedSince    DateTime?            @map("occupied_since")
-  lastAssignedAt   DateTime?            @map("last_assigned_at")
-  isActive         Boolean              @default(true) @map("is_active")
-  maintenanceStart DateTime?            @map("maintenance_start")
-  maintenanceEnd   DateTime?            @map("maintenance_end")
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime?            @updatedAt @map("updated_at")
-  tokens           Token[]              @relation("TableTokens")
+  id               String              @id @default(uuid())
+  tableNumber      String              @map("table_number")
+  placeTypeId      String              @map("place_type_id")
+  capacity         Int                 @default(2)
+  currentTokenId   String?             @map("current_token_id")
+  occupiedSince    DateTime?           @map("occupied_since")
+  lastAssignedAt   DateTime?           @map("last_assigned_at")
+  isActive         Boolean             @default(true) @map("is_active")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime?           @updatedAt @map("updated_at")
+  maintenanceEnd   DateTime?           @map("maintenance_end")
+  maintenanceStart DateTime?           @map("maintenance_start")
+  status           TableStatus         @default(available)
   occupancyLogs    TableOccupancyLog[]
+  placeType        PlaceTypeConfig     @relation(fields: [placeTypeId], references: [id])
+  tokens           Token[]             @relation("TableTokens")
 
   @@unique([tableNumber, placeTypeId])
   @@map("tables")
@@ -62,34 +62,34 @@ model Token {
   id                      String              @id @default(uuid())
   tokenNumber             String              @unique @map("token_number")
   customerId              String              @map("customer_id")
-  customer                Customer            @relation(fields: [customerId], references: [id])
   personsCount            Int                 @map("persons_count")
   placeTypeId             String              @map("place_type_id")
-  placeType               PlaceTypeConfig     @relation(fields: [placeTypeId], references: [id])
   tableId                 String              @map("table_id")
-  table                   Table               @relation("TableTokens", fields: [tableId], references: [id])
-  amountPaid              Decimal             @db.Decimal(10, 2) @map("amount_paid")
+  amountPaid              Decimal             @map("amount_paid") @db.Decimal(10, 2)
   paymentVerified         Boolean             @default(false) @map("payment_verified")
   startTime               DateTime            @default(now()) @map("start_time")
   endTime                 DateTime            @map("end_time")
   totalRedemptionsAllowed Int                 @map("total_redemptions_allowed")
   redemptionsUsed         Int                 @default(0) @map("redemptions_used")
-  status                  TokenStatus         @default(active)
   issuedBy                String              @map("issued_by")
-  creator                 User                @relation("TokenIssuedBy", fields: [issuedBy], references: [id])
   issuedAt                DateTime            @default(now()) @map("issued_at")
   closedAt                DateTime?           @map("closed_at")
   closedBy                String?             @map("closed_by")
-  closer                  User?               @relation("TokenClosedBy", fields: [closedBy], references: [id])
-  closeReason             CloseReason?        @map("close_reason")
-  card                    Card?               @relation("CardCurrentToken")
-  deliveryMode            String              @default("NFC_CARD") @map("delivery_mode") // NFC_CARD, EMAIL_QR
+  deliveryMode            String              @default("NFC_CARD") @map("delivery_mode")
   emailSent               Boolean             @default(false) @map("email_sent")
   emailSentAt             DateTime?           @map("email_sent_at")
-  emailDeliveryStatus     String?             @map("email_delivery_status") // PENDING, SENT, FAILED
+  emailDeliveryStatus     String?             @map("email_delivery_status")
+  closeReason             CloseReason?        @map("close_reason")
+  status                  TokenStatus         @default(active)
+  card                    Card?               @relation("CardCurrentToken")
   redemptions             Redemption[]
-  extensions              TokenExtension[]
   tableOccupancyLogs      TableOccupancyLog[]
+  extensions              TokenExtension[]
+  closer                  User?               @relation("TokenClosedBy", fields: [closedBy], references: [id])
+  customer                Customer            @relation(fields: [customerId], references: [id])
+  creator                 User                @relation("TokenIssuedBy", fields: [issuedBy], references: [id])
+  placeType               PlaceTypeConfig     @relation(fields: [placeTypeId], references: [id])
+  table                   Table               @relation("TableTokens", fields: [tableId], references: [id])
 
   @@map("tokens")
 }
@@ -97,12 +97,12 @@ model Token {
 model Redemption {
   id                 String   @id @default(uuid())
   tokenId            String   @map("token_id")
-  token              Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
   redemptionSequence Int      @map("redemption_sequence")
   redeemedAt         DateTime @default(now()) @map("redeemed_at")
   bartenderId        String   @map("bartender_id")
-  bartender          User     @relation(fields: [bartenderId], references: [id])
   notes              String?
+  bartender          User     @relation(fields: [bartenderId], references: [id])
+  token              Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
 
   @@unique([tokenId, redemptionSequence])
   @@map("redemptions")
@@ -111,7 +111,7 @@ model Redemption {
 model Card {
   id             String    @id @default(uuid())
   nfcUid         String    @unique @map("nfc_uid")
-  status         String    @default("available") @map("status") // available, assigned, lost, damaged
+  status         String    @default("available") @map("status")
   assignedAt     DateTime? @map("assigned_at")
   returnedAt     DateTime? @map("returned_at")
   writeCycles    Int       @default(0) @map("write_cycles")
@@ -125,13 +125,13 @@ model Card {
 model TokenExtension {
   id               String   @id @default(uuid())
   tokenId          String   @map("token_id")
-  token            Token    @relation(fields: [tokenId], references: [id])
   extraMinutes     Int      @map("extra_minutes")
-  additionalAmount Decimal  @db.Decimal(10, 2) @map("additional_amount")
+  additionalAmount Decimal  @map("additional_amount") @db.Decimal(10, 2)
   approvedBy       String   @map("approved_by")
-  approver         User     @relation(fields: [approvedBy], references: [id])
   extendedAt       DateTime @default(now()) @map("extended_at")
   newEndTime       DateTime @map("new_end_time")
+  approver         User     @relation(fields: [approvedBy], references: [id])
+  token            Token    @relation(fields: [tokenId], references: [id])
 
   @@map("token_extensions")
 }
@@ -139,39 +139,39 @@ model TokenExtension {
 model TableOccupancyLog {
   id              String    @id @default(uuid())
   tableId         String    @map("table_id")
-  table           Table     @relation(fields: [tableId], references: [id])
   tokenId         String    @map("token_id")
-  token           Token     @relation(fields: [tokenId], references: [id])
   occupiedAt      DateTime  @default(now()) @map("occupied_at")
   vacatedAt       DateTime? @map("vacated_at")
-  durationMinutes Int?      @map("duration_minutes") // generated/computed dynamically or stored on checkout/vacate
+  durationMinutes Int?      @map("duration_minutes")
+  table           Table     @relation(fields: [tableId], references: [id])
+  token           Token     @relation(fields: [tokenId], references: [id])
 
   @@map("table_occupancy_logs")
 }
 
 model User {
-  id               String           @id @default(uuid())
-  username         String           @unique
-  passwordHash     String           @map("password_hash")
-  fullName         String           @map("full_name")
-  roleId           String           @map("role_id")
-  role             Role             @relation(fields: [roleId], references: [id])
-  isActive         Boolean          @default(true) @map("is_active")
-  lastLogin        DateTime?        @map("last_login")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  redemptions      Redemption[]
-  tokensIssued     Token[]          @relation("TokenIssuedBy")
-  tokensClosed     Token[]          @relation("TokenClosedBy")
-  tokenExtensions  TokenExtension[]
-  rateCardChanges  RateLog[]
-  sessions         StaffSession[]
+  id              String           @id @default(uuid())
+  username        String           @unique
+  passwordHash    String           @map("password_hash")
+  fullName        String           @map("full_name")
+  roleId          String           @map("role_id")
+  isActive        Boolean          @default(true) @map("is_active")
+  lastLogin       DateTime?        @map("last_login")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  rateCardChanges RateLog[]
+  redemptions     Redemption[]
+  sessions        StaffSession[]
+  tokenExtensions TokenExtension[]
+  tokensClosed    Token[]          @relation("TokenClosedBy")
+  tokensIssued    Token[]          @relation("TokenIssuedBy")
+  role            Role             @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
 
 model Role {
   id          String @id @default(uuid())
-  name        String @unique // admin, receptionist, bartender, manager
+  name        String @unique
   permissions Json   @default("{}")
   users       User[]
 
@@ -179,14 +179,14 @@ model Role {
 }
 
 model RateLog {
-  id           String          @id @default(uuid())
-  placeTypeId  String          @map("place_type_id")
-  placeType    PlaceTypeConfig @relation(fields: [placeTypeId], references: [id])
-  oldRate      Decimal         @db.Decimal(10, 2) @map("old_rate")
-  newRate      Decimal         @db.Decimal(10, 2) @map("new_rate")
-  changedBy    String          @map("changed_by")
-  changer      User            @relation(fields: [changedBy], references: [id])
-  changedAt    DateTime        @default(now()) @map("changed_at")
+  id          String          @id @default(uuid())
+  placeTypeId String          @map("place_type_id")
+  oldRate     Decimal         @map("old_rate") @db.Decimal(10, 2)
+  newRate     Decimal         @map("new_rate") @db.Decimal(10, 2)
+  changedBy   String          @map("changed_by")
+  changedAt   DateTime        @default(now()) @map("changed_at")
+  changer     User            @relation(fields: [changedBy], references: [id])
+  placeType   PlaceTypeConfig @relation(fields: [placeTypeId], references: [id])
 
   @@map("rate_logs")
 }
@@ -197,7 +197,7 @@ model SyncLog {
   deviceId       String    @map("device_id")
   operationType  String    @map("operation_type")
   payload        Json
-  status         String    // SUCCESS, CONFLICT, ERROR
+  status         String
   conflictReason String?   @map("conflict_reason")
   createdAt      DateTime  @default(now()) @map("created_at")
   processedAt    DateTime? @map("processed_at")
@@ -229,9 +229,9 @@ model SystemConfig {
 model StaffSession {
   id        String   @id @default(uuid()) @map("id")
   userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("staff_sessions")
 }
