@@ -2,7 +2,7 @@ process.env.NODE_ENV = 'test';
 import assert from 'assert';
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import router from './routes';
+import router from '../src/routes';
 import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
@@ -477,7 +477,7 @@ async function runTests() {
       const closedToken = await prisma.token.findUnique({
         where: { tokenNumber: activateData.tokenNumber }
       });
-      assert.strictEqual(closedToken?.status, 'closed');
+      assert.strictEqual(closedToken?.status, 'CLOSED');
       assert.strictEqual(closedToken?.closeReason, 'MANUAL');
 
       const maintTable = await prisma.table.findUnique({
@@ -545,6 +545,9 @@ async function runTests() {
           amountPaid: 1000
         })
       });
+      if (qrActivateRes.status !== 200) {
+        console.error('qrActivateRes error:', await qrActivateRes.json());
+      }
       assert.strictEqual(qrActivateRes.status, 200);
 
       // Verify it is occupied
@@ -566,7 +569,7 @@ async function runTests() {
 
       // Verify session closed with QR_SCAN close reason
       const qrClosedToken = await prisma.token.findUnique({ where: { tokenNumber: qrToken } });
-      assert.strictEqual(qrClosedToken?.status, 'closed');
+      assert.strictEqual(qrClosedToken?.status, 'CLOSED');
       assert.strictEqual(qrClosedToken?.closeReason, 'QR_SCAN');
 
       // Verify table is back to maintenance

@@ -2,8 +2,8 @@ process.env.NODE_ENV = 'test';
 import assert from 'assert';
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import router from './routes';
-import redisService from './services/RedisService';
+import router from '../src/routes';
+import redisService from '../src/services/RedisService';
 
 const prisma = new PrismaClient();
 const app = express();

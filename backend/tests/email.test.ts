@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { validateEmail } from './routes';
+import { validateEmail } from '../src/routes';
 
 const invalidEmails = [
   'Divyan@gmail.com',

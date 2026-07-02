@@ -34,6 +34,8 @@ export enum TokenStatus {
   EXTENDED = 'extended',
   EXPIRED = 'expired',
   CLOSED = 'closed',
+  PENDING_PAYMENT = 'pending_payment',
+  CANCELLED = 'cancelled',
 }
 
 export type PlaceType = string;

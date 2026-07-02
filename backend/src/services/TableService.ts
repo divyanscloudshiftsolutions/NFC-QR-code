@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TokenStatus } from '@prisma/client';
 import redisService from './RedisService';
 import tokenService from './TokenService';
 
@@ -161,7 +161,7 @@ export class TableService {
       include: {
         placeType: true,
         tokens: {
-          where: { status: { in: ['active', 'extended', 'expired'] } },
+          where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
           include: {
             customer: true,
             card: true

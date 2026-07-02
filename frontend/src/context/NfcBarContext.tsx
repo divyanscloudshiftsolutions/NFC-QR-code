@@ -65,6 +65,7 @@ interface NfcBarContextType {
     tableNumber: string,
     amountPaid: number
   ) => Promise<SessionToken | null>;
+  cancelPendingSession: (tokenNumber: string, reason?: string) => Promise<boolean>;
   redeemDrinkForCard: (cardUid: string) => { success: boolean; remaining?: number; error?: string };
   undoDrinkRedemption: (cardUid: string) => { success: boolean; remaining?: number; error?: string };
   extendSessionTime: (tokenNumber: string, extraHours: number) => boolean;
@@ -835,9 +836,18 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return data;
       } else {
         const errData = await res.json().catch(() => null);
+        if (errData?.code === 'PENDING_SESSION_EXISTS') {
+          const customErr = new Error(errData.error?.message || 'Pending session exists') as any;
+          customErr.code = 'PENDING_SESSION_EXISTS';
+          customErr.tokenNumber = errData.tokenNumber;
+          throw customErr;
+        }
         showToast(errData?.error?.message || 'Failed to create pending session.', 'danger');
       }
     } catch (err: any) {
+      if (err.code === 'PENDING_SESSION_EXISTS') {
+        throw err;
+      }
       showToast('Network error creating pending session.', 'danger');
     }
     return null;
@@ -901,6 +911,36 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       showToast('Network error activating session.', 'danger');
     }
     return null;
+  };
+
+  const cancelPendingSession = async (tokenNumber: string, reason = 'PAYMENT_CANCELLED'): Promise<boolean> => {
+    try {
+      const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
+      const res = await fetch(`${BACKEND_URL}/check-in/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ tokenNumber, cancelReason: reason })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? {
+          ...s,
+          status: TokenStatus.CANCELLED
+        } : s));
+        showToast('Pending check-in cancelled.', 'info');
+        return true;
+      } else {
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.error?.message || 'Failed to cancel pending session.', 'danger');
+      }
+    } catch (err: any) {
+      showToast('Network error cancelling pending session.', 'danger');
+    }
+    return false;
   };
 
   // REDEEM DRINK ACTION
@@ -1537,7 +1577,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       salesSummary, tableUtilization, hourlyBreakdown,
       login, logout, setTab, showToast, triggerNotification, markNotificationsAsRead,
       setMode, updateDeliveryAvailability, simulateSync, fetchLatestState,
-      checkInGuest, createPendingSession, verifyQrCode, activatePendingSession, redeemDrinkForCard, undoDrinkRedemption, extendSessionTime, closeGuestSession,
+      checkInGuest, createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, redeemDrinkForCard, undoDrinkRedemption, extendSessionTime, closeGuestSession,
       addTable, editTable, updateTableStatus, deleteTable,
       fetchUsers, registerStaff, updateStaff, updateStaffStatus,
       fetchCards, updateCardStatus,

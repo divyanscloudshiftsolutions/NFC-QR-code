@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TokenStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import tokenService from './TokenService';
 import redemptionService from './RedemptionService';
@@ -167,11 +167,11 @@ export class SyncService {
           where: { phoneNumber: cleanPhone },
           include: {
             tokens: {
-              where: { status: { in: ['active', 'extended', 'expired'] } },
+              where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
               take: 1
             }
           }
-        });
+        }) as any;
 
         if (existingCustomer && existingCustomer.tokens.length > 0) {
           return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_ACTIVE_SESSION', 'Customer already has an active session');
@@ -254,7 +254,7 @@ export class SyncService {
           // Update token status to expired dynamically
           await prisma.token.update({
             where: { id: token.id },
-            data: { status: 'expired' }
+            data: { status: TokenStatus.EXPIRED }
           });
           return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_EXPIRED', 'Session expired before redemption');
         }

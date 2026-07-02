@@ -17,7 +17,7 @@ export const CheckInWizard: React.FC = () => {
     tables, sessions, rates, checkInGuest, showToast, 
     preselectedTableNumber, setPreselectedTableNumber, tokenType, 
     nfcEnabled, emailQrEnabled,
-    createPendingSession, verifyQrCode, activatePendingSession
+    createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, setTab
   } = useNfcBar();
   const { colors, isDark } = useTheme();
   const { getTableColumns } = useResponsive();
@@ -112,6 +112,11 @@ export const CheckInWizard: React.FC = () => {
 
   // Validation checks for step progression
   const isNameOk = isValidName(fullName);
+  const [showPendingExistsModal, setShowPendingExistsModal] = useState(false);
+  const [pendingExistsTokenNumber, setPendingExistsTokenNumber] = useState('');
+  const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
+  const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
+
   const isPhoneOk = isValidPhoneNumber(phone) && !isPhoneActive;
   const isEmailOk = selectedDeliveryMode === 'EMAIL_QR'
     ? (email.trim().length > 0 && isValidEmail(email))
@@ -124,20 +129,28 @@ export const CheckInWizard: React.FC = () => {
     if (isStep1Valid) {
       if (selectedDeliveryMode === 'EMAIL_QR') {
         setIsActivating(true);
-        const pendingSession = await createPendingSession({
-          customerName: fullName,
-          phoneNumber: phone,
-          email: email.trim(),
-          personsCount: guestCount,
-          placeType
-        });
-        setIsActivating(false);
-        if (pendingSession) {
-          setPendingToken(pendingSession.tokenNumber);
-          setScannedToken('');
-          setQrVerificationSuccess(false);
-          setQrVerificationError(null);
-          setStep(5);
+        try {
+          const pendingSession = await createPendingSession({
+            customerName: fullName,
+            phoneNumber: phone,
+            email: email.trim(),
+            personsCount: guestCount,
+            placeType
+          });
+          setIsActivating(false);
+          if (pendingSession) {
+            setPendingToken(pendingSession.tokenNumber);
+            setScannedToken('');
+            setQrVerificationSuccess(false);
+            setQrVerificationError(null);
+            setStep(5);
+          }
+        } catch (err: any) {
+          setIsActivating(false);
+          if (err.code === 'PENDING_SESSION_EXISTS') {
+            setPendingExistsTokenNumber(err.tokenNumber);
+            setShowPendingExistsModal(true);
+          }
         }
       } else {
         if (isTablePreselected) {
@@ -397,7 +410,7 @@ export const CheckInWizard: React.FC = () => {
               <TouchableOpacity 
                 className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]"
                 style={{ backgroundColor: colors.input, borderColor: colors.border }}
-                onPress={() => setStep(1)}
+                onPress={() => setShowCancelConfirmModal(true)}
               >
                 <Text className="font-bold text-sm" style={{ color: colors.muted }}>Back</Text>
               </TouchableOpacity>
@@ -977,7 +990,13 @@ export const CheckInWizard: React.FC = () => {
               <TouchableOpacity 
                 className="w-full bg-gold py-4 rounded-2xl items-center justify-center min-h-[52px] flex-row gap-2 border"
                 style={{ borderColor: colors.gold }}
-                onPress={handlePaymentCollected}
+                onPress={() => {
+                  if (selectedDeliveryMode === 'EMAIL_QR') {
+                    setShowPaymentConfirmModal(true);
+                  } else {
+                    handlePaymentCollected();
+                  }
+                }}
               >
                 <Text className="text-base">✓</Text>
                 <Text className="font-extrabold text-base tracking-wide" style={{ color: colors.goldButtonText }}>
@@ -1162,7 +1181,7 @@ export const CheckInWizard: React.FC = () => {
                 </View>
                 
                 <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>
-                  {(createdSession?.deliveryMode || selectedDeliveryMode) === 'EMAIL_QR' ? 'Check-in Complete & Email Sent!' : 'Card Programmed Successfully!'}
+                  {(createdSession?.deliveryMode || selectedDeliveryMode) === 'EMAIL_QR' ? 'Payment confirmed. Guest session is now active.' : 'Card Programmed Successfully!'}
                 </Text>
                 
                 <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
@@ -1186,9 +1205,26 @@ export const CheckInWizard: React.FC = () => {
                   </View>
                 </View>
 
-                <TouchableOpacity className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" style={{ borderColor: colors.gold }} onPress={resetWizard}>
-                  <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>New Guest Check-in</Text>
-                </TouchableOpacity>
+                {(createdSession?.deliveryMode || selectedDeliveryMode) === 'EMAIL_QR' ? (
+                  <TouchableOpacity 
+                    className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
+                    style={{ borderColor: colors.gold }} 
+                    onPress={() => {
+                      setTab('bartender');
+                      resetWizard();
+                    }}
+                  >
+                    <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>View in Bartender Page</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity 
+                    className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
+                    style={{ borderColor: colors.gold }} 
+                    onPress={resetWizard}
+                  >
+                    <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>New Guest Check-in</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
@@ -1301,6 +1337,303 @@ export const CheckInWizard: React.FC = () => {
                 }}
               >
                 <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Increase</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Pending Session Exists Modal */}
+      <Modal
+        visible={showPendingExistsModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPendingExistsModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20
+        }}>
+          <View style={{
+            width: '90%',
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(245, 166, 35, 0.2)' : colors.border,
+            borderRadius: 20,
+            padding: 22,
+            alignItems: 'center',
+            shadowColor: colors.gold,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.15,
+            shadowRadius: 16,
+            elevation: 8
+          }}>
+            <View style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
+            }}>
+              <Text style={{ fontSize: 22 }}>⏳</Text>
+            </View>
+
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.gold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>
+              Pending Session Found
+            </Text>
+
+            <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+              A pending payment session already exists for this customer.
+            </Text>
+
+            <View style={{ flexDirection: 'column', gap: 10, width: '100%' }}>
+              <TouchableOpacity
+                style={{
+                  width: '100%',
+                  backgroundColor: colors.gold,
+                  borderWidth: 1,
+                  borderColor: colors.gold,
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onPress={() => {
+                  setPendingToken(pendingExistsTokenNumber);
+                  setScannedToken('');
+                  setQrVerificationSuccess(false);
+                  setQrVerificationError(null);
+                  setShowPendingExistsModal(false);
+                  setStep(5);
+                }}
+              >
+                <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Continue Check-in</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  width: '100%',
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                  borderWidth: 1,
+                  borderColor: '#EF4444',
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onPress={async () => {
+                  setShowPendingExistsModal(false);
+                  await cancelPendingSession(pendingExistsTokenNumber, 'SESSION_RESTARTED');
+                  handleStep1Submit();
+                }}
+              >
+                <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: 'bold' }}>Cancel Existing & Start New</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  width: '100%',
+                  backgroundColor: colors.input,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onPress={() => setShowPendingExistsModal(false)}
+              >
+                <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Go Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cancel Pending Session Confirmation Modal */}
+      <Modal
+        visible={showCancelConfirmModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCancelConfirmModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20
+        }}>
+          <View style={{
+            width: '90%',
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(245, 166, 35, 0.2)' : colors.border,
+            borderRadius: 20,
+            padding: 22,
+            alignItems: 'center',
+            shadowColor: colors.gold,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.15,
+            shadowRadius: 16,
+            elevation: 8
+          }}>
+            <View style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: '#EF4444'
+            }}>
+              <Text style={{ fontSize: 22 }}>⚠️</Text>
+            </View>
+
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.gold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>
+              Cancel Check-in
+            </Text>
+
+            <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+              Are you sure you want to cancel this pending check-in? The guest session has not been activated yet.
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.input,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onPress={() => setShowCancelConfirmModal(false)}
+              >
+                <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Continue Check-in</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: '#EF4444',
+                  borderWidth: 1,
+                  borderColor: '#EF4444',
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onPress={async () => {
+                  setShowCancelConfirmModal(false);
+                  if (pendingToken) {
+                    await cancelPendingSession(pendingToken, 'USER_CANCELLED');
+                  }
+                  resetWizard();
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '900' }}>Cancel Check-in</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment Confirmation Modal */}
+      <Modal
+        visible={showPaymentConfirmModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPaymentConfirmModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20
+        }}>
+          <View style={{
+            width: '90%',
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(245, 166, 35, 0.2)' : colors.border,
+            borderRadius: 20,
+            padding: 22,
+            alignItems: 'center',
+            shadowColor: colors.gold,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.15,
+            shadowRadius: 16,
+            elevation: 8
+          }}>
+            <View style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
+            }}>
+              <Text style={{ fontSize: 22 }}>💳</Text>
+            </View>
+
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.gold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>
+              Payment Confirmation
+            </Text>
+
+            <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+              Has the customer successfully completed the payment? Only confirm the payment after verifying that the payment has been received.
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.input,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onPress={() => setShowPaymentConfirmModal(false)}
+              >
+                <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>No</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.teal,
+                  borderWidth: 1,
+                  borderColor: colors.teal,
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onPress={() => {
+                  setShowPaymentConfirmModal(false);
+                  handlePaymentCollected();
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '900' }}>Yes, Payment Received</Text>
               </TouchableOpacity>
             </View>
           </View>

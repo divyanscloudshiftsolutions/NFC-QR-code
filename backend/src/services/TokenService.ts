@@ -1,4 +1,4 @@
-import { PrismaClient, CloseReason } from '@prisma/client';
+import { PrismaClient, CloseReason, TokenStatus, ActivationMethod, CancelReason } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import redisService from './RedisService';
 import emailNotificationService from './EmailNotificationService';
@@ -139,11 +139,11 @@ export class TokenService {
         where: { phoneNumber: request.phoneNumber },
         include: {
           tokens: {
-            where: { status: 'active' },
+            where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED] } },
             take: 1
           }
         }
-      });
+      }) as any;
 
       if (existingCustomer && existingCustomer.tokens.length > 0) {
         throw new Error('Customer already has an active token');
@@ -231,7 +231,7 @@ export class TokenService {
           endTime,
           totalRedemptionsAllowed,
           redemptionsUsed: 0,
-          status: 'active',
+          status: TokenStatus.ACTIVE,
           issuedBy: request.issuedBy,
           deliveryMode: deliveryMode,
           emailSent: false,
@@ -313,7 +313,7 @@ export class TokenService {
       if (!tokens || tokens.length === 0) throw new Error('Token not found');
       const token = tokens[0];
 
-      if (token.status !== 'active' && token.status !== 'expired' && token.status !== 'extended') {
+      if (token.status !== 'ACTIVE' && token.status !== 'EXPIRED' && token.status !== 'EXTENDED') {
         throw new Error(`Cannot extend token with status: ${token.status}`);
       }
 
@@ -346,7 +346,7 @@ export class TokenService {
       const newEndTime = new Date(baseTime.getTime() + extraMinutes * 60 * 1000);
 
       // If token was expired, set to extended
-      const newStatus = token.status === 'expired' ? 'extended' : token.status;
+      const newStatus = token.status === 'EXPIRED' ? TokenStatus.EXTENDED : (token.status as TokenStatus);
 
       const addedDrinks = additionalPersons * placeType.redemptionsPerPerson;
 
@@ -425,6 +425,30 @@ export class TokenService {
       });
       await redisService.del('table:available:all');
     }
+
+    // Reconcile expired pending payment sessions (e.g. 20 minutes expiry)
+    const expiryWindowMinutes = 20;
+    const expiryTime = new Date(now.getTime() - expiryWindowMinutes * 60 * 1000);
+    const expiredPendingTokens = await prisma.token.findMany({
+      where: {
+        status: TokenStatus.PENDING_PAYMENT,
+        issuedAt: { lte: expiryTime }
+      }
+    });
+
+    if (expiredPendingTokens.length > 0) {
+      await prisma.token.updateMany({
+        where: {
+          id: { in: expiredPendingTokens.map(t => t.id) }
+        },
+        data: {
+          status: TokenStatus.EXPIRED
+        }
+      });
+      for (const t of expiredPendingTokens) {
+        await redisService.del(`token:${t.tokenNumber}`);
+      }
+    }
   }
 
   async closeSession(
@@ -454,20 +478,20 @@ export class TokenService {
       const token = tokens[0];
 
       // Idempotency check: if already closed, throw CONFLICT error
-      if (token.status === 'closed') {
+      if (token.status === 'CLOSED') {
         const error = new Error('This session has already been closed.') as any;
         error.code = 'CONFLICT';
         throw error;
       }
 
-      // Verify token is in a valid state to be closed
-      if (token.status !== 'active' && token.status !== 'extended' && token.status !== 'expired') {
-        throw new Error(`Cannot close token with status: ${token.status}`);
-      }
-
       // Prevent closing unpaid pending QR sessions
       if (token.deliveryMode === 'EMAIL_QR' && !token.paymentVerified) {
         throw new Error('Cannot close an unpaid pending QR session.');
+      }
+
+      // Verify token is in a valid state to be closed
+      if (token.status !== 'ACTIVE' && token.status !== 'EXTENDED' && token.status !== 'EXPIRED') {
+        throw new Error(`Cannot close token with status: ${token.status}`);
       }
 
       const totalTimeUsedMinutes = Math.floor(
@@ -494,7 +518,7 @@ export class TokenService {
       const updatedToken = await tx.token.update({
         where: { id: token.id },
         data: {
-          status: 'closed',
+          status: TokenStatus.CLOSED,
           closedAt: now,
           closedBy,
           closeReason
@@ -574,6 +598,269 @@ export class TokenService {
     eraseCard: boolean
   ): Promise<SessionSummary> {
     return this.closeSession(tokenNumber, closedBy, CloseReason.CHECKOUT, eraseCard);
+  }
+
+  async createPendingToken(request: {
+    phoneNumber: string;
+    customerName: string;
+    email: string;
+    personsCount: number;
+    placeTypeId: string;
+    issuedBy: string;
+  }): Promise<any> {
+    const tokenNumber = await this.generateTokenNumber();
+    const start = new Date();
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Check for existing active token
+      const existingCustomer = await tx.customer.findUnique({
+        where: { phoneNumber: request.phoneNumber },
+        include: {
+          tokens: {
+            where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
+            take: 1
+          }
+        }
+      }) as any;
+
+      if (existingCustomer && existingCustomer.tokens.length > 0) {
+        throw new Error('Customer already has an active token');
+      }
+
+      // 2. Check for existing pending session
+      const existingPending = await tx.token.findFirst({
+        where: {
+          customer: { phoneNumber: request.phoneNumber },
+          status: TokenStatus.PENDING_PAYMENT
+        }
+      });
+      if (existingPending) {
+        const err = new Error('A pending payment session already exists for this customer.') as any;
+        err.code = 'PENDING_SESSION_EXISTS';
+        err.tokenNumber = existingPending.tokenNumber;
+        throw err;
+      }
+
+      // Get or create customer
+      let customer = existingCustomer;
+      if (!customer) {
+        customer = await tx.customer.create({
+          data: {
+            phoneNumber: request.phoneNumber,
+            name: request.customerName,
+            email: request.email,
+            totalVisits: 1
+          }
+        });
+      } else {
+        customer = await tx.customer.update({
+          where: { id: customer.id },
+          data: {
+            totalVisits: { increment: 1 },
+            lastVisit: new Date(),
+            name: request.customerName,
+            email: request.email
+          }
+        });
+      }
+
+      const placeType = await tx.placeTypeConfig.findUnique({
+        where: { id: request.placeTypeId }
+      });
+      if (!placeType) {
+        throw new Error('Invalid place type');
+      }
+
+      const endTime = new Date(start.getTime() + placeType.baseTimeMinutes * 60 * 1000);
+      const totalRedemptionsAllowed = request.personsCount * placeType.redemptionsPerPerson;
+
+      const token = await tx.token.create({
+        data: {
+          tokenNumber,
+          customerId: customer.id,
+          personsCount: request.personsCount,
+          placeTypeId: request.placeTypeId,
+          tableId: null, // No table assigned yet
+          amountPaid: 0,
+          paymentVerified: false,
+          startTime: start,
+          endTime,
+          totalRedemptionsAllowed,
+          redemptionsUsed: 0,
+          status: TokenStatus.PENDING_PAYMENT,
+          issuedBy: request.issuedBy,
+          deliveryMode: 'EMAIL_QR',
+          emailSent: false,
+          emailDeliveryStatus: 'PENDING'
+        },
+        include: {
+          customer: true,
+          placeType: true,
+          table: true
+        }
+      });
+
+      // Cache token and customer active status
+      await redisService.setex(`token:${tokenNumber}`, 86400, JSON.stringify(token));
+      await redisService.setex(
+        `customer:active:${request.phoneNumber}`,
+        86400,
+        JSON.stringify({ tokenId: token.id, tokenNumber })
+      );
+
+      return token;
+    });
+  }
+
+  async activatePendingSession(
+    tokenNumber: string,
+    tableNumber: string,
+    amountPaid: number,
+    activatedBy: string
+  ): Promise<any> {
+    const now = new Date();
+    const activationMethod = ActivationMethod.EMAIL_QR;
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Lock/fetch the token row
+      const tokens = await tx.$queryRaw<any[]>`
+        SELECT id, status, "payment_verified" as "paymentVerified", "persons_count" as "personsCount", "place_type_id" as "placeTypeId"
+        FROM tokens
+        WHERE token_number = ${tokenNumber}
+        LIMIT 1
+        FOR UPDATE
+      `;
+
+      if (!tokens || tokens.length === 0) {
+        throw new Error('Token not found.');
+      }
+      const token = tokens[0];
+
+      if (token.paymentVerified) {
+        throw new Error('Token is already activated.');
+      }
+      if (token.status !== 'PENDING_PAYMENT') {
+        if (token.status === 'ACTIVE' || token.status === 'EXTENDED' || token.status === 'EXPIRED') {
+          const conflictError = new Error('Session has already been activated.') as any;
+          conflictError.code = 'CONFLICT';
+          throw conflictError;
+        }
+        throw new Error(`Token has status '${token.status}' and cannot be activated.`);
+      }
+
+      // 2. Resolve the selected table for the place type of this token
+      const table = await tx.table.findFirst({
+        where: { tableNumber, placeTypeId: token.placeTypeId }
+      });
+      if (!table) {
+        throw new Error(`Table '${tableNumber}' not found for this place type.`);
+      }
+      if (table.status !== 'available') {
+        throw new Error(`Table '${tableNumber}' is not available.`);
+      }
+      if (token.personsCount > table.capacity) {
+        throw new Error(`Group size of ${token.personsCount} exceeds table capacity of ${table.capacity}.`);
+      }
+
+      // Get place type config
+      const ptConfig = await tx.placeTypeConfig.findUnique({
+        where: { id: token.placeTypeId }
+      });
+      if (!ptConfig) {
+        throw new Error('Place type config not found.');
+      }
+
+      const endTime = new Date(now.getTime() + ptConfig.baseTimeMinutes * 60 * 1000);
+
+      // 3. Update the token
+      const updatedToken = await tx.token.update({
+        where: { id: token.id },
+        data: {
+          tableId: table.id,
+          amountPaid: amountPaid,
+          paymentVerified: true,
+          status: TokenStatus.ACTIVE,
+          startTime: now,
+          endTime,
+          activatedAt: now,
+          activatedBy: activatedBy,
+          activationMethod: activationMethod,
+          paymentConfirmedAt: now,
+          paymentConfirmedBy: activatedBy
+        },
+        include: {
+          customer: true,
+          placeType: true,
+          table: true
+        }
+      });
+
+      // 4. Update table status to occupied
+      await tx.table.update({
+        where: { id: table.id },
+        data: {
+          status: 'occupied',
+          currentTokenId: token.id,
+          occupiedSince: now,
+          lastAssignedAt: now
+        }
+      });
+
+      // 5. Create occupancy log
+      await tx.tableOccupancyLog.create({
+        data: {
+          tableId: table.id,
+          tokenId: token.id,
+          occupiedAt: now
+        }
+      });
+
+      // 6. Invalidate caches
+      await redisService.del(`table:available:${token.placeTypeId}`);
+      await redisService.del('table:available:all');
+      await redisService.del(`table:${table.id}:status`);
+      await redisService.setex(
+        `token:${tokenNumber}`,
+        86400,
+        JSON.stringify(updatedToken)
+      );
+
+      return updatedToken;
+    });
+  }
+
+  async cancelPendingSession(
+    tokenNumber: string,
+    cancelledBy: string,
+    cancelReason: CancelReason = CancelReason.USER_CANCELLED
+  ): Promise<any> {
+    const now = new Date();
+    return await prisma.$transaction(async (tx) => {
+      const token = await tx.token.findUnique({
+        where: { tokenNumber }
+      });
+      if (!token) {
+        throw new Error('Token not found.');
+      }
+      if (token.status !== TokenStatus.PENDING_PAYMENT) {
+        throw new Error(`Cannot cancel token with status: ${token.status}`);
+      }
+
+      const updatedToken = await tx.token.update({
+        where: { id: token.id },
+        data: {
+          status: TokenStatus.CANCELLED,
+          cancelledAt: now,
+          cancelledBy: cancelledBy,
+          cancelReason: cancelReason
+        }
+      });
+
+      // Invalidate cache
+      await redisService.del(`token:${tokenNumber}`);
+
+      return updatedToken;
+    });
   }
 }
 

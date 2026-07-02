@@ -67,7 +67,7 @@ async function main() {
     CREATE TRIGGER trigger_update_table_on_token_creation
     AFTER INSERT ON tokens
     FOR EACH ROW
-    WHEN (NEW.status = 'active')
+    WHEN (NEW.status = 'ACTIVE')
     EXECUTE FUNCTION update_table_on_token_creation();
   `);
 
@@ -82,13 +82,13 @@ async function main() {
   await prisma.$executeRawUnsafe(`
     CREATE UNIQUE INDEX uq_customer_active_token 
     ON tokens(customer_id) 
-    WHERE status IN ('active', 'extended', 'expired');
+    WHERE status IN ('ACTIVE', 'EXTENDED', 'EXPIRED');
   `);
   await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS uq_table_active_token;`);
   await prisma.$executeRawUnsafe(`
     CREATE UNIQUE INDEX uq_table_active_token 
     ON tokens(table_id) 
-    WHERE status IN ('active', 'extended', 'expired');
+    WHERE status IN ('ACTIVE', 'EXTENDED', 'EXPIRED');
   `);
   await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS uq_card_active_token;`);
   await prisma.$executeRawUnsafe(`

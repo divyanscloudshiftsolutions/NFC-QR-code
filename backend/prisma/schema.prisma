@@ -66,15 +66,15 @@ model Token {
   personsCount            Int                 @map("persons_count")
   placeTypeId             String              @map("place_type_id")
   placeType               PlaceTypeConfig     @relation(fields: [placeTypeId], references: [id])
-  tableId                 String              @map("table_id")
-  table                   Table               @relation("TableTokens", fields: [tableId], references: [id])
+  tableId                 String?             @map("table_id")
+  table                   Table?              @relation("TableTokens", fields: [tableId], references: [id])
   amountPaid              Decimal             @db.Decimal(10, 2) @map("amount_paid")
   paymentVerified         Boolean             @default(false) @map("payment_verified")
   startTime               DateTime            @default(now()) @map("start_time")
   endTime                 DateTime            @map("end_time")
   totalRedemptionsAllowed Int                 @map("total_redemptions_allowed")
   redemptionsUsed         Int                 @default(0) @map("redemptions_used")
-  status                  String              @default("active") @map("status") // active, expired, closed, extended
+  status                  TokenStatus         @default(ACTIVE) @map("status")
   issuedBy                String              @map("issued_by")
   creator                 User                @relation("TokenIssuedBy", fields: [issuedBy], references: [id])
   issuedAt                DateTime            @default(now()) @map("issued_at")
@@ -90,6 +90,16 @@ model Token {
   redemptions             Redemption[]
   extensions              TokenExtension[]
   tableOccupancyLogs      TableOccupancyLog[]
+
+  // Audit and lifecycle fields
+  activatedAt             DateTime?           @map("activated_at")
+  activatedBy             String?             @map("activated_by")
+  activationMethod        ActivationMethod?   @map("activation_method")
+  cancelledAt             DateTime?           @map("cancelled_at")
+  cancelledBy             String?             @map("cancelled_by")
+  cancelReason            CancelReason?       @map("cancel_reason")
+  paymentConfirmedAt      DateTime?           @map("payment_confirmed_at")
+  paymentConfirmedBy      String?             @map("payment_confirmed_by")
 
   @@map("tokens")
 }
@@ -241,4 +251,26 @@ enum CloseReason {
   QR_SCAN
   CHECKOUT
   SESSION_EXPIRED
+}
+
+enum TokenStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  CLOSED
+  CANCELLED
+  EXPIRED
+  EXTENDED
+}
+
+enum ActivationMethod {
+  EMAIL_QR
+  NFC
+}
+
+enum CancelReason {
+  USER_CANCELLED
+  PAYMENT_CANCELLED
+  DUPLICATE_CHECKIN
+  SESSION_RESTARTED
+  OTHER
 }

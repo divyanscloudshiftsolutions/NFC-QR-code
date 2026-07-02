@@ -10,7 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "test": "ts-node src/email.test.ts && ts-node src/sync.test.ts"
+    "test": "ts-node tests/email.test.ts && ts-node tests/sync.test.ts && ts-node tests/email-qr.test.ts"
   },
   "keywords": [],
   "author": "",

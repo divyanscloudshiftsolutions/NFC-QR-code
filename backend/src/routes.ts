@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient, CloseReason } from '@prisma/client';
+import { PrismaClient, CloseReason, TokenStatus, ActivationMethod, CancelReason } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { tableService } from './services/TableService';
 import { tokenService } from './services/TokenService';
@@ -1140,10 +1140,10 @@ router.put('/tables/:id', authenticate, authorize(['admin']), async (req: Reques
       where: { id },
       include: {
         tokens: {
-          where: { status: { in: ['active', 'extended', 'expired'] } }
+          where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } }
         }
       }
-    });
+    }) as any;
 
     if (!table) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Table not found' } });
@@ -1224,10 +1224,10 @@ router.patch('/tables/:id/status', authenticate, async (req: Request, res: Respo
       where: { id },
       include: {
         tokens: {
-          where: { status: { in: ['active', 'extended', 'expired'] } }
+          where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } }
         }
       }
-    });
+    }) as any;
 
     if (!table) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Table not found' } });
@@ -1455,7 +1455,7 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
       persons: token.personsCount,
       placeType: token.placeType.name,
       tableId: token.tableId,
-      tableNumber: token.table.tableNumber,
+      tableNumber: token.table?.tableNumber || null,
       amountPaid: token.amountPaid,
       paymentVerified: token.paymentVerified,
       startTime: token.startTime.toISOString(),
@@ -1524,60 +1524,6 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type config not found.' } });
     }
 
-    // Check for existing active token for phone number
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { phoneNumber: finalPhoneNumber },
-      include: {
-        tokens: {
-          where: { status: { in: ['active', 'extended', 'expired'] } },
-          take: 1
-        }
-      }
-    });
-    if (existingCustomer && existingCustomer.tokens.length > 0) {
-      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Customer already has an active token.' } });
-    }
-
-    // Get or create customer
-    let customer: any = existingCustomer;
-    if (!customer) {
-      customer = await prisma.customer.create({
-        data: {
-          phoneNumber: finalPhoneNumber,
-          name: customerName,
-          email: finalEmail,
-          totalVisits: 1
-        }
-      });
-    } else {
-      customer = await prisma.customer.update({
-        where: { id: customer.id },
-        data: {
-          totalVisits: { increment: 1 },
-          lastVisit: new Date(),
-          name: customerName,
-          email: finalEmail
-        }
-      });
-    }
-
-    const tokenNumber = await tokenService.generateTokenNumber();
-
-    // Create a temporary unique table row to avoid violating uq_table_active_token index
-    const tempTable = await prisma.table.create({
-      data: {
-        tableNumber: `PENDING-${tokenNumber}`,
-        placeTypeId: finalPlaceTypeId,
-        capacity: finalPersonsCount,
-        status: 'available',
-        isActive: false // hidden from active seating grids
-      }
-    });
-
-    const start = new Date();
-    const endTime = new Date(start.getTime() + placeTypeObj.baseTimeMinutes * 60 * 1000);
-    const totalRedemptionsAllowed = finalPersonsCount * placeTypeObj.redemptionsPerPerson;
-
     let finalIssuedBy = req.user?.id || '';
     if (finalIssuedBy) {
       const userExists = await prisma.user.findUnique({ where: { id: finalIssuedBy } });
@@ -1590,30 +1536,13 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
       finalIssuedBy = fallbackUser?.id || (await prisma.user.findFirst())?.id || '';
     }
 
-    const token = await prisma.token.create({
-      data: {
-        tokenNumber,
-        customerId: customer.id,
-        personsCount: finalPersonsCount,
-        placeTypeId: finalPlaceTypeId,
-        tableId: tempTable.id,
-        amountPaid: 0,
-        paymentVerified: false,
-        startTime: start,
-        endTime,
-        totalRedemptionsAllowed,
-        redemptionsUsed: 0,
-        status: 'active', // keep existing active enum/status
-        issuedBy: finalIssuedBy,
-        deliveryMode: 'EMAIL_QR',
-        emailSent: false,
-        emailDeliveryStatus: 'PENDING'
-      },
-      include: {
-        customer: true,
-        placeType: true,
-        table: true
-      }
+    const token = await tokenService.createPendingToken({
+      phoneNumber: finalPhoneNumber,
+      customerName,
+      email: finalEmail,
+      personsCount: finalPersonsCount,
+      placeTypeId: finalPlaceTypeId,
+      issuedBy: finalIssuedBy
     });
 
     emailNotificationService.enqueueEmailJob(finalEmail, token.tokenNumber, customerName);
@@ -1627,7 +1556,7 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
       persons: token.personsCount,
       placeType: token.placeType.name,
       tableId: token.tableId,
-      tableNumber: token.table.tableNumber,
+      tableNumber: token.table?.tableNumber || null,
       amountPaid: 0,
       paymentVerified: token.paymentVerified,
       startTime: token.startTime.toISOString(),
@@ -1641,6 +1570,14 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
 
     return res.status(201).json(responseData);
   } catch (err: any) {
+    if (err.code === 'PENDING_SESSION_EXISTS') {
+      return res.status(400).json({
+        success: false,
+        code: 'PENDING_SESSION_EXISTS',
+        error: { message: err.message },
+        tokenNumber: err.tokenNumber
+      });
+    }
     console.error(err);
     return res.status(400).json({ success: false, error: { message: err.message } });
   }
@@ -1681,7 +1618,7 @@ const verifyQrHandler = async (req: Request, res: Response) => {
     if (token.paymentVerified) {
       return res.status(400).json({ success: false, error: { message: 'This QR session has already been activated.' } });
     }
-    if (token.status !== 'active') {
+    if (token.status !== TokenStatus.PENDING_PAYMENT) {
       return res.status(400).json({ success: false, error: { message: `Token has status '${token.status}' and cannot be validated.` } });
     }
     const now = new Date();
@@ -1698,7 +1635,7 @@ const verifyQrHandler = async (req: Request, res: Response) => {
       persons: token.personsCount,
       placeType: token.placeType.name,
       tableId: token.tableId,
-      tableNumber: token.table.tableNumber,
+      tableNumber: token.table?.tableNumber || null,
       amountPaid: token.amountPaid,
       paymentVerified: token.paymentVerified,
       startTime: token.startTime.toISOString(),
@@ -1717,95 +1654,16 @@ const verifyQrHandler = async (req: Request, res: Response) => {
   }
 };
 
-const activateSessionHandler = async (req: Request, res: Response) => {
+const activateSessionHandler = async (req: AuthenticatedRequest, res: Response) => {
   const { tokenNumber, tableNumber, amountPaid } = req.body;
+  const activatedBy = req.user?.id || 'receptionist';
 
   try {
-    const token = await prisma.token.findUnique({
-      where: { tokenNumber },
-      include: {
-        customer: true,
-        placeType: true
-      }
-    });
-
-    if (!token) {
-      return res.status(404).json({ success: false, error: { message: 'Token not found.' } });
-    }
-    if (token.paymentVerified) {
-      return res.status(400).json({ success: false, error: { message: 'Token is already activated.' } });
-    }
-    if (token.status !== 'active') {
-      return res.status(400).json({ success: false, error: { message: `Token has status '${token.status}' and cannot be activated.` } });
-    }
-
-    const table = await prisma.table.findFirst({
-      where: { tableNumber, placeTypeId: token.placeTypeId }
-    });
-    if (!table) {
-      return res.status(400).json({ success: false, error: { message: `Table '${tableNumber}' not found for this place type.` } });
-    }
-    if (table.status !== 'available') {
-      return res.status(400).json({ success: false, error: { message: `Table '${tableNumber}' is not available.` } });
-    }
-    if (token.personsCount > table.capacity) {
-      return res.status(400).json({ success: false, error: { message: `Group size of ${token.personsCount} exceeds table capacity of ${table.capacity}.` } });
-    }
-
-    const now = new Date();
-    // Calculate new end time starting from NOW
-    const endTime = new Date(now.getTime() + token.placeType.baseTimeMinutes * 60 * 1000);
-    const tempTableId = token.tableId;
-
-    // Perform database updates inside transaction
-    const updatedToken = await prisma.$transaction(async (tx) => {
-      const t = await tx.token.update({
-        where: { id: token.id },
-        data: {
-          tableId: table.id,
-          amountPaid: amountPaid ? parseFloat(amountPaid) : token.amountPaid,
-          paymentVerified: true,
-          status: 'active',
-          startTime: now,
-          endTime
-        },
-        include: {
-          customer: true,
-          placeType: true,
-          table: true
-        }
-      });
-
-      // Update new table status to occupied
-      await tx.table.update({
-        where: { id: table.id },
-        data: {
-          status: 'occupied'
-        }
-      });
-
-      // Update occupancy log table link
-      await tx.tableOccupancyLog.updateMany({
-        where: { tokenId: token.id },
-        data: { tableId: table.id, occupiedAt: now }
-      });
-
-      // Delete temporary table row safely
-      await tx.table.delete({
-        where: { id: tempTableId }
-      });
-
-      return t;
-    });
-
-    // Invalidate caches
-    await redisService.del(`table:available:${token.placeTypeId}`);
-    await redisService.del('table:available:all');
-    await redisService.del(`table:${table.id}:status`);
-    await redisService.setex(
-      `token:${token.tokenNumber}`,
-      86400,
-      JSON.stringify(updatedToken)
+    const updatedToken = await tokenService.activatePendingSession(
+      tokenNumber,
+      tableNumber,
+      amountPaid ? parseFloat(amountPaid) : 0,
+      activatedBy
     );
 
     const responseData = {
@@ -1831,6 +1689,23 @@ const activateSessionHandler = async (req: Request, res: Response) => {
 
     return res.status(200).json(responseData);
   } catch (err: any) {
+    if (err.code === 'CONFLICT') {
+      return res.status(409).json({ success: false, error: { message: err.message } });
+    }
+    console.error(err);
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+};
+
+const cancelSessionHandler = async (req: AuthenticatedRequest, res: Response) => {
+  const { tokenNumber, cancelReason } = req.body;
+  const cancelledBy = req.user?.id || 'receptionist';
+
+  try {
+    const cancelEnum = cancelReason === 'PAYMENT_CANCELLED' ? CancelReason.PAYMENT_CANCELLED : CancelReason.USER_CANCELLED;
+    const updatedToken = await tokenService.cancelPendingSession(tokenNumber, cancelledBy, cancelEnum);
+    return res.status(200).json({ success: true, message: 'Session cancelled successfully.', data: updatedToken });
+  } catch (err: any) {
     console.error(err);
     return res.status(400).json({ success: false, error: { message: err.message } });
   }
@@ -1842,6 +1717,7 @@ router.post('/tokens/create', authenticate, authorize(['receptionist', 'admin'])
 router.post('/check-in/pending', authenticate, authorize(['receptionist', 'admin']), checkInPendingHandler);
 router.get('/check-in/verify-qr/:tokenNumber', authenticate, authorize(['receptionist', 'admin']), verifyQrHandler);
 router.post('/check-in/activate', authenticate, authorize(['receptionist', 'admin']), activateSessionHandler);
+router.post('/check-in/cancel', authenticate, authorize(['receptionist', 'admin']), cancelSessionHandler);
 
 // Generate QR Base64 or URL
 router.post('/tokens/:id/generate-qr', authenticate, authorize(['receptionist', 'admin']), async (req: Request, res: Response) => {
@@ -1926,7 +1802,7 @@ router.post('/qr/verify', authenticate, authorize(['bartender', 'receptionist', 
     return res.json({
       success: true,
       data: {
-        valid: tokenRecord.status === 'active' || tokenRecord.status === 'extended',
+        valid: tokenRecord.status === TokenStatus.ACTIVE || tokenRecord.status === TokenStatus.EXTENDED,
         tokenNumber: tokenRecord.tokenNumber,
         remaining: tokenRecord.totalRedemptionsAllowed - tokenRecord.redemptionsUsed,
         totalAllowed: tokenRecord.totalRedemptionsAllowed,
@@ -2065,13 +1941,13 @@ router.put('/config/delivery-mode', authenticate, authorize(['admin']), async (r
 router.get('/tokens/active', authenticate, async (req: Request, res: Response) => {
   try {
     const activeTokens = await prisma.token.findMany({
-      where: { status: { in: ['active', 'extended', 'expired'] } },
+      where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
       include: { customer: true, placeType: true, table: true, card: true },
       orderBy: { startTime: 'desc' },
     });
     
     // Map response for old client compatibility
-    const oldTokens = activeTokens.map(t => ({
+    const oldTokens = activeTokens.map((t: any) => ({
       id: t.id,
       tokenNumber: t.tokenNumber,
       phoneNumber: t.customer.phoneNumber,
@@ -2080,7 +1956,7 @@ router.get('/tokens/active', authenticate, async (req: Request, res: Response) =
       persons: t.personsCount,
       placeType: t.placeType.name,
       tableId: t.tableId,
-      tableNumber: t.table.tableNumber,
+      tableNumber: t.table?.tableNumber || null,
       amountPaid: t.amountPaid,
       paymentVerified: t.paymentVerified,
       startTime: t.startTime.toISOString(),
@@ -2146,7 +2022,7 @@ const getTokenByIdentifier = async (req: Request, res: Response) => {
       persons: token.personsCount,
       placeType: token.placeType.name,
       tableId: token.tableId,
-      tableNumber: token.table.tableNumber,
+      tableNumber: token.table?.tableNumber || null,
       amountPaid: token.amountPaid,
       paymentVerified: token.paymentVerified,
       startTime: token.startTime.toISOString(),
@@ -2159,11 +2035,11 @@ const getTokenByIdentifier = async (req: Request, res: Response) => {
       cardUid: token.card?.nfcUid,
       createdAt: token.issuedAt.toISOString(),
       deliveryMode: token.deliveryMode,
-      table: {
+      table: token.table ? {
         id: token.table.id,
         number: token.table.tableNumber,
         status: token.table.status.toUpperCase(),
-      },
+      } : null,
       redemptions: token.redemptions.map(r => ({
         id: r.id,
         tokenId: r.tokenId,
@@ -2270,7 +2146,7 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
         persons: updated.personsCount,
         placeType: updated.placeType.name,
         tableId: updated.tableId,
-        tableNumber: updated.table.tableNumber,
+        tableNumber: updated.table?.tableNumber || null,
         amountPaid: parseFloat(updated.amountPaid.toString()), // convert when preparing API response
         endTime: updated.endTime.toISOString(),
         redemptionLimit: updated.totalRedemptionsAllowed,
@@ -2342,7 +2218,7 @@ const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) 
       summary: {
         tokenNumber: summary.token.tokenNumber,
         customerName: summary.token.customer.name,
-        tableNumber: summary.token.table.tableNumber,
+        tableNumber: summary.token.table?.tableNumber || null,
         durationMinutes: summary.sessionSummary.totalTimeUsedMinutes,
         allocatedMinutes: summary.sessionSummary.timeAllocatedMinutes,
         redemptionsUsed: summary.sessionSummary.totalRedemptionsUsed,
@@ -2388,7 +2264,7 @@ router.post('/sessions/:tokenNumber/close', authenticate, authorize(['admin', 'r
       summary: {
         tokenNumber: summary.token.tokenNumber,
         customerName: summary.token.customer.name,
-        tableNumber: summary.token.table.tableNumber,
+        tableNumber: summary.token.table?.tableNumber || null,
         durationMinutes: summary.sessionSummary.totalTimeUsedMinutes,
         allocatedMinutes: summary.sessionSummary.timeAllocatedMinutes,
         redemptionsUsed: summary.sessionSummary.totalRedemptionsUsed,
@@ -2442,16 +2318,16 @@ router.post('/sessions/close-by-qr', authenticate, authorize(['admin', 'receptio
       return res.status(404).json({ error: 'Token not found.' });
     }
 
-    if (token.status === 'closed') {
+    if (token.status === TokenStatus.CLOSED) {
       return res.status(409).json({ error: 'This session has already been closed.' });
-    }
-
-    if (token.status !== 'active' && token.status !== 'extended' && token.status !== 'expired') {
-      return res.status(400).json({ error: `Cannot close token with status: ${token.status}` });
     }
 
     if (token.deliveryMode === 'EMAIL_QR' && !token.paymentVerified) {
       return res.status(400).json({ error: 'Cannot close an unpaid pending QR session.' });
+    }
+
+    if (token.status !== TokenStatus.ACTIVE && token.status !== TokenStatus.EXTENDED && token.status !== TokenStatus.EXPIRED) {
+      return res.status(400).json({ error: `Cannot close token with status: ${token.status}` });
     }
 
     // Verify section is currently occupied
@@ -2474,7 +2350,7 @@ router.post('/sessions/close-by-qr', authenticate, authorize(['admin', 'receptio
       summary: {
         tokenNumber: summary.token.tokenNumber,
         customerName: summary.token.customer.name,
-        tableNumber: summary.token.table.tableNumber,
+        tableNumber: summary.token.table?.tableNumber || null,
         durationMinutes: summary.sessionSummary.totalTimeUsedMinutes,
         allocatedMinutes: summary.sessionSummary.timeAllocatedMinutes,
         redemptionsUsed: summary.sessionSummary.totalRedemptionsUsed,
@@ -2500,9 +2376,9 @@ router.get('/token/validate/:cardUid', authenticate, authorize(['bartender', 'ad
   const { cardUid } = req.params;
   try {
     const token = await prisma.token.findFirst({
-      where: { card: { nfcUid: cardUid }, status: { in: ['active', 'extended'] } },
+      where: { card: { nfcUid: cardUid }, status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED] } },
       include: { table: true, customer: true, placeType: true }
-    });
+    }) as any;
 
     if (!token) {
       return res.status(404).json({ error: 'No active session token found for this card' });
@@ -2542,7 +2418,7 @@ router.get('/token/validate/:cardUid', authenticate, authorize(['bartender', 'ad
       persons: token.personsCount,
       placeType: token.placeType.name,
       tableId: token.tableId,
-      tableNumber: token.table.tableNumber,
+      tableNumber: token.table?.tableNumber || null,
       amountPaid: token.amountPaid,
       startTime: token.startTime.toISOString(),
       endTime: token.endTime.toISOString(),
@@ -2884,7 +2760,7 @@ router.get('/customers/:phoneNumber', authenticate, async (req: Request, res: Re
       where: { phoneNumber: searchPhone },
       include: {
         tokens: {
-          where: { status: { in: ['active', 'extended', 'expired'] } },
+          where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
           take: 1
         }
       }
@@ -3093,12 +2969,12 @@ router.get('/reports/sales', authenticate, authorize(['admin']), async (req: Req
       todaySales: totalCollections,
       todayRedemptions: redemptionsCount,
       totalCustomers: totalPersonsServed,
-      checkoutCount: tokens.filter(t => t.status === 'closed').length,
+      checkoutCount: tokens.filter((t: any) => t.status === TokenStatus.CLOSED).length,
       data: {
         todaySales: totalCollections,
         todayRedemptions: redemptionsCount,
         totalCustomers: totalPersonsServed,
-        checkoutCount: tokens.filter(t => t.status === 'closed').length,
+        checkoutCount: tokens.filter((t: any) => t.status === TokenStatus.CLOSED).length,
         period: { startDate, endDate }
       }
     });

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TokenStatus } from '@prisma/client';
 import redisService from './RedisService';
 import jwt from 'jsonwebtoken';
 
@@ -75,7 +75,7 @@ export class RedemptionService {
         }
 
         // Validate token status (allow active or extended sessions)
-        if (token.status !== 'active' && token.status !== 'extended') {
+        if (token.status !== TokenStatus.ACTIVE && token.status !== TokenStatus.EXTENDED) {
           throw new Error(`Token is ${token.status}`);
         }
 
@@ -84,7 +84,7 @@ export class RedemptionService {
         if (now > new Date(token.endTime)) {
           await tx.token.update({
             where: { id: token.id },
-            data: { status: 'expired' }
+            data: { status: TokenStatus.EXPIRED }
           });
           throw new Error('Token has expired');
         }
@@ -181,7 +181,7 @@ export class RedemptionService {
         const token = tokens[0];
 
         // Validate token status
-        if (token.status !== 'active' && token.status !== 'extended') {
+        if (token.status !== 'ACTIVE' && token.status !== 'EXTENDED') {
           throw new Error(`Token is ${token.status}`);
         }
 
