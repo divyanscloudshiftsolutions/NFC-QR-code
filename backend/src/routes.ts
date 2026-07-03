@@ -158,9 +158,24 @@ export const authorize = (allowedRoles: string[]) => {
 
 const router = Router();
 
-// ==========================================
-// 1. AUTHENTICATION ENDPOINTS
-// ==========================================
+router.get('/debug-prisma-enums', (req: Request, res: Response) => {
+  try {
+    const { TokenStatus: originalTokenStatus } = require('@prisma/client');
+    return res.json({
+      success: true,
+      debugMessage: 'Prisma Client verification info',
+      importedTokenStatus: originalTokenStatus,
+      codebaseTokenStatus: TokenStatus,
+      env: {
+        DATABASE_URL: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.split('@')[1].split('/')[0]}` : 'not-set',
+        PORT: process.env.PORT || 'default-4000',
+        NODE_ENV: process.env.NODE_ENV || 'not-set'
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
 
 // Login
 router.post('/auth/login', async (req: Request, res: Response) => {
