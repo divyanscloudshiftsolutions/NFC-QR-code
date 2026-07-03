@@ -225,10 +225,9 @@ async function runTests() {
       assert.strictEqual(verifyData.data.tokenNumber, tokenNumber);
       console.log('✓ Valid QR signature correctly verified.');
 
-      // Test 8: Verify QR Code signature (Invalid/Forged signature)
-      console.log('Test 8: POST /qr/verify (Invalid signature)');
+      // Test 8: Verify QR Code (Invalid token number)
+      console.log('Test 8: POST /qr/verify (Invalid token number)');
       
-      // A. Forged raw token UID (returns 404 because it is not a valid JWT and doesn't exist in DB)
       const verifyInvalidResRaw = await fetch(`${BASE_URL}/qr/verify`, {
         method: 'POST',
         headers: {
@@ -239,22 +238,6 @@ async function runTests() {
       });
       assert.strictEqual(verifyInvalidResRaw.status, 404);
       console.log('✓ Rejected forged raw token UID (404).');
-
-      // B. Forged legacy JWT (returns 400 QR_INVALID_SIGNATURE)
-      const forgedJwt = 'header.payload.signature-forged';
-      const verifyInvalidResJwt = await fetch(`${BASE_URL}/qr/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${jwtToken}`
-        },
-        body: JSON.stringify({ token: forgedJwt })
-      });
-      assert.strictEqual(verifyInvalidResJwt.status, 400);
-      const verifyInvalidData: any = await verifyInvalidResJwt.json();
-      assert.strictEqual(verifyInvalidData.success, false);
-      assert.strictEqual(verifyInvalidData.error.code, 'QR_INVALID_SIGNATURE');
-      console.log('✓ Rejected forged legacy JWT token (400).');
 
       // Test 9: Redeem QR token via unified /redemptions endpoint
       console.log('Test 9: POST /redemptions (Valid QR_SCAN)');
@@ -326,8 +309,6 @@ async function runTests() {
       const nfcTokenNumber = nfcSuccessData.tokenNumber;
 
       // Try to redeem this NFC token via QR_SCAN presentation type (should fail)
-      // First generate a signed QR for it using jwt (simulate forged scan or trying to scan its raw string)
-      const fakeSignedNfcPayload = jwt.sign({ token: nfcTokenNumber, type: 'EMAIL_QR' }, process.env.GLOBAL_SIGNING_KEY || 'default-global-secret');
       const redeemNfcQrRes = await fetch(`${BASE_URL}/redemptions`, {
         method: 'POST',
         headers: {
@@ -335,7 +316,7 @@ async function runTests() {
           'Authorization': `Bearer ${jwtToken}`
         },
         body: JSON.stringify({
-          payload: fakeSignedNfcPayload,
+          payload: nfcTokenNumber,
           presentationType: 'QR_SCAN',
           bartenderId: adminUser.id
         })

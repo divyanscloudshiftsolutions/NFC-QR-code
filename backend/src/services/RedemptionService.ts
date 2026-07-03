@@ -18,22 +18,7 @@ export class RedemptionService {
     redeemedAt?: Date | string,
     presentationType: 'NFC_TAP' | 'QR_SCAN' = 'NFC_TAP'
   ): Promise<RedemptionResult> {
-    // 1. Resolve tokenNumber
-    let tokenNumber = payload;
-    if (presentationType === 'QR_SCAN') {
-      if (payload.includes('.')) {
-        try {
-          const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-          const decoded = jwt.verify(payload, secret) as { token: string; type: string };
-          if (decoded.type !== 'EMAIL_QR') {
-            throw new Error('Invalid token type in QR code');
-          }
-          tokenNumber = decoded.token;
-        } catch (err: any) {
-          throw new Error('Invalid QR payload signature or forgery detected.');
-        }
-      }
-    }
+    const tokenNumber = payload;
 
     // Use Redis distributed lock to prevent double redemption
     const lockKey = `lock:redemption:${tokenNumber}`;

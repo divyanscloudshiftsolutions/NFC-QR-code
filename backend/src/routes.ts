@@ -1586,22 +1586,9 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
 const verifyQrHandler = async (req: Request, res: Response) => {
   try {
     const { tokenNumber } = req.params;
-    let targetTokenNumber = tokenNumber;
-
-    if (tokenNumber.includes('.')) {
-      try {
-        const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-        const decoded = jwt.verify(tokenNumber, secret) as { token: string; type: string };
-        if (decoded && decoded.token) {
-          targetTokenNumber = decoded.token;
-        }
-      } catch (err) {
-        return res.status(400).json({ success: false, error: { message: 'Invalid or expired QR code signature.' } });
-      }
-    }
 
     const token = await prisma.token.findUnique({
-      where: { tokenNumber: targetTokenNumber },
+      where: { tokenNumber },
       include: {
         customer: true,
         placeType: true,
@@ -1784,17 +1771,7 @@ router.post('/qr/verify', authenticate, authorize(['bartender', 'receptionist', 
   }
 
   try {
-    let targetTokenNumber = token;
-    if (token.includes('.')) {
-      const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-      const decoded = jwt.verify(token, secret) as { token: string; type: string };
-      if (decoded.type !== 'EMAIL_QR') {
-        return res.status(400).json({ success: false, error: { message: 'Invalid token type in QR code' } });
-      }
-      targetTokenNumber = decoded.token;
-    }
-
-    const tokenRecord = await tokenService.getTokenByNumber(targetTokenNumber);
+    const tokenRecord = await tokenService.getTokenByNumber(token);
     if (!tokenRecord) {
       return res.status(404).json({ success: false, error: { message: 'Token not found' } });
     }
@@ -2289,18 +2266,8 @@ router.post('/sessions/close-by-qr', authenticate, authorize(['admin', 'receptio
     return res.status(400).json({ error: 'QR data is required.' });
   }
 
-  // Support legacy JWT decoding or direct token validation
-  let tokenNumber = qrData;
-  if (qrData.startsWith('ey')) {
-    try {
-      const decoded: any = jwt.decode(qrData);
-      if (decoded && decoded.tokenNumber) {
-        tokenNumber = decoded.tokenNumber;
-      }
-    } catch (e) {
-      return res.status(400).json({ error: 'Invalid legacy QR code signature.' });
-    }
-  }
+  // Direct token validation
+  const tokenNumber = qrData;
 
   const tokenRegex = /^BAR-\d{8}-\d{5}$/;
   if (!tokenRegex.test(tokenNumber) || tokenNumber.length !== 18) {
