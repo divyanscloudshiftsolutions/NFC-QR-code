@@ -16,11 +16,11 @@ const BASE_URL = `http://localhost:${PORT}/api`;
 let testCounter = 0;
 function generateTestCustomer(prefix: string) {
   testCounter++;
-  const suffix = `${Date.now()}-${testCounter}`;
+  const charSuffix = (Date.now() + testCounter).toString(36).replace(/[0-9]/g, (d) => String.fromCharCode(97 + parseInt(d)));
   return {
-    name: `${prefix}-${suffix}`,
+    name: `${prefix} ${charSuffix}`.replace(/[^a-zA-Z\s.'-]/g, ''),
     phone: `90000${String(testCounter).padStart(5, '0')}`,
-    email: `test-${suffix}@test.local`
+    email: `test${charSuffix}@gmail.com`
   };
 }
 
@@ -205,7 +205,7 @@ async function runTests() {
         where: { customer: { phoneNumber: `+91${customer1.phone}` } }
       });
       assert.ok(dbToken1, 'Token not created in database');
-      assert.strictEqual(dbToken1.status, 'active', 'Token status should be active');
+      assert.strictEqual(dbToken1.status, 'ACTIVE', 'Token status should be ACTIVE');
       console.log('✓ Token successfully verified in database.');
 
       // 2.5 Test Table Seating Occupancy Endpoint

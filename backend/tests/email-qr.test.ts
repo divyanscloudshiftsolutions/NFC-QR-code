@@ -16,11 +16,11 @@ const BASE_URL = `http://localhost:${PORT}/api`;
 let testCounter = 0;
 function generateTestCustomer(prefix: string) {
   testCounter++;
-  const suffix = `${Date.now()}-${testCounter}`;
+  const charSuffix = (Date.now() + testCounter).toString(36).replace(/[0-9]/g, (d) => String.fromCharCode(97 + parseInt(d)));
   return {
-    name: `${prefix}-${suffix}`,
+    name: `${prefix} ${charSuffix}`.replace(/[^a-zA-Z\s.'-]/g, ''),
     phone: `90000${String(testCounter).padStart(5, '0')}`,
-    email: `test-${suffix}@test.local`
+    email: `test${charSuffix}@gmail.com`
   };
 }
 

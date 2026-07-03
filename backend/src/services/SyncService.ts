@@ -246,7 +246,7 @@ export class SyncService {
         }
 
         // Conflict checks
-        if (token.status === 'closed') {
+        if (token.status === TokenStatus.CLOSED) {
           return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_CLOSED', 'Session is already closed');
         }
 
@@ -324,7 +324,7 @@ export class SyncService {
           return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
         }
 
-        if (token.status === 'closed') {
+        if (token.status === TokenStatus.CLOSED) {
           return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_CLOSED', 'Session is already closed');
         }
 
@@ -362,7 +362,7 @@ export class SyncService {
           return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_SESSION_NOT_FOUND', 'Session not found');
         }
 
-        if (token.status === 'closed') {
+        if (token.status === TokenStatus.CLOSED) {
           // Already closed - return success (idempotent checkout)
           return {
             operationId,
