@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient, CloseReason, TokenStatus, ActivationMethod, CancelReason } from '@prisma/client';
+import { PrismaClient, CloseReason, ActivationMethod, CancelReason } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { tableService } from './services/TableService';
 import { tokenService } from './services/TokenService';
@@ -8,6 +8,16 @@ import { redemptionService } from './services/RedemptionService';
 import redisService from './services/RedisService';
 import bcrypt from 'bcrypt';
 import syncService from './services/SyncService';
+
+const TokenStatus = {
+  PENDING_PAYMENT: 'PENDING_PAYMENT' as const,
+  ACTIVE: 'ACTIVE' as const,
+  CLOSED: 'CLOSED' as const,
+  CANCELLED: 'CANCELLED' as const,
+  EXPIRED: 'EXPIRED' as const,
+  EXTENDED: 'EXTENDED' as const,
+};
+type TokenStatus = (typeof TokenStatus)[keyof typeof TokenStatus];
 import s3Service from './services/S3Service';
 import emailNotificationService from './services/EmailNotificationService';
 

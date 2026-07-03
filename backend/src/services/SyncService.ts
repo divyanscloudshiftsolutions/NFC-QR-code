@@ -1,8 +1,18 @@
-import { PrismaClient, TokenStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import tokenService from './TokenService';
 import redemptionService from './RedemptionService';
 import s3Service from './S3Service';
+
+const TokenStatus = {
+  PENDING_PAYMENT: 'PENDING_PAYMENT' as const,
+  ACTIVE: 'ACTIVE' as const,
+  CLOSED: 'CLOSED' as const,
+  CANCELLED: 'CANCELLED' as const,
+  EXPIRED: 'EXPIRED' as const,
+  EXTENDED: 'EXTENDED' as const,
+};
+type TokenStatus = (typeof TokenStatus)[keyof typeof TokenStatus];
 
 const prisma = new PrismaClient();
 
