@@ -68,14 +68,7 @@ export class TokenService {
   }
 
   generateQRTokenPayload(tokenNumber: string): string {
-    const secret = process.env.GLOBAL_SIGNING_KEY || 'default-global-secret';
-    return jwt.sign(
-      {
-        token: tokenNumber,
-        type: 'EMAIL_QR'
-      },
-      secret
-    );
+    return tokenNumber;
   }
 
   async generateTokenNumber(): Promise<string> {
