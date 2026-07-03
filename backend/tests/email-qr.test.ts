@@ -13,6 +13,17 @@ app.use('/api', router);
 const PORT = 4006;
 const BASE_URL = `http://localhost:${PORT}/api`;
 
+let testCounter = 0;
+function generateTestCustomer(prefix: string) {
+  testCounter++;
+  const suffix = `${Date.now()}-${testCounter}`;
+  return {
+    name: `${prefix}-${suffix}`,
+    phone: `90000${String(testCounter).padStart(5, '0')}`,
+    email: `test-${suffix}@test.local`
+  };
+}
+
 async function cleanupDb() {
   console.log('Cleaning up database for Email QR tests...');
   await prisma.syncLog.deleteMany({});
@@ -88,6 +99,7 @@ async function runTests() {
 
       // Test 2: Try to check in under NFC_CARD mode without cardUid (should fail)
       console.log('Test 2: Check-in under NFC_CARD mode without Card UID (should fail)');
+      const nfcTestCust = generateTestCustomer('nfc-test');
       const checkinFailNfcRes = await fetch(`${BASE_URL}/check-in`, {
         method: 'POST',
         headers: {
@@ -95,8 +107,8 @@ async function runTests() {
           'Authorization': `Bearer ${jwtToken}`
         },
         body: JSON.stringify({
-          phoneNumber: '9999999991',
-          customerName: 'NFC Test Customer',
+          phoneNumber: nfcTestCust.phone,
+          customerName: nfcTestCust.name,
           personsCount: 2,
           placeTypeId: ptStanding.id,
           tableId: tableS2.id
@@ -124,6 +136,7 @@ async function runTests() {
 
       // Test 4: Check-in under EMAIL_QR mode without email (should fail)
       console.log('Test 4: Check-in under EMAIL_QR mode without email (should fail)');
+      const qrTestCust = generateTestCustomer('qr-test');
       const checkinFailEmailRes = await fetch(`${BASE_URL}/check-in`, {
         method: 'POST',
         headers: {
@@ -131,8 +144,8 @@ async function runTests() {
           'Authorization': `Bearer ${jwtToken}`
         },
         body: JSON.stringify({
-          phoneNumber: '9999999992',
-          customerName: 'QR Test Customer',
+          phoneNumber: qrTestCust.phone,
+          customerName: qrTestCust.name,
           personsCount: 2,
           placeTypeId: ptStanding.id,
           tableId: tableS2.id
@@ -145,6 +158,7 @@ async function runTests() {
 
       // Test 5: Successful check-in under EMAIL_QR mode
       console.log('Test 5: Successful Check-in under EMAIL_QR mode');
+      const qrSuccessCust = generateTestCustomer('qr-success');
       const checkinSuccessRes = await fetch(`${BASE_URL}/check-in`, {
         method: 'POST',
         headers: {
@@ -152,9 +166,9 @@ async function runTests() {
           'Authorization': `Bearer ${jwtToken}`
         },
         body: JSON.stringify({
-          phoneNumber: '9999999993',
-          customerName: 'QR Test Customer',
-          email: 'qr.customer@gmail.com',
+          phoneNumber: qrSuccessCust.phone,
+          customerName: qrSuccessCust.name,
+          email: qrSuccessCust.email,
           personsCount: 2,
           placeTypeId: ptStanding.id,
           tableId: tableS2.id
@@ -163,7 +177,7 @@ async function runTests() {
       assert.strictEqual(checkinSuccessRes.status, 201);
       const successData: any = await checkinSuccessRes.json();
       assert.ok(successData.tokenNumber);
-      assert.strictEqual(successData.email, 'qr.customer@gmail.com');
+      assert.strictEqual(successData.email, qrSuccessCust.email);
       assert.strictEqual(successData.cardUid, null); // no card uid in QR mode
       console.log('✓ Check-in succeeded under EMAIL_QR mode. Token Number:', successData.tokenNumber);
 
@@ -291,6 +305,7 @@ async function runTests() {
       });
 
       // Check-in NFC
+      const nfcSuccessCust = generateTestCustomer('nfc-success');
       const checkinNfcSuccessRes = await fetch(`${BASE_URL}/check-in`, {
         method: 'POST',
         headers: {
@@ -298,8 +313,8 @@ async function runTests() {
           'Authorization': `Bearer ${jwtToken}`
         },
         body: JSON.stringify({
-          phoneNumber: '9999999994',
-          customerName: 'NFC Success Customer',
+          phoneNumber: nfcSuccessCust.phone,
+          customerName: nfcSuccessCust.name,
           personsCount: 1,
           placeTypeId: ptStanding.id,
           tableId: tableS3.id,
@@ -344,6 +359,7 @@ async function runTests() {
 
       // Test 13: POST /check-in/pending
       console.log('Test 13: POST /check-in/pending');
+      const pendingCust = generateTestCustomer('pending-guest');
       const pendingRes = await fetch(`${BASE_URL}/check-in/pending`, {
         method: 'POST',
         headers: {
@@ -351,9 +367,9 @@ async function runTests() {
           'Authorization': `Bearer ${jwtToken}`
         },
         body: JSON.stringify({
-          phoneNumber: '9876543210',
-          customerName: 'Pending Guest',
-          email: 'pending.guest@gmail.com',
+          phoneNumber: pendingCust.phone,
+          customerName: pendingCust.name,
+          email: pendingCust.email,
           personsCount: 2,
           placeType: 'STANDING_BAR'
         })
@@ -361,7 +377,7 @@ async function runTests() {
       assert.strictEqual(pendingRes.status, 201);
       const pendingData: any = await pendingRes.json();
       assert.ok(pendingData.tokenNumber);
-      assert.strictEqual(pendingData.customerName, 'Pending Guest');
+      assert.strictEqual(pendingData.customerName, pendingCust.name);
       assert.strictEqual(pendingData.paymentVerified, false);
       const pendingTokenNumber = pendingData.tokenNumber;
       console.log('✓ Pending session check-in created successfully. Token:', pendingTokenNumber);
@@ -514,6 +530,7 @@ async function runTests() {
       // QR Close Verification
       console.log('\nTest 17: QR Code Assisted Session Close');
       // Create a new session for QR close test
+      const qrCloseCust = generateTestCustomer('qr-close');
       const qrCheckInRes = await fetch(`${BASE_URL}/check-in/pending`, {
         method: 'POST',
         headers: {
@@ -521,9 +538,9 @@ async function runTests() {
           'Authorization': `Bearer ${jwtToken}`
         },
         body: JSON.stringify({
-          customerName: 'QR Close Guest',
-          phoneNumber: '9999999992',
-          email: 'qr.close@gmail.com',
+          customerName: qrCloseCust.name,
+          phoneNumber: qrCloseCust.phone,
+          email: qrCloseCust.email,
           personsCount: 2,
           placeType: 'STANDING_BAR'
         })
@@ -581,12 +598,14 @@ async function runTests() {
       console.log('ALL EMAIL QR INTEGRATION TESTS PASSED!');
       console.log('=========================================\n');
 
+      await cleanupDb();
       server.close();
       process.exit(0);
 
     } catch (e: any) {
       console.error('Test Failed:', e.message);
       console.error(e.stack);
+      await cleanupDb().catch(() => {});
       server.close();
       process.exit(1);
     }

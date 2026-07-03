@@ -13,6 +13,17 @@ app.use('/api', router);
 const PORT = 4005;
 const BASE_URL = `http://localhost:${PORT}/api`;
 
+let testCounter = 0;
+function generateTestCustomer(prefix: string) {
+  testCounter++;
+  const suffix = `${Date.now()}-${testCounter}`;
+  return {
+    name: `${prefix}-${suffix}`,
+    phone: `90000${String(testCounter).padStart(5, '0')}`,
+    email: `test-${suffix}@test.local`
+  };
+}
+
 async function cleanupDb() {
   console.log('Cleaning up database for tests...');
   await prisma.syncLog.deleteMany({});
@@ -148,6 +159,7 @@ async function runTests() {
 
       // 2. Test Check-in Success
       console.log('Test Case 2: Successful Check-in operation...');
+      const customer1 = generateTestCustomer('cust-alice');
       const op1Id = '11111111-1111-4111-a111-111111111111';
       const syncRes1 = await fetch(`${BASE_URL}/sync`, {
         method: 'POST',
@@ -163,9 +175,9 @@ async function runTests() {
               operationType: 'CHECK_IN',
               timestamp: new Date().toISOString(),
               payload: {
-                phoneNumber: '9876543210',
-                customerName: 'Alice Tester',
-                email: 'alice@gmail.com',
+                phoneNumber: customer1.phone,
+                customerName: customer1.name,
+                email: customer1.email,
                 personsCount: 2,
                 placeTypeId: ptStanding!.id,
                 tableId: tableS1!.id,
@@ -190,7 +202,7 @@ async function runTests() {
 
       // Check DB values
       const dbToken1 = await prisma.token.findFirst({
-        where: { customer: { phoneNumber: '+919876543210' } }
+        where: { customer: { phoneNumber: `+91${customer1.phone}` } }
       });
       assert.ok(dbToken1, 'Token not created in database');
       assert.strictEqual(dbToken1.status, 'active', 'Token status should be active');
@@ -210,7 +222,7 @@ async function runTests() {
       assert.ok(s01Table, 'Table S-01 occupancy details are missing');
       assert.strictEqual(s01Table.status, 'occupied', 'Table S-01 should be occupied');
       assert.ok(s01Table.currentToken, 'Table S-01 current token details are missing');
-      assert.strictEqual(s01Table.currentToken.customerName, 'Alice Tester', 'Customer name mismatch');
+      assert.strictEqual(s01Table.currentToken.customerName, customer1.name, 'Customer name mismatch');
       assert.strictEqual(s01Table.currentToken.personsCount, 2, 'Persons count mismatch');
       assert.strictEqual(s01Table.currentToken.redemptionsUsed, 0, 'Redemptions used should be 0');
       assert.strictEqual(s01Table.currentToken.totalRedemptionsAllowed, 4, 'Total redemptions limit mismatch (2 persons * 2 allowed)');
@@ -274,9 +286,9 @@ async function runTests() {
               operationType: 'CHECK_IN',
               timestamp: new Date().toISOString(),
               payload: {
-                phoneNumber: '9876543210',
-                customerName: 'Alice Tester',
-                email: 'alice@gmail.com',
+                phoneNumber: customer1.phone,
+                customerName: customer1.name,
+                email: customer1.email,
                 personsCount: 2,
                 placeTypeId: ptStanding!.id,
                 tableId: tableS1!.id,
@@ -297,6 +309,7 @@ async function runTests() {
 
       // 4. Test Table Occupancy Conflict
       console.log('Test Case 4: Table conflict handling...');
+      const customer2 = generateTestCustomer('cust-bob');
       const op2Id = '22222222-2222-4222-a222-222222222222';
       const syncRes3 = await fetch(`${BASE_URL}/sync`, {
         method: 'POST',
@@ -312,9 +325,9 @@ async function runTests() {
               operationType: 'CHECK_IN',
               timestamp: new Date().toISOString(),
               payload: {
-                phoneNumber: '9998887776',
-                customerName: 'Bob Conflict',
-                email: 'bob@gmail.com',
+                phoneNumber: customer2.phone,
+                customerName: customer2.name,
+                email: customer2.email,
                 personsCount: 2,
                 placeTypeId: ptStanding!.id,
                 tableId: tableS1!.id, // Occupied S-01 table
@@ -484,6 +497,7 @@ async function runTests() {
       assert.strictEqual(patchMaintFreeData.status, 'maintenance', 'Status mismatch in response');
 
       // Verify that check-in on a maintenance table is blocked
+      const customer3 = generateTestCustomer('cust-maint');
       const opCheckinMaint = '77777777-7777-7777-b777-777777777777';
       const checkinMaintRes = await fetch(`${BASE_URL}/sync`, {
         method: 'POST',
@@ -499,9 +513,9 @@ async function runTests() {
               operationType: 'CHECK_IN',
               timestamp: new Date().toISOString(),
               payload: {
-                phoneNumber: '9991112223',
-                customerName: 'Maint Guest',
-                email: 'maint@gmail.com',
+                phoneNumber: customer3.phone,
+                customerName: customer3.name,
+                email: customer3.email,
                 personsCount: 2,
                 placeTypeId: ptStanding!.id,
                 tableId: tableS1!.id,
@@ -1050,6 +1064,7 @@ async function runTests() {
       console.log('=========================================\n');
     } catch (e) {
       console.error('Test assertion failed:', e);
+      await cleanupDb();
       server.close();
       process.exit(1);
     } finally {
