@@ -811,8 +811,10 @@ export const CheckInWizard: React.FC = () => {
                         borderColor: isSelected ? (isPremium ? colors.gold : colors.teal) : colors.border,
                         borderWidth: 1,
                         borderRadius: 12,
-                        padding: 12
+                        padding: 12,
+                        opacity: (pendingToken && !isSelected) ? 0.4 : 1
                       }}
+                      disabled={!!pendingToken && !isSelected}
                       onPress={() => { setPlaceType(rate.placeType); setSelectedTableNum(null); }}
                     >
                       <View className="flex-row items-center gap-1.5 mb-1">
