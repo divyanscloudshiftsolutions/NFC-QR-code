@@ -921,7 +921,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const data = await res.json();
         const mapped = mapBackendToken(data);
         setSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? mapped : s));
-        setTables(prev => prev.map(t => t.number === tableNumber ? {
+        setTables(prev => prev.map(t => t.number === mapped.tableNumber ? {
           ...t,
           status: TableStatus.OCCUPIED,
           occupiedSeats: mapped.persons,

@@ -760,6 +760,8 @@ export class TokenService {
     const now = new Date();
     const activationMethod = ActivationMethod.EMAIL_QR;
 
+    const normalizedTableNumber = tableNumber.trim().replace(/^([SL])(\d{2})$/i, '$1-$2').toUpperCase();
+
     return await prisma.$transaction(async (tx) => {
       // 1. Lock/fetch the token row
       const tokens = await tx.$queryRaw<any[]>`
@@ -825,7 +827,7 @@ export class TokenService {
 
       // 2. Resolve the selected table for the place type of this token
       const table = await tx.table.findFirst({
-        where: { tableNumber, placeTypeId: token.placeTypeId }
+        where: { tableNumber: normalizedTableNumber, placeTypeId: token.placeTypeId }
       });
       if (!table) {
         throw new Error(`Table '${tableNumber}' not found for this place type.`);

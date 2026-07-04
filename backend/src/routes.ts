@@ -1419,8 +1419,9 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
 
     // Resolve Table ID
     if (!finalTableId && tableNumber) {
+      const normalizedTableNumber = tableNumber.trim().replace(/^([SL])(\d{2})$/i, '$1-$2').toUpperCase();
       const tableObj = await prisma.table.findFirst({
-        where: { tableNumber, placeTypeId: finalPlaceTypeId }
+        where: { tableNumber: normalizedTableNumber, placeTypeId: finalPlaceTypeId }
       });
       if (tableObj) finalTableId = tableObj.id;
     }
