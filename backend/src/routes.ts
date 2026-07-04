@@ -3405,6 +3405,35 @@ router.get('/config', async (req: Request, res: Response) => {
       emailQrEnabled: true,
       tokenType
     });
+});
+
+// Temporary GET /api/debug/db
+router.get('/debug/db', async (req: Request, res: Response) => {
+  try {
+    const tokens = await prisma.token.findMany({
+      include: { customer: true, table: true }
+    });
+    const customers = await prisma.customer.findMany();
+    const tables = await prisma.table.findMany();
+    return res.json({
+      success: true,
+      databaseUrl: process.env.DATABASE_URL ? (process.env.DATABASE_URL.split('@')[1] || 'hidden').split('?')[0] : 'not-set',
+      tokens: tokens.map(t => ({
+        id: t.id,
+        tokenNumber: t.tokenNumber,
+        status: t.status,
+        customerName: t.customer?.name,
+        phoneNumber: t.customer?.phoneNumber,
+        tableNumber: t.table?.tableNumber,
+        deliveryMode: t.deliveryMode,
+        paymentVerified: t.paymentVerified,
+        createdAt: t.issuedAt
+      })),
+      customers,
+      tables
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
