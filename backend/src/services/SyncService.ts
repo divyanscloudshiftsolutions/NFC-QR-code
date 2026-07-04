@@ -145,6 +145,10 @@ export class SyncService {
           cardId
         } = payload;
 
+        if (payload.placeType && payload.placeType !== 'STANDING_BAR' && payload.placeType !== 'PREMIUM_LOUNGE') {
+          return await this.logConflict(operationId, deviceId, type, payload, 'CONFLICT_PLACE_TYPE_NOT_FOUND', 'Place type must be STANDING_BAR or PREMIUM_LOUNGE');
+        }
+
         let finalPlaceTypeId = placeTypeId;
         let finalTableId = tableId;
 

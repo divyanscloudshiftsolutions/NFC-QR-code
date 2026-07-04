@@ -81,6 +81,16 @@ export const CheckInWizard: React.FC = () => {
       setPreselectedTableNumber(null); // Clear it
     }
   }, [preselectedTableNumber, tables]);
+
+  useEffect(() => {
+    if (rates.length > 0) {
+      const hasCurrent = rates.some(r => r.placeType === placeType);
+      if (!hasCurrent) {
+        const fallback = rates.find(r => r.placeType === 'STANDING_BAR' || r.placeType === 'PREMIUM_LOUNGE');
+        if (fallback) setPlaceType(fallback.placeType);
+      }
+    }
+  }, [rates, placeType]);
   
   // Simulated outputs
   const [createdSession, setCreatedSession] = useState<SessionToken | null>(null);
@@ -136,7 +146,8 @@ export const CheckInWizard: React.FC = () => {
             phoneNumber: phone,
             email: email.trim(),
             personsCount: guestCount,
-            placeType
+            placeType,
+            placeTypeId: rates.find(r => r.placeType === placeType)?.id
           });
           setIsActivating(false);
           if (pendingSession) {
@@ -168,7 +179,7 @@ export const CheckInWizard: React.FC = () => {
   };
 
   // Load dynamic rates with safety fallbacks
-  const rateCard = rates.find(r => r.placeType === placeType) || rates[0] || { ratePerPerson: placeType === 'STANDING_BAR' ? 500 : 900, durationHours: placeType === 'STANDING_BAR' ? 2 : 3, maxDrinks: placeType === 'STANDING_BAR' ? 2 : 6 };
+  const rateCard = rates.find(r => r.placeType === placeType) || rates[0] || { ratePerPerson: placeType === 'STANDING_BAR' ? 500 : 1200, durationHours: placeType === 'STANDING_BAR' ? 2 : 3, maxDrinks: placeType === 'STANDING_BAR' ? 2 : 3 };
   const basePrice = rateCard.ratePerPerson;
   const durationHours = rateCard.durationHours;
   const totalPrice = basePrice * guestCount;
@@ -455,7 +466,7 @@ export const CheckInWizard: React.FC = () => {
             <TextInput 
               style={{ color: colors.text, backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14, fontWeight: 'bold' }}
               placeholder="Paste BAR-XXXXXXXXXX or scanned JWT here"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.placeholder}
               value={scannedToken}
               onChangeText={(text) => {
                 setScannedToken(text);
@@ -536,7 +547,7 @@ export const CheckInWizard: React.FC = () => {
                 style={{ color: colors.text }}
                 className="text-base font-semibold py-1.5"
                 placeholder="Rahul Mehta"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.placeholder}
                 value={fullName}
                 onChangeText={(text) => {
                   if (focusedField === 'name') setFullName(text);
@@ -572,7 +583,7 @@ export const CheckInWizard: React.FC = () => {
                 style={{ color: colors.text }}
                 className="text-base font-semibold py-1.5"
                 placeholder="+91 98765 43210"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.placeholder}
                 value={phone}
                 onChangeText={(text) => {
                   if (focusedField === 'phone') setPhone(text);
@@ -623,7 +634,7 @@ export const CheckInWizard: React.FC = () => {
                 style={{ color: colors.text }}
                 className="text-base font-semibold py-1.5"
                 placeholder="rahul@email.com"
-                placeholderTextColor={colors.muted}
+                placeholderTextColor={colors.placeholder}
                 value={email}
                 onChangeText={(text) => {
                   if (focusedField === 'email') setEmail(text);
@@ -700,9 +711,9 @@ export const CheckInWizard: React.FC = () => {
                     width: 36,
                     height: 36,
                     borderRadius: 18,
-                    backgroundColor: isDark ? '#27272a' : colors.input,
+                    backgroundColor: colors.input,
                     borderColor: colors.border,
-                    borderWidth: isDark ? 0 : 1,
+                    borderWidth: 1,
                     alignItems: 'center',
                     justifyContent: 'center',
                     opacity: guestCount <= 1 ? 0.3 : 1
@@ -719,9 +730,9 @@ export const CheckInWizard: React.FC = () => {
                     width: 36,
                     height: 36,
                     borderRadius: 18,
-                    backgroundColor: isDark ? '#27272a' : colors.input,
+                    backgroundColor: colors.input,
                     borderColor: colors.border,
-                    borderWidth: isDark ? 0 : 1,
+                    borderWidth: 1,
                     alignItems: 'center',
                     justifyContent: 'center',
                     opacity: guestCount >= 20 ? 0.3 : 1
@@ -797,7 +808,7 @@ export const CheckInWizard: React.FC = () => {
                       <View className="flex-row items-center gap-1.5 mb-1">
                         <View className={`w-1.5 h-1.5 rounded-full ${dotColor}`} style={!isDark && dotColor === 'bg-teal' ? { backgroundColor: colors.teal } : {}} />
                         <Text className="font-extrabold text-[11px]" style={{ color: colors.text }}>
-                          {rate.placeType === 'STANDING_BAR' ? 'Standing Bar Area' : (rate.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge Area' : rate.placeType)}
+                          {rate.placeType === 'STANDING_BAR' ? 'Standing Bar' : (rate.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : rate.placeType)}
                         </Text>
                       </View>
                       <Text className="text-sm font-extrabold my-0.5" style={{ color: colors.text }}>₹{rate.ratePerPerson} / Pax</Text>
@@ -960,7 +971,7 @@ export const CheckInWizard: React.FC = () => {
                 }}>
                   <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Area</Text>
                   <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.gold }} numberOfLines={1}>
-                    {placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
+                    {placeType === 'STANDING_BAR' ? 'Standing Bar' : (placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : placeType.replace('_', ' '))}
                   </Text>
                 </View>
               </View>
@@ -1086,231 +1097,292 @@ export const CheckInWizard: React.FC = () => {
             className="rounded-2xl p-5 shadow-xl border"
             style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
           >
-              {nfcWriteState === 'idle' ? (
-                <View className="items-center justify-center py-4 w-full">
-                  {/* Premium Summary Grid */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -8, marginBottom: 20, width: '100%' }}>
-                    {/* Token ID Card - Full Width */}
-                    <View style={{ width: '100%', padding: 8 }}>
-                      <View style={{
-                        backgroundColor: colors.input,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 3 }}>Assigned Token Code</Text>
-                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.gold, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 2 }}>
-                          BAR - {new Date().toISOString().slice(0,10).replace(/-/g,'')} - {cardUid ? (cardUid.includes('-') ? cardUid.split('-')[1] : cardUid.slice(-5).toUpperCase()) : 'AX7K2'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Area Zone Card */}
-                    <View style={{ width: '50%', padding: 8 }}>
-                      <View style={{
-                        backgroundColor: colors.input,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        padding: 10,
-                        minHeight: 52,
-                        justifyContent: 'center'
-                      }}>
-                        <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Seating Area</Text>
-                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>
-                          {placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Table Card */}
-                    <View style={{ width: '50%', padding: 8 }}>
-                      <View style={{
-                        backgroundColor: colors.input,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        padding: 10,
-                        minHeight: 52,
-                        justifyContent: 'center'
-                      }}>
-                        <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Seating Table</Text>
-                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>{selectedTableNum}</Text>
-                      </View>
-                    </View>
-
-                    {/* Guests Card */}
-                    <View style={{ width: '50%', padding: 8 }}>
-                      <View style={{
-                        backgroundColor: colors.input,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        padding: 10,
-                        minHeight: 52,
-                        justifyContent: 'center'
-                      }}>
-                        <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Guests</Text>
-                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>{guestCount} Guests</Text>
-                      </View>
-                    </View>
-
-                    {/* Coupons Card */}
-                    <View style={{ width: '50%', padding: 8 }}>
-                      <View style={{
-                        backgroundColor: colors.input,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        padding: 10,
-                        minHeight: 52,
-                        justifyContent: 'center'
-                      }}>
-                        <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Drink Coupons</Text>
-                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.gold }} numberOfLines={1}>
-                          {activeRate ? activeRate.maxDrinks * guestCount : guestCount * 2} Drinks
-                        </Text>
-                      </View>
-                    </View>
+            {selectedDeliveryMode === 'EMAIL_QR' ? (
+              // EMAIL_QR Flow Success/Error Views
+              nfcWriteState === 'success' ? (
+                <View className="items-center justify-center py-4">
+                  <View className="w-16 h-16 rounded-full bg-teal/10 border justify-center items-center mb-4" style={{ borderColor: colors.teal }}>
+                    <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>
                   </View>
-
-                  {/* Visual Sweeping Radar Scanner Pulse */}
-                  <View 
-                    style={{ 
-                      width: 144, 
-                      height: 144, 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      marginTop: 24, 
-                      marginBottom: 24, 
-                      position: 'relative' 
-                    }}
-                  >
-                    {isNfcWriting ? (
-                      <>
-                        <View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1, borderColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', alignItems: 'center', justifyContent: 'center' }} />
-                        <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: isDark ? 'rgba(245, 166, 35, 0.35)' : 'rgba(200, 155, 60, 0.35)', alignItems: 'center', justifyContent: 'center' }} />
-                        <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center' }}>
-                          <ActivityIndicator size="small" color={colors.gold} style={{ transform: [{ scale: 1.1 }] }} />
-                        </View>
-                      </>
-                    ) : (
-                      <>
-                        <View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1, borderColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', alignItems: 'center', justifyContent: 'center' }} />
-                        <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: isDark ? 'rgba(245, 166, 35, 0.25)' : 'rgba(200, 155, 60, 0.25)', alignItems: 'center', justifyContent: 'center' }} />
-                        <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center', shadowColor: colors.gold, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}>
-                          <Text className="text-2xl" style={{ color: colors.gold }}>🛜</Text>
-                        </View>
-                      </>
-                    )}
-                  </View>
- 
-                  <Text 
-                    className="text-xs text-center max-w-[80%] leading-5"
-                    style={{ marginTop: 8, marginBottom: 28, color: colors.muted }}
-                  >
-                    Place a blank card near the phone to write card details
+                  
+                  <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>
+                    New guest has arrived successfully.
                   </Text>
- 
-                  <View className="flex-col w-full">
-                    <TouchableOpacity 
-                      className="w-full bg-gold py-4 rounded-2xl items-center justify-center min-h-[52px] flex-row gap-2 border"
-                      onPress={handleWriteNfc}
-                      disabled={isNfcWriting}
-                      style={{ marginBottom: 12, opacity: isNfcWriting ? 0.5 : 1, borderColor: colors.gold }}
-                    >
-                      <Text className="text-base">🛜</Text>
-                      <Text className="font-extrabold text-base tracking-wide" style={{ color: colors.goldButtonText }}>
-                        {isNfcWriting ? 'Writing to Card...' : 'Write to Card'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      className="w-full py-4 rounded-2xl border items-center justify-center min-h-[52px]" 
-                      style={{ backgroundColor: colors.input, borderColor: colors.border }}
-                      onPress={() => setStep(3)}
-                      disabled={isNfcWriting}
-                    >
-                      <Text className="font-bold text-sm" style={{ color: colors.muted }}>Back</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : null}
-
-            {/* Success screen overlay */}
-            {nfcWriteState === 'success' && createdSession && (
-              <View className="items-center justify-center py-4">
-                <View className="w-16 h-16 rounded-full bg-teal/10 border justify-center items-center mb-4" style={{ borderColor: colors.teal }}>
-                  <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>
-                </View>
-                
-                <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>
-                  {(createdSession?.deliveryMode || selectedDeliveryMode) === 'EMAIL_QR' ? 'Payment confirmed. Guest session is now active.' : 'Card Programmed Successfully!'}
-                </Text>
-                
-                <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
-                    <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
-                  </View>
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>Assigned Table:</Text>
-                    <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{selectedTableNum}</Text>
-                  </View>
-                  {(createdSession?.deliveryMode || selectedDeliveryMode) !== 'EMAIL_QR' && (
+                  
+                  <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
                     <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
-                      <Text className="text-[11px]" style={{ color: colors.muted }}>Card Number:</Text>
-                      <Text className="font-mono text-[11px] font-extrabold" style={{ color: colors.gold }}>{cardUid}</Text>
+                      <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
+                      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
                     </View>
-                  )}
-                  <View className="flex-row justify-between py-2">
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>Drinks Included:</Text>
-                    <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{maxDrinksTotal} Free Drinks</Text>
+                    <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                      <Text className="text-[11px]" style={{ color: colors.muted }}>Assigned Table:</Text>
+                      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{selectedTableNum}</Text>
+                    </View>
+                    <View className="flex-row justify-between py-2">
+                      <Text className="text-[11px]" style={{ color: colors.muted }}>Drinks Included:</Text>
+                      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{maxDrinksTotal} Free Drinks</Text>
+                    </View>
                   </View>
-                </View>
 
-                {(createdSession?.deliveryMode || selectedDeliveryMode) === 'EMAIL_QR' ? (
                   <TouchableOpacity 
-                    className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
+                    className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border mb-3" 
                     style={{ borderColor: colors.gold }} 
                     onPress={() => {
                       setTab('bartender');
                       resetWizard();
                     }}
                   >
-                    <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>View in Bartender Page</Text>
+                    <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>Go to Bartender Dashboard</Text>
                   </TouchableOpacity>
-                ) : (
+
                   <TouchableOpacity 
-                    className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
-                    style={{ borderColor: colors.gold }} 
+                    className="py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
+                    style={{ backgroundColor: colors.input, borderColor: colors.border }} 
                     onPress={resetWizard}
                   >
-                    <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>New Guest Check-in</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* Error screen overlay */}
-            {nfcWriteState === 'error' && (
-              <View className="items-center justify-center py-4">
-                <Text className="text-4xl mb-3">🛑</Text>
-                <Text className="text-lg font-bold mb-2" style={{ color: colors.text }}>Card Setup Failed</Text>
-                <Text className="text-[11px] text-center leading-4 max-w-[85%] mb-6" style={{ color: colors.muted }}>
-                  Failed to write details to the card. Make sure the card is placed correctly near the phone.
-                </Text>
-                <View className="flex-row gap-3 w-full">
-                  <TouchableOpacity className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => setNfcWriteState('idle')}>
-                    <Text className="font-bold text-sm" style={{ color: colors.muted }}>Retry Scan</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity className="flex-1 bg-gold py-3.5 rounded-xl items-center justify-center min-h-[48px] border" style={{ borderColor: colors.gold }} onPress={resetWizard}>
-                    <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Reset Form</Text>
+                    <Text className="font-bold text-sm" style={{ color: colors.muted }}>Check in Another Guest</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              ) : (
+                <View className="items-center justify-center py-4">
+                  <Text className="text-4xl mb-3">🛑</Text>
+                  <Text className="text-lg font-bold mb-2" style={{ color: colors.text }}>Activation Failed</Text>
+                  <Text className="text-[11px] text-center leading-4 max-w-[85%] mb-6" style={{ color: colors.muted }}>
+                    Failed to activate the guest session on the server. Please check the network and try again.
+                  </Text>
+                  <View className="flex-row gap-3 w-full">
+                    <TouchableOpacity 
+                      className="flex-grow flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
+                      style={{ backgroundColor: colors.input, borderColor: colors.border }} 
+                      onPress={handlePaymentCollected}
+                    >
+                      <Text className="font-bold text-sm" style={{ color: colors.muted }}>Retry Activation</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      className="flex-grow flex-1 bg-gold py-3.5 rounded-xl items-center justify-center min-h-[48px] border" 
+                      style={{ borderColor: colors.gold }} 
+                      onPress={resetWizard}
+                    >
+                      <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Reset Form</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )
+            ) : (
+              // NFC_CARD Flow Views
+              <>
+                {nfcWriteState === 'idle' ? (
+                  <View className="items-center justify-center py-4 w-full">
+                    {/* Premium Summary Grid */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -8, marginBottom: 20, width: '100%' }}>
+                      {/* Token ID Card - Full Width */}
+                      <View style={{ width: '100%', padding: 8 }}>
+                        <View style={{
+                          backgroundColor: colors.input,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          padding: 12,
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 3 }}>Assigned Token Code</Text>
+                          <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.gold, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 2 }}>
+                            BAR - {new Date().toISOString().slice(0,10).replace(/-/g,'')} - {cardUid ? (cardUid.includes('-') ? cardUid.split('-')[1] : cardUid.slice(-5).toUpperCase()) : 'AX7K2'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Area Zone Card */}
+                      <View style={{ width: '50%', padding: 8 }}>
+                        <View style={{
+                          backgroundColor: colors.input,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          padding: 10,
+                          minHeight: 52,
+                          justifyContent: 'center'
+                        }}>
+                          <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Seating Area</Text>
+                          <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>
+                            {placeType === 'STANDING_BAR' ? 'Standing Bar' : (placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : placeType.replace('_', ' '))}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Table Card */}
+                      <View style={{ width: '50%', padding: 8 }}>
+                        <View style={{
+                          backgroundColor: colors.input,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          padding: 10,
+                          minHeight: 52,
+                          justifyContent: 'center'
+                        }}>
+                          <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Seating Table</Text>
+                          <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>{selectedTableNum}</Text>
+                        </View>
+                      </View>
+
+                      {/* Guests Card */}
+                      <View style={{ width: '50%', padding: 8 }}>
+                        <View style={{
+                          backgroundColor: colors.input,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          padding: 10,
+                          minHeight: 52,
+                          justifyContent: 'center'
+                        }}>
+                          <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Guests</Text>
+                          <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>{guestCount} Guests</Text>
+                        </View>
+                      </View>
+
+                      {/* Coupons Card */}
+                      <View style={{ width: '50%', padding: 8 }}>
+                        <View style={{
+                          backgroundColor: colors.input,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          padding: 10,
+                          minHeight: 52,
+                          justifyContent: 'center'
+                        }}>
+                          <Text style={{ fontSize: 8, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Drink Coupons</Text>
+                          <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.gold }} numberOfLines={1}>
+                            {activeRate ? activeRate.maxDrinks * guestCount : guestCount * 2} Drinks
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Visual Sweeping Radar Scanner Pulse */}
+                    <View 
+                      style={{ 
+                        width: 144, 
+                        height: 144, 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        marginTop: 24, 
+                        marginBottom: 24, 
+                        position: 'relative' 
+                      }}
+                    >
+                      {isNfcWriting ? (
+                        <>
+                          <View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1, borderColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', alignItems: 'center', justifyContent: 'center' }} />
+                          <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: isDark ? 'rgba(245, 166, 35, 0.35)' : 'rgba(200, 155, 60, 0.35)', alignItems: 'center', justifyContent: 'center' }} />
+                          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center' }}>
+                            <ActivityIndicator size="small" color={colors.gold} style={{ transform: [{ scale: 1.1 }] }} />
+                          </View>
+                        </>
+                      ) : (
+                        <>
+                          <View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1, borderColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', alignItems: 'center', justifyContent: 'center' }} />
+                          <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: isDark ? 'rgba(245, 166, 35, 0.25)' : 'rgba(200, 155, 60, 0.25)', alignItems: 'center', justifyContent: 'center' }} />
+                          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center', shadowColor: colors.gold, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}>
+                            <Text className="text-2xl" style={{ color: colors.gold }}>🛜</Text>
+                          </View>
+                        </>
+                      )}
+                    </View>
+   
+                    <Text 
+                      className="text-xs text-center max-w-[80%] leading-5"
+                      style={{ marginTop: 8, marginBottom: 28, color: colors.muted }}
+                    >
+                      Place a blank card near the phone to write card details
+                    </Text>
+   
+                    <View className="flex-col w-full">
+                      <TouchableOpacity 
+                        className="w-full bg-gold py-4 rounded-2xl items-center justify-center min-h-[52px] flex-row gap-2 border"
+                        onPress={handleWriteNfc}
+                        disabled={isNfcWriting}
+                        style={{ marginBottom: 12, opacity: isNfcWriting ? 0.5 : 1, borderColor: colors.gold }}
+                      >
+                        <Text className="text-base">🛜</Text>
+                        <Text className="font-extrabold text-base tracking-wide" style={{ color: colors.goldButtonText }}>
+                          {isNfcWriting ? 'Writing to Card...' : 'Write to Card'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        className="w-full py-4 rounded-2xl border items-center justify-center min-h-[52px]" 
+                        style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                        onPress={() => setStep(3)}
+                        disabled={isNfcWriting}
+                      >
+                        <Text className="font-bold text-sm" style={{ color: colors.muted }}>Back</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* Success screen overlay */}
+                {nfcWriteState === 'success' && createdSession && (
+                  <View className="items-center justify-center py-4">
+                    <View className="w-16 h-16 rounded-full bg-teal/10 border justify-center items-center mb-4" style={{ borderColor: colors.teal }}>
+                      <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>
+                    </View>
+                    
+                    <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>
+                      Card Programmed Successfully!
+                    </Text>
+                    
+                    <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
+                      <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                        <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
+                        <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
+                      </View>
+                      <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                        <Text className="text-[11px]" style={{ color: colors.muted }}>Assigned Table:</Text>
+                        <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{selectedTableNum}</Text>
+                      </View>
+                      <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                        <Text className="text-[11px]" style={{ color: colors.muted }}>Card Number:</Text>
+                        <Text className="font-mono text-[11px] font-extrabold" style={{ color: colors.gold }}>{cardUid}</Text>
+                      </View>
+                      <View className="flex-row justify-between py-2">
+                        <Text className="text-[11px]" style={{ color: colors.muted }}>Drinks Included:</Text>
+                        <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{maxDrinksTotal} Free Drinks</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity 
+                      className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
+                      style={{ borderColor: colors.gold }} 
+                      onPress={resetWizard}
+                    >
+                      <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>New Guest Check-in</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Error screen overlay */}
+                {nfcWriteState === 'error' && (
+                  <View className="items-center justify-center py-4">
+                    <Text className="text-4xl mb-3">🛑</Text>
+                    <Text className="text-lg font-bold mb-2" style={{ color: colors.text }}>Card Setup Failed</Text>
+                    <Text className="text-[11px] text-center leading-4 max-w-[85%] mb-6" style={{ color: colors.muted }}>
+                      Failed to write details to the card. Make sure the card is placed correctly near the phone.
+                    </Text>
+                    <View className="flex-row gap-3 w-full">
+                      <TouchableOpacity className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => setNfcWriteState('idle')}>
+                        <Text className="font-bold text-sm" style={{ color: colors.muted }}>Retry Scan</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity className="flex-1 bg-gold py-3.5 rounded-xl items-center justify-center min-h-[48px] border" style={{ borderColor: colors.gold }} onPress={resetWizard}>
+                        <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Reset Form</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}

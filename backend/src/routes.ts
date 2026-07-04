@@ -969,6 +969,9 @@ router.get('/tables/available', authenticate, async (req: Request, res: Response
     let finalPlaceTypeId = placeTypeId as string;
     
     // If client sent placeType string (e.g. "PREMIUM_LOUNGE"), resolve UUID
+    if (placeType && placeType !== 'STANDING_BAR' && placeType !== 'PREMIUM_LOUNGE') {
+      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type must be either STANDING_BAR or PREMIUM_LOUNGE.' } });
+    }
     if (!finalPlaceTypeId && placeType) {
       const config = await prisma.placeTypeConfig.findUnique({
         where: { name: placeType as string }
@@ -1374,6 +1377,10 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Persons count must be an integer greater than or equal to 1.' } });
   }
 
+  if (placeType && placeType !== 'STANDING_BAR' && placeType !== 'PREMIUM_LOUNGE') {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type must be either STANDING_BAR or PREMIUM_LOUNGE.' } });
+  }
+
   let finalPlaceTypeId = placeTypeId;
   let finalTableId = tableId;
 
@@ -1532,6 +1539,10 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
   const finalPersonsCount = parseInt(personsCount || persons || '1', 10);
   if (isNaN(finalPersonsCount) || finalPersonsCount < 1) {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Persons count must be an integer greater than or equal to 1.' } });
+  }
+
+  if (placeType && placeType !== 'STANDING_BAR' && placeType !== 'PREMIUM_LOUNGE') {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type must be either STANDING_BAR or PREMIUM_LOUNGE.' } });
   }
 
   try {
@@ -1983,6 +1994,48 @@ router.get('/tokens/active', authenticate, async (req: Request, res: Response) =
   }
 });
 
+// Get all sessions (Admin only)
+router.get('/admin/sessions', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+  try {
+    const sessions = await prisma.token.findMany({
+      include: { customer: true, placeType: true, table: true, card: true },
+      orderBy: { issuedAt: 'desc' },
+    });
+    
+    const mapped = sessions.map((t: any) => ({
+      id: t.id,
+      tokenNumber: t.tokenNumber,
+      phoneNumber: t.customer.phoneNumber,
+      customerName: t.customer.name,
+      email: t.customer.email,
+      persons: t.personsCount,
+      placeType: t.placeType.name,
+      tableId: t.tableId,
+      tableNumber: t.table?.tableNumber || null,
+      amountPaid: parseFloat(t.amountPaid.toString()),
+      paymentVerified: t.paymentVerified,
+      startTime: t.startTime.toISOString(),
+      endTime: t.endTime.toISOString(),
+      redemptionLimit: t.totalRedemptionsAllowed,
+      redemptionCount: t.redemptionsUsed,
+      status: t.status.toLowerCase(),
+      cardUid: t.card?.nfcUid || null,
+      createdAt: t.issuedAt.toISOString(),
+      deliveryMode: t.deliveryMode,
+      table: t.table ? {
+        id: t.table.id,
+        number: t.table.tableNumber,
+        placeType: t.placeType.name,
+        status: t.table.status.toUpperCase(),
+      } : null
+    }));
+
+    return res.json(mapped);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERR', message: err.message } });
+  }
+});
+
 // Get specific token by identifier (token number or card UID)
 const getTokenByIdentifier = async (req: Request, res: Response) => {
   const { identifier } = req.params;
@@ -2245,7 +2298,7 @@ router.put('/tokens/:tokenNumber/close', authenticate, authorize(['receptionist'
 // Manual Close Section Route
 router.post('/sessions/:tokenNumber/close', authenticate, authorize(['admin', 'receptionist', 'bartender']), async (req: AuthenticatedRequest, res: Response) => {
   const { tokenNumber } = req.params;
-  const { eraseCard } = req.body;
+  const { eraseCard, force } = req.body;
 
   const tokenRegex = /^BAR-\d{8}-\d{5}$/;
   if (!tokenNumber || !tokenRegex.test(tokenNumber) || tokenNumber.length !== 18) {
@@ -2257,7 +2310,8 @@ router.post('/sessions/:tokenNumber/close', authenticate, authorize(['admin', 'r
       tokenNumber,
       req.user?.id || '',
       CloseReason.MANUAL,
-      eraseCard !== undefined ? eraseCard : true
+      eraseCard !== undefined ? eraseCard : true,
+      force === true
     );
 
     return res.json({
@@ -2664,22 +2718,22 @@ const updateCardStatusHandler = async (req: Request, res: Response) => {
       });
     }
 
-    // Rule 2: Lost cards cannot be reused (cannot change back to available or assigned)
-    if (currentStatus === 'lost' && (requestedStatus === 'available' || requestedStatus === 'assigned')) {
+    // Rule 2: Lost cards cannot be assigned directly
+    if (currentStatus === 'lost' && requestedStatus === 'assigned') {
       return res.status(400).json({
         error: {
           code: 'CONFLICT_CARD_LOST',
-          message: 'Lost cards cannot be reused.'
+          message: 'Lost cards cannot be assigned directly without marking them available first.'
         }
       });
     }
 
-    // Rule 3: Damaged cards must be excluded from inventory (cannot change back to available or assigned)
-    if (currentStatus === 'damaged' && (requestedStatus === 'available' || requestedStatus === 'assigned')) {
+    // Rule 3: Damaged cards cannot be assigned directly
+    if (currentStatus === 'damaged' && requestedStatus === 'assigned') {
       return res.status(400).json({
         error: {
           code: 'CONFLICT_CARD_DAMAGED',
-          message: 'Damaged cards cannot be set back to available or assigned.'
+          message: 'Damaged cards cannot be assigned directly without marking them available first.'
         }
       });
     }
@@ -2812,8 +2866,8 @@ const updateRateCardHandler = async (req: Request, res: Response) => {
   const finalMinutes = baseTimeMinutes ? parseInt(baseTimeMinutes, 10) : (baseDurationHours ? parseInt(baseDurationHours, 10) * 60 : undefined);
   const finalRedemptions = redemptionsPerPerson ? parseInt(redemptionsPerPerson, 10) : (maxDrinksPerPerson ? parseInt(maxDrinksPerPerson, 10) : undefined);
 
-  if (finalPlaceType !== '' && finalPlaceType.length < 2) {
-    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type name must be at least 2 characters.' } });
+  if (finalPlaceType !== '' && finalPlaceType !== 'STANDING_BAR' && finalPlaceType !== 'PREMIUM_LOUNGE') {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type must be either STANDING_BAR or PREMIUM_LOUNGE.' } });
   }
   if (finalRate !== undefined && (finalRate.isNaN() || finalRate.lt(0))) {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Rate per person must be a non-negative number.' } });

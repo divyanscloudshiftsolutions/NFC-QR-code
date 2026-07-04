@@ -130,6 +130,14 @@ export const BartenderPortal: React.FC = () => {
   // Scanned Session cache
   const [activeSession, setActiveSession] = useState<SessionToken | null>(null);
   const [redemptionsHistory, setRedemptionsHistory] = useState<any[]>([]);
+  const [timeTick, setTimeTick] = useState(0);
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const getBackendUrl = () => {
     const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -362,11 +370,15 @@ export const BartenderPortal: React.FC = () => {
   };
 
   const calculateTimeRemaining = (endTimeStr: string) => {
-    const diff = new Date(endTimeStr).getTime() - new Date().getTime();
+    const diff = new Date(endTimeStr).getTime() - Date.now();
     if (diff <= 0) return 'Expired';
-    const hours = Math.floor(diff / (60 * 60 * 1000));
-    const mins = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
-    return `${hours}h ${mins}m`;
+    const totalSecs = Math.floor(diff / 1000);
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
   };
 
   return (
@@ -404,7 +416,7 @@ export const BartenderPortal: React.FC = () => {
                     className="flex-1 border rounded-xl px-4 py-3 text-sm font-semibold min-h-[48px]"
                     style={{ backgroundColor: colors.input, borderColor: colors.inputBorder, borderWidth: 1, color: colors.text }}
                     placeholder="Enter Token (e.g. BAR-2026...)"
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={colors.placeholder}
                     value={enteredToken}
                     onChangeText={setEnteredToken}
                     autoCapitalize="characters"
@@ -495,7 +507,7 @@ export const BartenderPortal: React.FC = () => {
                     className="flex-1 border rounded-xl px-4 py-3 text-sm font-semibold min-h-[48px]"
                     style={{ backgroundColor: colors.input, borderColor: colors.inputBorder, borderWidth: 1, color: colors.text }}
                     placeholder="Enter Token (e.g. BAR-2026...)"
-                    placeholderTextColor={colors.muted}
+                    placeholderTextColor={colors.placeholder}
                     value={enteredToken}
                     onChangeText={setEnteredToken}
                     autoCapitalize="characters"

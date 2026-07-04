@@ -235,14 +235,14 @@ async function main() {
   console.log('Seeding place types...');
   const placeTypeSpecs = [
     {
-      name: 'STANDING_BAR',
+      name: 'STANDARD',
       ratePerPerson: 500.0,
       baseTimeMinutes: 120,
       redemptionsPerPerson: 2,
       isActive: true,
     },
     {
-      name: 'PREMIUM_LOUNGE',
+      name: 'PREMIUM',
       ratePerPerson: 1200.0,
       baseTimeMinutes: 180,
       redemptionsPerPerson: 3,
@@ -265,7 +265,7 @@ async function main() {
   console.log('Seeding tables...');
   const seatCapacities = [2, 4, 6];
 
-  // Standing Bar tables S-01 to S-15
+  // Standard tables S-01 to S-15
   for (let i = 1; i <= 15; i++) {
     const tableNumber = `S-${String(i).padStart(2, '0')}`;
     const capacity = seatCapacities[(i - 1) % seatCapacities.length];
@@ -273,7 +273,7 @@ async function main() {
       where: {
         tableNumber_placeTypeId: {
           tableNumber,
-          placeTypeId: dbPlaceTypes['STANDING_BAR'],
+          placeTypeId: dbPlaceTypes['STANDARD'],
         },
       },
       update: {
@@ -283,7 +283,7 @@ async function main() {
       },
       create: {
         tableNumber,
-        placeTypeId: dbPlaceTypes['STANDING_BAR'],
+        placeTypeId: dbPlaceTypes['STANDARD'],
         capacity,
         status: 'available',
         isActive: true,
@@ -291,7 +291,7 @@ async function main() {
     });
   }
 
-  // Premium Lounge tables L-01 to L-10
+  // Premium tables L-01 to L-10
   for (let i = 1; i <= 10; i++) {
     const tableNumber = `L-${String(i).padStart(2, '0')}`;
     const capacity = seatCapacities[(i - 1) % seatCapacities.length];
@@ -299,7 +299,7 @@ async function main() {
       where: {
         tableNumber_placeTypeId: {
           tableNumber,
-          placeTypeId: dbPlaceTypes['PREMIUM_LOUNGE'],
+          placeTypeId: dbPlaceTypes['PREMIUM'],
         },
       },
       update: {
@@ -309,7 +309,7 @@ async function main() {
       },
       create: {
         tableNumber,
-        placeTypeId: dbPlaceTypes['PREMIUM_LOUNGE'],
+        placeTypeId: dbPlaceTypes['PREMIUM'],
         capacity,
         status: 'available',
         isActive: true,

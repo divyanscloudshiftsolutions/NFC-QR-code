@@ -91,7 +91,7 @@ async function cleanupDb() {
   }
 
   // Re-seed tables
-  // Standing Bar tables S-01 to S-15
+  // Standard tables S-01 to S-15
   for (let i = 1; i <= 15; i++) {
     const tableNumber = `S-${String(i).padStart(2, '0')}`;
     await prisma.table.create({
@@ -105,7 +105,7 @@ async function cleanupDb() {
     });
   }
 
-  // Premium Lounge tables L-01 to L-10
+  // Premium tables L-01 to L-10
   for (let i = 1; i <= 10; i++) {
     const tableNumber = `L-${String(i).padStart(2, '0')}`;
     await prisma.table.create({
@@ -914,7 +914,7 @@ async function runTests() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          placeType: 'VIP LOUNGE ZONE',
+          placeType: targetRate.name,
           ratePerPerson: 1500,
           baseDurationHours: 4,
           maxDrinksPerPerson: 8
@@ -922,7 +922,7 @@ async function runTests() {
       });
       const updateRatesData: any = await updateRatesRes.json();
       assert.strictEqual(updateRatesRes.status, 200, 'Updating rate card config failed');
-      assert.strictEqual(updateRatesData.placeType, 'VIP LOUNGE ZONE', 'Place type name mismatch');
+      assert.strictEqual(updateRatesData.placeType, targetRate.name, 'Place type name mismatch');
       assert.strictEqual(updateRatesData.ratePerPerson, 1500, 'Price mismatch');
       assert.strictEqual(updateRatesData.baseDurationHours, 4, 'Duration mismatch');
       assert.strictEqual(updateRatesData.maxDrinksPerPerson, 8, 'Drink allowance mismatch');
@@ -930,7 +930,7 @@ async function runTests() {
       // Verify in database
       const dbRateConfig = await prisma.placeTypeConfig.findUnique({ where: { id: rateId } });
       assert.ok(dbRateConfig, 'Config not found in DB');
-      assert.strictEqual(dbRateConfig.name, 'VIP LOUNGE ZONE');
+      assert.strictEqual(dbRateConfig.name, targetRate.name);
       assert.strictEqual(dbRateConfig.baseTimeMinutes, 240);
       assert.strictEqual(dbRateConfig.redemptionsPerPerson, 8);
       

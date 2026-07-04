@@ -32,6 +32,15 @@ export const TablesPortal: React.FC = () => {
     return () => setOverlayActive(false);
   }, [isBottomSheetOpen, setOverlayActive]);
 
+  const [timeTick, setTimeTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Stats
   const placeTables = tables.filter(t => t.placeType === selectedPlace);
   const totalCount = placeTables.length;
@@ -110,7 +119,6 @@ export const TablesPortal: React.FC = () => {
       }
 
       const chairColor = filled ? primaryColor : colors.muted;
-      const bgClass = filled ? (isDark ? 'bg-gold/15' : 'bg-gold/10') : (isDark ? 'bg-[#151821]' : 'bg-[#E5E5EA]');
       const borderStyle = filled ? { borderColor: primaryColor } : { borderColor: colors.border };
 
       return (
@@ -129,10 +137,10 @@ export const TablesPortal: React.FC = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderWidth: 2,
+                backgroundColor: filled ? (isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(212, 175, 55, 0.1)') : (isDark ? colors.input : colors.secondarySurface)
               },
               borderStyle
             ]}
-            className={`${bgClass}`}
           >
             <Text style={{ color: filled ? primaryColor : colors.muted, fontSize: 13, fontWeight: 'bold' }}>
               👤
@@ -256,7 +264,7 @@ export const TablesPortal: React.FC = () => {
         <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Place Type</Text>
           <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
-            {table.placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
+            {table.placeType === 'STANDING_BAR' ? 'Standing Bar' : 'Premium Lounge'}
           </Text>
         </View>
         <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
@@ -334,11 +342,15 @@ export const TablesPortal: React.FC = () => {
   };
 
   const calculateTimeRemaining = (endTimeStr: string) => {
-    const diff = new Date(endTimeStr).getTime() - new Date().getTime();
+    const diff = new Date(endTimeStr).getTime() - Date.now();
     if (diff <= 0) return 'Expired';
-    const hours = Math.floor(diff / (60 * 60 * 1000));
-    const mins = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
-    return `${hours}h ${mins}m`;
+    const totalSecs = Math.floor(diff / 1000);
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
   };
 
   // Filters logic
@@ -375,7 +387,7 @@ export const TablesPortal: React.FC = () => {
             className="text-[12px] font-semibold"
             style={{ color: selectedPlace === 'STANDING_BAR' ? colors.gold : colors.muted }}
           >
-            Standing Bar Area
+            Standing Bar
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
@@ -387,7 +399,7 @@ export const TablesPortal: React.FC = () => {
             className="text-[12px] font-semibold"
             style={{ color: selectedPlace === 'PREMIUM_LOUNGE' ? colors.gold : colors.muted }}
           >
-            Premium Lounge Area
+            Premium Lounge
           </Text>
         </TouchableOpacity>
       </View>
@@ -412,7 +424,7 @@ export const TablesPortal: React.FC = () => {
           className="flex-1 items-center border p-3 rounded-xl mx-1"
           style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
         >
-          <Text className="text-lg font-bold text-green-500">{freeCount}</Text>
+          <Text className="text-lg font-bold" style={{ color: '#22c55e' }}>{freeCount}</Text>
           <Text className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: colors.muted }}>Free</Text>
         </View>
       </View>
@@ -443,7 +455,7 @@ export const TablesPortal: React.FC = () => {
           className="border rounded-xl py-3 px-4 text-xs font-semibold"
           style={{ backgroundColor: colors.input, borderColor: colors.inputBorder, color: colors.text, borderWidth: 1 }}
           placeholder="Search Table ID... (e.g. S-03)"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={colors.placeholder}
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCorrect={false}
@@ -506,7 +518,7 @@ export const TablesPortal: React.FC = () => {
 
                   {/* Place Type Label */}
                   <Text className="text-[10px] mb-2 leading-4" style={{ color: colors.muted }}>
-                    {table.placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
+                    {table.placeType === 'STANDING_BAR' ? 'Standing Bar' : 'Premium Lounge'}
                   </Text>
 
                   {/* Capacity & Occupancy Display */}
@@ -597,7 +609,7 @@ export const TablesPortal: React.FC = () => {
                 <View>
                   <Text className="text-base font-bold" style={{ color: colors.text }}>Table {selectedTable.number}</Text>
                   <Text className="text-[11px]" style={{ color: colors.muted }}>
-                    {selectedTable.placeType === 'STANDING_BAR' ? 'Standing Bar Area' : 'Premium Lounge Area'}
+                    {selectedTable.placeType === 'STANDING_BAR' ? 'Standing Bar' : 'Premium Lounge'}
                   </Text>
                 </View>
                 <TouchableOpacity 

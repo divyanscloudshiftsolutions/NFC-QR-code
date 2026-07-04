@@ -58,6 +58,7 @@ interface NfcBarContextType {
     email: string;
     personsCount: number;
     placeType: string;
+    placeTypeId?: string;
   }) => Promise<SessionToken | null>;
   verifyQrCode: (tokenNumber: string) => Promise<SessionToken | null>;
   activatePendingSession: (
@@ -104,6 +105,11 @@ interface NfcBarContextType {
   setReturnCardStep: (step: 'idle' | 'scanning' | 'summary' | 'success') => void;
   setReturnCardUid: (uid: string | null) => void;
   cancelReturnCardFlow: () => void;
+
+  // Admin Customers management
+  adminSessions: SessionToken[];
+  fetchAdminSessions: () => Promise<boolean>;
+  adminDeactivateSession: (tokenNumber: string, status: TokenStatus, force?: boolean) => Promise<boolean>;
 }
 
 const NfcBarContext = createContext<NfcBarContextType | undefined>(undefined);
@@ -141,6 +147,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   const [tables, setTables] = useState<Table[]>([]);
   const [sessions, setSessions] = useState<SessionToken[]>([]);
+  const [adminSessions, setAdminSessions] = useState<SessionToken[]>([]);
   const [users, setUsers] = useState<StaffMember[]>([]);
   const [cards, setCards] = useState<InventoryCard[]>([]);
   const [rates, setRates] = useState<RateCard[]>([]);
@@ -175,7 +182,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Global HTTP interceptor for 403 AUTH_002 redirection
   useEffect(() => {
-    const originalFetch = global.fetch || window.fetch;
+    const originalFetch = (typeof globalThis !== 'undefined' ? (globalThis as any).fetch : undefined) || (typeof window !== 'undefined' ? window.fetch : fetch);
     const interceptedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const response = await originalFetch(input, init);
       
@@ -197,15 +204,15 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return response;
     };
     
-    if (typeof global !== 'undefined') {
-      global.fetch = interceptedFetch as any;
+    if (typeof globalThis !== 'undefined') {
+      (globalThis as any).fetch = interceptedFetch as any;
     } else if (typeof window !== 'undefined') {
       window.fetch = interceptedFetch as any;
     }
     
     return () => {
-      if (typeof global !== 'undefined') {
-        global.fetch = originalFetch as any;
+      if (typeof globalThis !== 'undefined') {
+        (globalThis as any).fetch = originalFetch as any;
       } else if (typeof window !== 'undefined') {
         window.fetch = originalFetch as any;
       }
@@ -316,6 +323,19 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         } catch (cardsErr) {
           console.log('Failed to fetch cards inside fetchLatestState:', cardsErr);
+        }
+
+        try {
+          const adminSessionsRes = await fetch(`${BACKEND_URL}/admin/sessions`, {
+            headers: { 'Authorization': `Bearer ${activeToken}` }
+          });
+          if (adminSessionsRes.ok) {
+            const adminSessionsData = await adminSessionsRes.json();
+            const mapped = adminSessionsData.map(mapBackendToken);
+            setAdminSessions(mapped);
+          }
+        } catch (adminErr) {
+          console.log('Failed to fetch admin sessions inside fetchLatestState:', adminErr);
         }
       }
 
@@ -800,6 +820,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       email: guestData.email,
       personsCount: guestData.persons,
       placeType: guestData.placeType,
+      placeTypeId: rateCard?.id,
       tableNumber: guestData.tableNumber,
       tableId: tableObj?.id,
       amountPaid: guestData.amountPaid,
@@ -819,6 +840,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     email: string;
     personsCount: number;
     placeType: string;
+    placeTypeId?: string;
   }): Promise<SessionToken | null> => {
     try {
       const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
@@ -1031,7 +1053,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Calculate additional charge
     const rateCard = rates.find(r => r.placeType === session.placeType);
-    const rate = rateCard ? rateCard.ratePerPerson : (session.placeType === 'PREMIUM_LOUNGE' ? 900 : 500);
+    const rate = rateCard ? rateCard.ratePerPerson : (session.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
     const additionalAmount = rate * session.persons * (extraHours / (rateCard?.durationHours || 2));
 
     // Mutate state (Optimistic UI)
@@ -1413,6 +1435,80 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const fetchAdminSessions = async (): Promise<boolean> => {
+    if (systemMode === 'offline') return false;
+    const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
+    if (!activeToken) return false;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/admin/sessions`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map(mapBackendToken);
+        setAdminSessions(mapped);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.log('Failed to fetch admin sessions:', err);
+      return false;
+    }
+  };
+
+  const adminDeactivateSession = async (tokenNumber: string, status: TokenStatus, force: boolean = false): Promise<boolean> => {
+    if (systemMode === 'offline') {
+      showToast('Cannot end sessions while offline', 'danger');
+      return false;
+    }
+    const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
+    if (!activeToken) return false;
+
+    try {
+      let res;
+      if (status === TokenStatus.PENDING_PAYMENT) {
+        res = await fetch(`${BACKEND_URL}/check-in/cancel`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${activeToken}`
+          },
+          body: JSON.stringify({
+            tokenNumber,
+            cancelReason: 'USER_CANCELLED'
+          })
+        });
+      } else {
+        res = await fetch(`${BACKEND_URL}/sessions/${tokenNumber}/close`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${activeToken}`
+          },
+          body: JSON.stringify({
+            eraseCard: true,
+            force
+          })
+        });
+      }
+
+      if (res.ok) {
+        showToast(force ? 'Force deactivation completed. Seating and card released.' : 'Session deactivated and table released.', 'success');
+        await Promise.all([fetchLatestState(), fetchAdminSessions()]);
+        return true;
+      } else {
+        const errorData = await res.json();
+        showToast(errorData.error || 'Failed to deactivate session.', 'danger');
+        return false;
+      }
+    } catch (err) {
+      console.log('Failed to deactivate session:', err);
+      showToast('Network error while deactivating session.', 'danger');
+      return false;
+    }
+  };
+
   const updateCardStatus = async (cardUid: string, status: string): Promise<boolean> => {
     if (systemMode === 'offline') {
       showToast('Cannot update card status while offline', 'danger');
@@ -1574,7 +1670,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <NfcBarContext.Provider value={{
       user, currentScreen, activeTab, notifications, toasts,
-      tables, sessions, users, cards, rates, systemMode, pendingSyncCount, lastSyncTime, tokenType,
+      tables, sessions, adminSessions, users, cards, rates, systemMode, pendingSyncCount, lastSyncTime, tokenType,
       nfcEnabled, emailQrEnabled,
       activeReturnCardStep, activeReturnCardUid, isOverlayActive, setOverlayActive,
       preselectedTableNumber, setPreselectedTableNumber,
@@ -1587,7 +1683,8 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       fetchCards, updateCardStatus,
       fetchRates, updateRateCard,
       fetchReports,
-      startReturnCardFlow, setReturnCardStep, setReturnCardUid, cancelReturnCardFlow
+      startReturnCardFlow, setReturnCardStep, setReturnCardUid, cancelReturnCardFlow,
+      fetchAdminSessions, adminDeactivateSession
     }}>
       {children}
     </NfcBarContext.Provider>

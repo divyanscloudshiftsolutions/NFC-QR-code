@@ -10,7 +10,7 @@ interface SystemHeaderProps {
 }
 
 export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
-  const { systemMode, pendingSyncCount, lastSyncTime, notifications, setMode } = useNfcBar();
+  const { systemMode, pendingSyncCount, lastSyncTime, notifications, setMode, user } = useNfcBar();
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -84,7 +84,24 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
         )}
       </View>
 
-      <Text className="text-xs font-bold tracking-[0.5px] uppercase" style={{ color: colors.gold }}>🍹 Reception</Text>
+      {(() => {
+        const getRoleLabel = () => {
+          if (!user) return 'Staff';
+          const roleLower = (user.role || '').toLowerCase();
+          if (roleLower === 'admin') return 'Admin';
+          if (roleLower === 'manager') return 'Partner';
+          if (roleLower === 'receptionist') return 'Receptionist';
+          if (roleLower === 'bartender') return 'Bartender';
+          return roleLower.charAt(0).toUpperCase() + roleLower.slice(1);
+        };
+        const label = getRoleLabel();
+        const icon = label === 'Admin' ? '👑' : (label === 'Partner' ? '👔' : (label === 'Bartender' ? '🍹' : '🍹'));
+        return (
+          <Text className="text-xs font-bold tracking-[0.5px] uppercase" style={{ color: colors.gold }}>
+            {icon} {label}
+          </Text>
+        );
+      })()}
 
       <View className="flex-row items-center gap-2">
         {/* Theme Toggle Button */}

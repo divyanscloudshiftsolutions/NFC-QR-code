@@ -18,6 +18,7 @@ export interface ThemeColors {
   text: string;
   themeText: string;
   muted: string;
+  placeholder: string;
   input: string;
   themeInput: string;
   border: string;
@@ -54,9 +55,10 @@ export const darkColors: ThemeColors = {
   teal: '#22C55E',
   success: '#22C55E',
   red: '#EF4444',
-  text: '#F8FAFC',
-  themeText: '#F8FAFC',
-  muted: '#6B7280',
+  text: '#FFFFFF',
+  themeText: '#FFFFFF',
+  muted: '#FFFFFF',
+  placeholder: '#8E8E93',
   input: '#1A1D26',
   themeInput: '#1A1D26',
   border: '#374151',
@@ -71,10 +73,10 @@ export const darkColors: ThemeColors = {
   primaryButtonBg: '#F5A623',
   primaryButtonText: '#08090D',
   secondaryButtonBg: '#1A1D26',
-  secondaryButtonText: '#F8FAFC',
+  secondaryButtonText: '#FFFFFF',
   navBg: '#08090D',
   navActive: '#F5A623',
-  navInactive: '#9CA3AF',
+  navInactive: '#FFFFFF',
   navBorder: '#374151',
   overlay: 'rgba(0, 0, 0, 0.6)',
   chartPrimary: '#F5A623',
@@ -93,9 +95,10 @@ export const lightColors: ThemeColors = {
   teal: '#22C55E',
   success: '#22C55E',
   red: '#EF4444',
-  text: '#111827',
-  themeText: '#111827',
-  muted: '#64748B',
+  text: '#000000',
+  themeText: '#000000',
+  muted: '#000000',
+  placeholder: '#8E8E93',
   input: '#FFFFFF',
   themeInput: '#FFFFFF',
   border: '#CBD5E1',
@@ -110,10 +113,10 @@ export const lightColors: ThemeColors = {
   primaryButtonBg: '#D4AF37',
   primaryButtonText: '#FFFFFF',
   secondaryButtonBg: '#FFFFFF',
-  secondaryButtonText: '#111827',
+  secondaryButtonText: '#000000',
   navBg: '#FFFFFF',
   navActive: '#D4AF37',
-  navInactive: '#475569',
+  navInactive: '#000000',
   navBorder: '#CBD5E1',
   overlay: 'rgba(0, 0, 0, 0.4)',
   chartPrimary: '#D4AF37',

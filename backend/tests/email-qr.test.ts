@@ -32,13 +32,11 @@ async function cleanupDb() {
   await prisma.tableOccupancyLog.deleteMany({});
   await prisma.token.deleteMany({});
   await prisma.customer.deleteMany({});
-  await prisma.table.deleteMany({ where: { tableNumber: { startsWith: 'PENDING-' } } });
+  await prisma.roleChangeLog.deleteMany({});
+  await prisma.rateLog.deleteMany({});
+  await prisma.table.deleteMany({});
+  await prisma.placeTypeConfig.deleteMany({});
   
-  // Reset all cards to available
-  await prisma.card.updateMany({
-    data: { status: 'available' }
-  });
-
   // Check and upsert system config seed
   await prisma.systemConfig.upsert({
     where: { configKey: 'nfc_card_enabled' },
@@ -50,6 +48,82 @@ async function cleanupDb() {
     update: { configValue: 'false' },
     create: { configKey: 'email_qr_enabled', configValue: 'false' }
   });
+
+  await prisma.user.deleteMany({
+    where: {
+      username: {
+        notIn: ['admin', 'receptionist', 'bartender', 'manager']
+      }
+    }
+  });
+
+  // Re-seed place types
+  const placeTypeSpecs = [
+    {
+      name: 'STANDING_BAR',
+      ratePerPerson: 500.0,
+      baseTimeMinutes: 120,
+      redemptionsPerPerson: 2,
+      isActive: true,
+    },
+    {
+      name: 'PREMIUM_LOUNGE',
+      ratePerPerson: 1200.0,
+      baseTimeMinutes: 180,
+      redemptionsPerPerson: 3,
+      isActive: true,
+    },
+  ];
+
+  const dbPlaceTypes: Record<string, string> = {};
+  for (const pt of placeTypeSpecs) {
+    const createdPt = await prisma.placeTypeConfig.create({
+      data: pt
+    });
+    dbPlaceTypes[pt.name] = createdPt.id;
+  }
+
+  // Re-seed tables
+  // Standard tables S-01 to S-15
+  for (let i = 1; i <= 15; i++) {
+    const tableNumber = `S-${String(i).padStart(2, '0')}`;
+    await prisma.table.create({
+      data: {
+        tableNumber,
+        placeTypeId: dbPlaceTypes['STANDING_BAR'],
+        capacity: 2,
+        status: 'available',
+        isActive: true,
+      }
+    });
+  }
+
+  // Premium tables L-01 to L-10
+  for (let i = 1; i <= 10; i++) {
+    const tableNumber = `L-${String(i).padStart(2, '0')}`;
+    await prisma.table.create({
+      data: {
+        tableNumber,
+        placeTypeId: dbPlaceTypes['PREMIUM_LOUNGE'],
+        capacity: 6,
+        status: 'available',
+        isActive: true,
+      }
+    });
+  }
+
+  // Re-seed cards
+  await prisma.card.deleteMany({});
+  for (let i = 1; i <= 30; i++) {
+    const nfcUid = `CARD-${String(i).padStart(3, '0')}`;
+    await prisma.card.create({
+      data: {
+        nfcUid,
+        status: 'available',
+        isActive: true,
+      }
+    });
+  }
 
   console.log('Cleaned up database.');
 }

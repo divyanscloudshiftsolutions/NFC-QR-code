@@ -144,20 +144,40 @@ export class TokenService {
     const tokenNumber = await this.generateTokenNumber();
     
     const token = await prisma.$transaction(async (tx) => {
-      // Check for existing active token for phone number
-      const existingCustomer = await tx.customer.findUnique({
-        where: { phoneNumber: request.phoneNumber },
-        include: {
-          tokens: {
-            where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED] } },
-            take: 1
-          }
-        }
-      }) as any;
-
-      if (existingCustomer && existingCustomer.tokens.length > 0) {
-        throw new Error('Customer already has an active token');
+      // Check for existing active or pending sessions by phone or email
+      const orConditions: any[] = [
+        { customer: { phoneNumber: request.phoneNumber } }
+      ];
+      if (request.email && request.email.trim()) {
+        orConditions.push({ customer: { email: request.email.trim().toLowerCase() } });
       }
+
+      const activeOrPendingToken = await tx.token.findFirst({
+        where: {
+          OR: orConditions,
+          status: {
+            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT, TokenStatus.EXPIRED]
+          }
+        },
+        include: { customer: true }
+      });
+
+      if (activeOrPendingToken) {
+        const isPending = activeOrPendingToken.status === TokenStatus.PENDING_PAYMENT;
+        const msg = isPending
+          ? `A pending payment session already exists for this customer (Phone: ${activeOrPendingToken.customer.phoneNumber}, Email: ${activeOrPendingToken.customer.email || 'N/A'}).`
+          : `Customer already has an active session (Phone: ${activeOrPendingToken.customer.phoneNumber}, Email: ${activeOrPendingToken.customer.email || 'N/A'}).`;
+        
+        const err = new Error(msg) as any;
+        err.code = isPending ? 'PENDING_SESSION_EXISTS' : 'ACTIVE_SESSION_EXISTS';
+        err.tokenNumber = activeOrPendingToken.tokenNumber;
+        throw err;
+      }
+
+      // Check for existing customer profile
+      const existingCustomer = await tx.customer.findUnique({
+        where: { phoneNumber: request.phoneNumber }
+      }) as any;
 
       // Get or create customer
       let customer: any = existingCustomer;
@@ -465,7 +485,8 @@ export class TokenService {
     tokenNumber: string,
     closedBy: string,
     closeReason: CloseReason,
-    eraseCard: boolean
+    eraseCard: boolean,
+    force: boolean = false
   ): Promise<SessionSummary> {
     const now = new Date();
     return await prisma.$transaction(async (tx) => {
@@ -488,19 +509,19 @@ export class TokenService {
       const token = tokens[0];
 
       // Idempotency check: if already closed, throw CONFLICT error
-      if (token.status === 'CLOSED') {
+      if (token.status === 'CLOSED' && !force) {
         const error = new Error('This session has already been closed.') as any;
         error.code = 'CONFLICT';
         throw error;
       }
 
       // Prevent closing unpaid pending QR sessions
-      if (token.deliveryMode === 'EMAIL_QR' && !token.paymentVerified) {
+      if (token.deliveryMode === 'EMAIL_QR' && !token.paymentVerified && !force) {
         throw new Error('Cannot close an unpaid pending QR session.');
       }
 
       // Verify token is in a valid state to be closed
-      if (token.status !== 'ACTIVE' && token.status !== 'EXTENDED' && token.status !== 'EXPIRED') {
+      if (token.status !== 'ACTIVE' && token.status !== 'EXTENDED' && token.status !== 'EXPIRED' && !force) {
         throw new Error(`Cannot close token with status: ${token.status}`);
       }
 
@@ -540,21 +561,23 @@ export class TokenService {
         }
       });
 
-      // Update table status to maintenance (5 minutes duration)
-      const maintenanceDurationMs = 5 * 60000;
-      const maintenanceStart = now;
-      const maintenanceEnd = new Date(now.getTime() + maintenanceDurationMs);
+      // Update table status
+      if (token.tableId) {
+        const maintenanceDurationMs = 5 * 60000;
+        const maintenanceStart = now;
+        const maintenanceEnd = new Date(now.getTime() + maintenanceDurationMs);
 
-      await tx.table.update({
-        where: { id: token.tableId },
-        data: {
-          status: 'maintenance',
-          currentTokenId: null,
-          occupiedSince: null,
-          maintenanceStart,
-          maintenanceEnd
-        }
-      });
+        await tx.table.update({
+          where: { id: token.tableId },
+          data: {
+            status: force ? 'available' : 'maintenance',
+            currentTokenId: null,
+            occupiedSince: null,
+            maintenanceStart: force ? null : maintenanceStart,
+            maintenanceEnd: force ? null : maintenanceEnd
+          }
+        });
+      }
 
       // Update occupancy logs
       await tx.tableOccupancyLog.updateMany({
@@ -622,34 +645,40 @@ export class TokenService {
     const start = new Date();
 
     return await prisma.$transaction(async (tx) => {
-      // 1. Check for existing active token
-      const existingCustomer = await tx.customer.findUnique({
-        where: { phoneNumber: request.phoneNumber },
-        include: {
-          tokens: {
-            where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
-            take: 1
-          }
-        }
-      }) as any;
-
-      if (existingCustomer && existingCustomer.tokens.length > 0) {
-        throw new Error('Customer already has an active token');
+      // Check for existing active or pending sessions by phone or email
+      const orConditions: any[] = [
+        { customer: { phoneNumber: request.phoneNumber } }
+      ];
+      if (request.email && request.email.trim()) {
+        orConditions.push({ customer: { email: request.email.trim().toLowerCase() } });
       }
 
-      // 2. Check for existing pending session
-      const existingPending = await tx.token.findFirst({
+      const activeOrPendingToken = await tx.token.findFirst({
         where: {
-          customer: { phoneNumber: request.phoneNumber },
-          status: TokenStatus.PENDING_PAYMENT
-        }
+          OR: orConditions,
+          status: {
+            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT, TokenStatus.EXPIRED]
+          }
+        },
+        include: { customer: true }
       });
-      if (existingPending) {
-        const err = new Error('A pending payment session already exists for this customer.') as any;
-        err.code = 'PENDING_SESSION_EXISTS';
-        err.tokenNumber = existingPending.tokenNumber;
+
+      if (activeOrPendingToken) {
+        const isPending = activeOrPendingToken.status === TokenStatus.PENDING_PAYMENT;
+        const msg = isPending
+          ? `A pending payment session already exists for this customer (Phone: ${activeOrPendingToken.customer.phoneNumber}, Email: ${activeOrPendingToken.customer.email || 'N/A'}).`
+          : `Customer already has an active session (Phone: ${activeOrPendingToken.customer.phoneNumber}, Email: ${activeOrPendingToken.customer.email || 'N/A'}).`;
+        
+        const err = new Error(msg) as any;
+        err.code = isPending ? 'PENDING_SESSION_EXISTS' : 'ACTIVE_SESSION_EXISTS';
+        err.tokenNumber = activeOrPendingToken.tokenNumber;
         throw err;
       }
+
+      // Get or create customer
+      const existingCustomer = await tx.customer.findUnique({
+        where: { phoneNumber: request.phoneNumber }
+      }) as any;
 
       // Get or create customer
       let customer = existingCustomer;
@@ -756,6 +785,42 @@ export class TokenService {
           throw conflictError;
         }
         throw new Error(`Token has status '${token.status}' and cannot be activated.`);
+      }
+
+      // Check if this customer already has another active session (by phone or email)
+      const tokenWithCustomer = await tx.token.findUnique({
+        where: { id: token.id },
+        include: { customer: true }
+      });
+      if (!tokenWithCustomer || !tokenWithCustomer.customer) {
+        throw new Error('Token customer details not found.');
+      }
+      
+      const customerRecord = tokenWithCustomer.customer;
+      const orConditions: any[] = [
+        { customer: { phoneNumber: customerRecord.phoneNumber } }
+      ];
+      if (customerRecord.email && customerRecord.email.trim()) {
+        orConditions.push({ customer: { email: customerRecord.email.trim().toLowerCase() } });
+      }
+
+      const otherActiveOrPendingToken = await tx.token.findFirst({
+        where: {
+          id: { not: token.id },
+          OR: orConditions,
+          status: {
+            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT, TokenStatus.EXPIRED]
+          }
+        },
+        include: { customer: true }
+      });
+
+      if (otherActiveOrPendingToken) {
+        const isPending = otherActiveOrPendingToken.status === TokenStatus.PENDING_PAYMENT;
+        const msg = isPending
+          ? `A pending payment session already exists for this customer (Phone: ${otherActiveOrPendingToken.customer.phoneNumber}, Email: ${otherActiveOrPendingToken.customer.email || 'N/A'}).`
+          : `Customer already has an active session (Phone: ${otherActiveOrPendingToken.customer.phoneNumber}, Email: ${otherActiveOrPendingToken.customer.email || 'N/A'}).`;
+        throw new Error(msg);
       }
 
       // 2. Resolve the selected table for the place type of this token

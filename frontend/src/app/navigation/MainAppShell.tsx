@@ -20,13 +20,20 @@ import { useResponsive } from '../../utils/responsive';
 
 export const MainAppShell: React.FC = () => {
   const { colors, isDark } = useTheme();
-  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive } = useNfcBar();
+  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, fetchLatestState } = useNfcBar();
   const { isTablet, isLargeScreen } = useResponsive();
   const isCentered = isTablet || isLargeScreen;
   
   const [showSplash, setShowSplash] = useState(true);
   const [isNotifsOpen, setIsNotifsOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+
+  // Sync state with backend on tab changes
+  React.useEffect(() => {
+    if (currentScreen === 'app' && user) {
+      fetchLatestState().catch(err => console.log('Failed to refresh state on tab change:', err));
+    }
+  }, [activeTab, currentScreen, user]);
   
   // safe area offsets
   const insets = useSafeAreaInsets();
