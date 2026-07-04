@@ -407,6 +407,9 @@ export const CheckInWizard: React.FC = () => {
                         const verifiedToken = await verifyQrCode(data);
                         setIsVerifyingQr(false);
                         if (verifiedToken) {
+                          if (verifiedToken.placeType) {
+                            setPlaceType(verifiedToken.placeType);
+                          }
                           setQrVerificationSuccess(true);
                           setStep(2); // Proceed to Table Selection
                         } else {
@@ -508,6 +511,9 @@ export const CheckInWizard: React.FC = () => {
                   const verifiedToken = await verifyQrCode(scannedToken.trim());
                   setIsVerifyingQr(false);
                   if (verifiedToken) {
+                    if (verifiedToken.placeType) {
+                      setPlaceType(verifiedToken.placeType);
+                    }
                     setQrVerificationSuccess(true);
                     setStep(2); // Proceed to Table Selection
                   } else {
