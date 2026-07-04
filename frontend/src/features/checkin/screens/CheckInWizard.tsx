@@ -365,7 +365,7 @@ export const CheckInWizard: React.FC = () => {
               transparent={false}
               onRequestClose={() => setIsCameraActive(false)}
             >
-              <View style={{ flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ flex: 1, backgroundColor: '#000000' }}>
                 {permission && permission.granted && isCameraActive && (
                   <CameraView
                     style={StyleSheet.absoluteFillObject}
@@ -388,23 +388,26 @@ export const CheckInWizard: React.FC = () => {
                   />
                 )}
                 
-                {/* Scanner Target Guide Overlay */}
-                <View style={{ width: 250, height: 250, borderWidth: 2, borderColor: colors.gold, borderRadius: 16, backgroundColor: 'transparent', position: 'relative' }}>
-                  <View 
-                    style={{ position: 'absolute', left: 10, right: 10, height: 1.5, backgroundColor: 'red', top: '50%' }}
-                  />
+                {/* Transparent Overlay Container to Align Controls without affecting CameraView layout */}
+                <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]}>
+                  {/* Scanner Target Guide Overlay */}
+                  <View style={{ width: 250, height: 250, borderWidth: 2, borderColor: colors.gold, borderRadius: 16, backgroundColor: 'transparent', position: 'relative' }}>
+                    <View 
+                      style={{ position: 'absolute', left: 10, right: 10, height: 1.5, backgroundColor: 'red', top: '50%' }}
+                    />
+                  </View>
+                  
+                  <Text style={{ color: '#ffffff', marginTop: 24, fontSize: 14, fontWeight: '600', textAlign: 'center', paddingHorizontal: 20 }}>
+                    Align the customer's QR code within the frame to scan
+                  </Text>
+                  
+                  <TouchableOpacity
+                    style={{ position: 'absolute', bottom: 40, backgroundColor: 'rgba(255, 255, 255, 0.4)', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 20 }}
+                    onPress={() => setIsCameraActive(false)}
+                  >
+                    <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14 }}>Cancel Scan</Text>
+                  </TouchableOpacity>
                 </View>
-                
-                <Text style={{ color: '#ffffff', marginTop: 24, fontSize: 14, fontWeight: '600', textAlign: 'center', paddingHorizontal: 20 }}>
-                  Align the customer's QR code within the frame to scan
-                </Text>
-                
-                <TouchableOpacity
-                  style={{ position: 'absolute', bottom: 40, backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 20 }}
-                  onPress={() => setIsCameraActive(false)}
-                >
-                  <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14 }}>Cancel Scan</Text>
-                </TouchableOpacity>
               </View>
             </Modal>
 
