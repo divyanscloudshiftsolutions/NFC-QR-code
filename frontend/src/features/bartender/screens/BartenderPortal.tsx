@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
-  ActivityIndicator, StyleSheet
+  ActivityIndicator, StyleSheet, Modal
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
@@ -575,36 +575,98 @@ export const BartenderPortal: React.FC = () => {
 
       {/* SCANNING ACTIVE STATE */}
       {bartenderState === 'scanning' && (
-        <View className="flex-1 rounded-2xl items-center justify-center relative overflow-hidden bg-black min-h-[350px]">
-          {emailQrEnabled && permission && permission.granted ? (
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              onBarcodeScanned={({ data }) => {
-                if (data && data !== scannedCardUid) {
-                  setScannedCardUid(data);
-                  handleTokenLookup(data);
-                }
-              }}
-            />
-          ) : (
-            <View className="items-center justify-center p-4">
-              <ActivityIndicator size="large" color={colors.teal} />
-              <Text className="text-sm font-bold mt-4 uppercase tracking-wider" style={{ color: colors.text }}>Scanning Smart Tag...</Text>
-              <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Interfacing credentials via NFC link</Text>
-            </View>
-          )}
-          <View 
-            className="absolute left-4 right-4 h-[1.5px] bg-red"
-            style={{ top: '50%' }}
-          />
-          <TouchableOpacity 
-            className="absolute bottom-4 bg-red px-5 py-2.5 rounded-xl border border-red"
-            onPress={() => setBartenderState('idle')}
-          >
-            <Text className="text-white font-bold text-xs uppercase tracking-wider">Cancel Scan</Text>
-          </TouchableOpacity>
-        </View>
+        <Modal
+          visible={bartenderState === 'scanning'}
+          animationType="slide"
+          transparent={false}
+          onRequestClose={() => setBartenderState('idle')}
+        >
+          <View style={{ flex: 1, backgroundColor: '#000000', position: 'relative' }}>
+            {emailQrEnabled && permission && permission.granted ? (
+              <CameraView
+                key={bartenderState === 'scanning' ? "bartender-active-camera" : "bartender-inactive-camera"}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 1
+                }}
+                facing="back"
+                onBarcodeScanned={({ data }) => {
+                  if (data && data !== scannedCardUid) {
+                    setScannedCardUid(data);
+                    handleTokenLookup(data);
+                  }
+                }}
+              />
+            ) : (
+              <View 
+                style={{
+                  flex: 1,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: '#000000'
+                }}
+              >
+                <ActivityIndicator size="large" color={colors.teal} />
+                <Text className="text-sm font-bold mt-4 uppercase tracking-wider" style={{ color: '#ffffff' }}>Scanning Smart Tag...</Text>
+                <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 11, marginTop: 4 }}>Interfacing credentials via NFC link</Text>
+              </View>
+            )}
+
+            {/* Transparent Overlay Container to Align Controls over the CameraView layer */}
+            {emailQrEnabled && permission && permission.granted && (
+              <View 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 10,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: 'transparent'
+                }}
+              >
+                {/* Red scanning line in the middle */}
+                <View 
+                  style={{
+                    position: 'absolute',
+                    left: 16,
+                    right: 16,
+                    height: 1.5,
+                    backgroundColor: '#EF4444',
+                    top: '50%',
+                    zIndex: 11
+                  }}
+                />
+
+                {/* Centered target guide frame */}
+                <View style={{ width: 250, height: 250, borderWidth: 2, borderColor: colors.gold, borderRadius: 16, backgroundColor: 'transparent' }} />
+                
+                <Text style={{ color: '#ffffff', marginTop: 24, fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1.5, textAlign: 'center', paddingHorizontal: 20 }}>
+                  Align QR Code within the frame
+                </Text>
+                
+                {/* Cancel button placed identically to Check-in/Bartender's */}
+                <TouchableOpacity 
+                  className="absolute bottom-6 bg-red px-6 py-3 rounded-xl border border-red"
+                  style={{ zIndex: 12 }}
+                  onPress={() => setBartenderState('idle')}
+                >
+                  <Text className="text-white font-bold text-xs uppercase tracking-wider">Cancel Scan</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </Modal>
       )}
 
       {/* SCANNED ACTIVE SESSION CARD */}
