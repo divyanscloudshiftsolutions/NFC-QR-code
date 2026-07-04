@@ -3405,6 +3405,7 @@ router.get('/config', async (req: Request, res: Response) => {
       emailQrEnabled: true,
       tokenType
     });
+  }
 });
 
 // Temporary GET /api/debug/db
