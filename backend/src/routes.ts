@@ -1393,11 +1393,11 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
 
   if (deliveryMode === 'NFC_CARD') {
     if (!finalPhoneNumber || !finalCustomerName || !finalPersonsCount || !finalCardUid || (!tableNumber && !tableId) || (!placeType && !placeTypeId)) {
-      return res.status(400).json({ success: false, error: { code: 'VAL_008', message: 'Required check-in fields missing' } });
+      return res.status(400).json({ success: false, error: { code: 'VAL_008', message: 'Check-in details are incomplete. Please fill out all required fields.' } });
     }
   } else {
     if (!finalPhoneNumber || !finalCustomerName || !finalPersonsCount || !email || (!tableNumber && !tableId) || (!placeType && !placeTypeId)) {
-      return res.status(400).json({ success: false, error: { code: 'VAL_008', message: 'Required check-in fields missing' } });
+      return res.status(400).json({ success: false, error: { code: 'VAL_008', message: 'Check-in details are incomplete. Please fill out all required fields.' } });
     }
   }
 
@@ -1405,6 +1405,12 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
     // Resolve Place Type ID
     if (finalPlaceTypeId === 'undefined' || finalPlaceTypeId === 'null' || finalPlaceTypeId === '') {
       finalPlaceTypeId = undefined;
+    }
+    if (finalPlaceTypeId) {
+      const exists = await prisma.placeTypeConfig.findUnique({ where: { id: finalPlaceTypeId } });
+      if (!exists) {
+        finalPlaceTypeId = undefined;
+      }
     }
     if (!finalPlaceTypeId && placeType) {
       const ptObj = await prisma.placeTypeConfig.findUnique({ where: { name: placeType } });
@@ -1420,13 +1426,13 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     if (!finalPlaceTypeId || !finalTableId) {
-      return res.status(400).json({ success: false, error: { code: 'VAL_009', message: 'Could not resolve place type or table' } });
+      return res.status(400).json({ success: false, error: { code: 'VAL_009', message: 'Invalid seating or table selection. Please verify and try again.' } });
     }
 
     // Find table to check capacity
     const tableObj = await prisma.table.findUnique({ where: { id: finalTableId } });
     if (!tableObj) {
-      return res.status(400).json({ success: false, error: { code: 'TABLE_ERR', message: 'Table not found' } });
+      return res.status(400).json({ success: false, error: { code: 'TABLE_ERR', message: 'Selected table was not found. Please select a valid table.' } });
     }
     if (finalPersonsCount > tableObj.capacity) {
       return res.status(400).json({ success: false, error: { code: 'TABLE_ERR', message: `Group size of ${finalPersonsCount} exceeds table capacity of ${tableObj.capacity}.` } });
@@ -1447,7 +1453,7 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
     // Find place type config
     const ptConfig = await prisma.placeTypeConfig.findUnique({ where: { id: finalPlaceTypeId } });
     if (!ptConfig) {
-      return res.status(400).json({ success: false, error: { code: 'PT_001', message: 'Place type config not found' } });
+      return res.status(400).json({ success: false, error: { code: 'PT_001', message: 'Invalid seating selection. Please select a valid seating option.' } });
     }
 
     // Calculate details
@@ -1553,6 +1559,12 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
     if (finalPlaceTypeId === 'undefined' || finalPlaceTypeId === 'null' || finalPlaceTypeId === '') {
       finalPlaceTypeId = undefined;
     }
+    if (finalPlaceTypeId) {
+      const exists = await prisma.placeTypeConfig.findUnique({ where: { id: finalPlaceTypeId } });
+      if (!exists) {
+        finalPlaceTypeId = undefined;
+      }
+    }
     if (!finalPlaceTypeId && placeType) {
       const ptObj = await prisma.placeTypeConfig.findUnique({ where: { name: placeType } });
       if (ptObj) finalPlaceTypeId = ptObj.id;
@@ -1563,7 +1575,7 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
 
     const placeTypeObj = await prisma.placeTypeConfig.findUnique({ where: { id: finalPlaceTypeId } });
     if (!placeTypeObj) {
-      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Place type config not found.' } });
+      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Invalid seating selection. Please select a valid seating option.' } });
     }
 
     let finalIssuedBy = req.user?.id || '';
