@@ -120,7 +120,6 @@ async function cleanupDb() {
       data: {
         nfcUid,
         status: 'available',
-        isActive: true,
       }
     });
   }

@@ -278,7 +278,8 @@ export class SyncService {
         }
 
         // Apply redemption
-        const result = await redemptionService.processRedemption(token.tokenNumber, bartenderId, opTime);
+        const presentationType = token.deliveryMode === 'EMAIL_QR' ? 'QR_SCAN' : 'NFC_TAP';
+        const result = await redemptionService.processRedemption(token.tokenNumber, bartenderId, opTime, presentationType);
 
         await prisma.syncLog.create({
           data: {

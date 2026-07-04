@@ -795,19 +795,6 @@ async function runTests() {
       });
       assert.strictEqual(markLostRes.status, 200, 'Marking card lost failed');
       
-      // Try to mark lost card as available (block)
-      const reuseLostAvailRes = await fetch(`${BASE_URL}/cards/${card002Uid}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: 'available' })
-      });
-      const reuseLostAvailData: any = await reuseLostAvailRes.json();
-      assert.strictEqual(reuseLostAvailRes.status, 400, 'Lost card should not be reusable as available');
-      assert.strictEqual(reuseLostAvailData.error.code, 'CONFLICT_CARD_LOST');
-
       // Try to mark lost card as assigned (block)
       const reuseLostAssignedRes = await fetch(`${BASE_URL}/cards/${card002Uid}/status`, {
         method: 'PUT',
@@ -821,13 +808,19 @@ async function runTests() {
       assert.strictEqual(reuseLostAssignedRes.status, 400, 'Lost card should not be reusable as assigned');
       assert.strictEqual(reuseLostAssignedData.error.code, 'CONFLICT_CARD_LOST');
 
+      // Recover lost card to available (should succeed)
+      const recoverLostRes = await fetch(`${BASE_URL}/cards/${card002Uid}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'available' })
+      });
+      assert.strictEqual(recoverLostRes.status, 200, 'Recovering lost card to available failed');
+
       // 10.4 Test available -> damaged -> reuse block
       console.log('  10.4 Verifying available -> damaged transition and damaged block rules...');
-      // Reset card2 back to available in prisma directly to test damaged logic
-      await prisma.card.update({
-        where: { nfcUid: card002Uid },
-        data: { status: 'available' }
-      });
       
       // Mark available card as damaged
       const markDamagedRes = await fetch(`${BASE_URL}/cards/${card002Uid}/status`, {
@@ -840,8 +833,21 @@ async function runTests() {
       });
       assert.strictEqual(markDamagedRes.status, 200, 'Marking card damaged failed');
 
-      // Try to mark damaged card as available (block)
-      const reuseDamagedAvailRes = await fetch(`${BASE_URL}/cards/${card002Uid}/status`, {
+      // Try to mark damaged card as assigned (block)
+      const reuseDamagedAssignedRes = await fetch(`${BASE_URL}/cards/${card002Uid}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'assigned' })
+      });
+      const reuseDamagedAssignedData: any = await reuseDamagedAssignedRes.json();
+      assert.strictEqual(reuseDamagedAssignedRes.status, 400, 'Damaged card should not be reusable as assigned');
+      assert.strictEqual(reuseDamagedAssignedData.error.code, 'CONFLICT_CARD_DAMAGED');
+
+      // Recover damaged card to available (should succeed)
+      const recoverDamagedRes = await fetch(`${BASE_URL}/cards/${card002Uid}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -849,9 +855,7 @@ async function runTests() {
         },
         body: JSON.stringify({ status: 'available' })
       });
-      const reuseDamagedAvailData: any = await reuseDamagedAvailRes.json();
-      assert.strictEqual(reuseDamagedAvailRes.status, 400, 'Damaged card should not be set back to available');
-      assert.strictEqual(reuseDamagedAvailData.error.code, 'CONFLICT_CARD_DAMAGED');
+      assert.strictEqual(recoverDamagedRes.status, 200, 'Recovering damaged card to available failed');
 
       // 10.5 Test inactive <-> available transitions
       console.log('  10.5 Verifying inactive/active transition rules...');

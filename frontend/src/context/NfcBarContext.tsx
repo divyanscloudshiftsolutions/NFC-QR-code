@@ -931,12 +931,17 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return mapped;
       } else {
         const errData = await res.json().catch(() => null);
-        showToast(errData?.error?.message || 'Failed to activate session.', 'danger');
+        const errMsg = errData?.error?.message || 'Failed to activate session.';
+        showToast(errMsg, 'danger');
+        throw new Error(errMsg);
       }
     } catch (err: any) {
+      if (err.message && err.message !== 'Failed to activate session.') {
+        throw err;
+      }
       showToast('Network error activating session.', 'danger');
+      throw new Error('Network error activating session. Please check connection and try again.');
     }
-    return null;
   };
 
   const cancelPendingSession = async (tokenNumber: string, reason = 'PAYMENT_CANCELLED'): Promise<boolean> => {

@@ -96,6 +96,7 @@ export const CheckInWizard: React.FC = () => {
   const [createdSession, setCreatedSession] = useState<SessionToken | null>(null);
   const [isNfcWriting, setIsNfcWriting] = useState(false);
   const [nfcWriteState, setNfcWriteState] = useState<'idle' | 'success' | 'error'>('idle');
+  const [activationError, setActivationError] = useState<string | null>(null);
 
   // Business check: Phone active session warning
   const isPhoneActive = sessions.some(s => s.phoneNumber === phone && s.status === TokenStatus.ACTIVE);
@@ -193,6 +194,7 @@ export const CheckInWizard: React.FC = () => {
         return;
       }
       setIsNfcWriting(true);
+      setActivationError(null);
       try {
         const token = await activatePendingSession(pendingToken, selectedTableNum, totalPrice);
         setIsNfcWriting(false);
@@ -201,6 +203,7 @@ export const CheckInWizard: React.FC = () => {
           setNfcWriteState('success');
           setStep(4);
         } else {
+          setActivationError('Failed to activate session. No token returned.');
           setNfcWriteState('error');
           setStep(4);
         }
@@ -209,6 +212,7 @@ export const CheckInWizard: React.FC = () => {
         console.error('Activation error:', error);
         setNfcWriteState('error');
         setStep(4);
+        setActivationError(error.message || 'Activation failed.');
         showToast(error.message || 'Activation failed.', 'danger');
       }
     } else {
@@ -1148,7 +1152,7 @@ export const CheckInWizard: React.FC = () => {
                   <Text className="text-4xl mb-3">🛑</Text>
                   <Text className="text-lg font-bold mb-2" style={{ color: colors.text }}>Activation Failed</Text>
                   <Text className="text-[11px] text-center leading-4 max-w-[85%] mb-6" style={{ color: colors.muted }}>
-                    Failed to activate the guest session on the server. Please check the network and try again.
+                    {activationError || "Failed to activate the guest session on the server. Please check the network and try again."}
                   </Text>
                   <View className="flex-row gap-3 w-full">
                     <TouchableOpacity 

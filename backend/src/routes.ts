@@ -1403,6 +1403,9 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
 
   try {
     // Resolve Place Type ID
+    if (finalPlaceTypeId === 'undefined' || finalPlaceTypeId === 'null' || finalPlaceTypeId === '') {
+      finalPlaceTypeId = undefined;
+    }
     if (!finalPlaceTypeId && placeType) {
       const ptObj = await prisma.placeTypeConfig.findUnique({ where: { name: placeType } });
       if (ptObj) finalPlaceTypeId = ptObj.id;
@@ -1547,6 +1550,9 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
 
   try {
     let finalPlaceTypeId = placeTypeId;
+    if (finalPlaceTypeId === 'undefined' || finalPlaceTypeId === 'null' || finalPlaceTypeId === '') {
+      finalPlaceTypeId = undefined;
+    }
     if (!finalPlaceTypeId && placeType) {
       const ptObj = await prisma.placeTypeConfig.findUnique({ where: { name: placeType } });
       if (ptObj) finalPlaceTypeId = ptObj.id;
@@ -1645,7 +1651,12 @@ const verifyQrHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: { message: `Token has status '${token.status}' and cannot be validated.` } });
     }
     const now = new Date();
-    if (new Date(token.endTime) <= now) {
+    const isPendingExpired = now.getTime() > token.issuedAt.getTime() + 20 * 60 * 1000;
+    if (isPendingExpired) {
+      await prisma.token.update({
+        where: { id: token.id },
+        data: { status: TokenStatus.EXPIRED }
+      });
       return res.status(400).json({ success: false, error: { message: 'QR token has expired.' } });
     }
 
@@ -2525,7 +2536,9 @@ const redeemHandler = async (req: AuthenticatedRequest, res: Response) => {
     if (bartenderId && !isValidUUID(bartenderId)) {
       return res.status(400).json({ error: 'Invalid bartenderId UUID format.' });
     }
-    const result = await redemptionService.processRedemption(finalTokenNumber, bartenderId);
+    const tokenRecord = await prisma.token.findUnique({ where: { tokenNumber: finalTokenNumber } });
+    const presentationType = tokenRecord && tokenRecord.deliveryMode === 'EMAIL_QR' ? 'QR_SCAN' : 'NFC_TAP';
+    const result = await redemptionService.processRedemption(finalTokenNumber, bartenderId, undefined, presentationType);
 
     // compat old return shape
     return res.json({
