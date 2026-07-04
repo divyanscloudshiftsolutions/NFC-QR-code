@@ -36,6 +36,7 @@ export const CheckInWizard: React.FC = () => {
   const [isActivating, setIsActivating] = useState<boolean>(false);
   const [qrVerificationError, setQrVerificationError] = useState<string | null>(null);
   const [qrVerificationSuccess, setQrVerificationSuccess] = useState<boolean>(false);
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
   
   useEffect(() => {
     if (!nfcEnabled && emailQrEnabled) {
@@ -338,51 +339,74 @@ export const CheckInWizard: React.FC = () => {
               A pending check-in session has been created. The QR code has been dispatched to {email.toLowerCase()}.
             </Text>
 
-            {/* Real Camera scanner or fallback view */}
-            <View 
-              className="w-full h-56 rounded-2xl items-center justify-center mb-4 border relative overflow-hidden bg-black"
-              style={{ borderColor: colors.border }}
+            {/* Explicit Camera Scanner Trigger Button */}
+            <TouchableOpacity 
+              className="w-full py-4 rounded-xl items-center justify-center mb-4 flex-row gap-2"
+              style={{ backgroundColor: colors.gold, borderRadius: 12 }}
+              onPress={async () => {
+                if (!permission || !permission.granted) {
+                  const res = await requestPermission();
+                  if (!res.granted) {
+                    Alert.alert('Permission Denied', 'Camera permission is required to scan QR codes.');
+                    return;
+                  }
+                }
+                setIsCameraActive(true);
+              }}
             >
-              {permission && permission.granted ? (
-                <CameraView
-                  style={StyleSheet.absoluteFill}
-                  facing="back"
-                  onBarcodeScanned={async ({ data }) => {
-                    if (data && data !== scannedToken && !isVerifyingQr) {
-                      setScannedToken(data);
-                      setIsVerifyingQr(true);
-                      const verifiedToken = await verifyQrCode(data);
-                      setIsVerifyingQr(false);
-                      if (verifiedToken) {
-                        setQrVerificationSuccess(true);
-                        setStep(2); // Proceed to Table Selection
-                      } else {
-                        setQrVerificationError('Invalid or expired QR token.');
+              <Text className="text-3xl">📷</Text>
+              <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Open Camera Scanner</Text>
+            </TouchableOpacity>
+
+            {/* Full-Screen Camera Scanner Modal */}
+            <Modal
+              visible={isCameraActive}
+              animationType="slide"
+              transparent={false}
+              onRequestClose={() => setIsCameraActive(false)}
+            >
+              <View style={{ flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }}>
+                {permission && permission.granted && isCameraActive && (
+                  <CameraView
+                    style={StyleSheet.absoluteFillObject}
+                    facing="back"
+                    onBarcodeScanned={async ({ data }) => {
+                      if (data && !isVerifyingQr) {
+                        setIsCameraActive(false);
+                        setScannedToken(data);
+                        setIsVerifyingQr(true);
+                        const verifiedToken = await verifyQrCode(data);
+                        setIsVerifyingQr(false);
+                        if (verifiedToken) {
+                          setQrVerificationSuccess(true);
+                          setStep(2); // Proceed to Table Selection
+                        } else {
+                          setQrVerificationError('Invalid or expired QR token.');
+                        }
                       }
-                    }
-                  }}
-                />
-              ) : (
-                <View className="items-center justify-center p-4">
-                  <Text className="text-3xl mb-2">📷</Text>
-                  <Text className="text-xs text-center mb-3" style={{ color: '#9CA3AF' }}>
-                    Camera permission is required to scan QR codes.
-                  </Text>
-                  {permission && permission.canAskAgain && (
-                    <TouchableOpacity 
-                      className="bg-gold px-4 py-2 rounded-lg"
-                      onPress={requestPermission}
-                    >
-                      <Text className="font-bold text-xs" style={{ color: colors.goldButtonText }}>Grant Permission</Text>
-                    </TouchableOpacity>
-                  )}
+                    }}
+                  />
+                )}
+                
+                {/* Scanner Target Guide Overlay */}
+                <View style={{ width: 250, height: 250, borderWidth: 2, borderColor: colors.gold, borderRadius: 16, backgroundColor: 'transparent', position: 'relative' }}>
+                  <View 
+                    style={{ position: 'absolute', left: 10, right: 10, height: 1.5, backgroundColor: 'red', top: '50%' }}
+                  />
                 </View>
-              )}
-              <View 
-                className="absolute left-4 right-4 h-[1.5px] bg-red"
-                style={{ top: '50%' }}
-              />
-            </View>
+                
+                <Text style={{ color: '#ffffff', marginTop: 24, fontSize: 14, fontWeight: '600', textAlign: 'center', paddingHorizontal: 20 }}>
+                  Align the customer's QR code within the frame to scan
+                </Text>
+                
+                <TouchableOpacity
+                  style={{ position: 'absolute', bottom: 40, backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 20 }}
+                  onPress={() => setIsCameraActive(false)}
+                >
+                  <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14 }}>Cancel Scan</Text>
+                </TouchableOpacity>
+              </View>
+            </Modal>
 
             {/* Input field for token number */}
             <Text className="text-xs font-bold mb-1.5" style={{ color: colors.gold }}>QR Code Token</Text>
