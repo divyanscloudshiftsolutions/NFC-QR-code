@@ -857,6 +857,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const data = await res.json();
         const mapped = mapBackendToken(data);
         setSessions(prev => [mapped, ...prev]);
+        setAdminSessions(prev => [mapped, ...prev]);
         showToast(`QR check-in pending for ${guestData.customerName}`, 'success');
         return mapped;
       } else {
@@ -920,7 +921,22 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (res.ok) {
         const data = await res.json();
         const mapped = mapBackendToken(data);
-        setSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? mapped : s));
+        setSessions(prev => {
+          const index = prev.findIndex(s => s.tokenNumber === tokenNumber);
+          if (index !== -1) {
+            return prev.map(s => s.tokenNumber === tokenNumber ? mapped : s);
+          } else {
+            return [mapped, ...prev];
+          }
+        });
+        setAdminSessions(prev => {
+          const index = prev.findIndex(s => s.tokenNumber === tokenNumber);
+          if (index !== -1) {
+            return prev.map(s => s.tokenNumber === tokenNumber ? mapped : s);
+          } else {
+            return [mapped, ...prev];
+          }
+        });
         setTables(prev => prev.map(t => t.number === mapped.tableNumber ? {
           ...t,
           status: TableStatus.OCCUPIED,
@@ -959,6 +975,10 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (res.ok) {
         const data = await res.json();
         setSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? {
+          ...s,
+          status: TokenStatus.CANCELLED
+        } : s));
+        setAdminSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? {
           ...s,
           status: TokenStatus.CANCELLED
         } : s));
@@ -1003,6 +1023,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Mutate state (Optimistic UI)
     setSessions(prev => prev.map(s => s.id === session.id ? { ...s, redemptionCount: newCount } : s));
+    setAdminSessions(prev => prev.map(s => s.id === session.id ? { ...s, redemptionCount: newCount } : s));
 
     // Queue operation
     queueOperation('DRINK_REDEMPTION', {
@@ -1036,6 +1057,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Mutate state (Optimistic UI)
     setSessions(prev => prev.map(s => s.id === session.id ? { ...s, redemptionCount: newCount } : s));
+    setAdminSessions(prev => prev.map(s => s.id === session.id ? { ...s, redemptionCount: newCount } : s));
 
     // Queue operation
     queueOperation('DRINK_UNDO', {
@@ -1063,6 +1085,12 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Mutate state (Optimistic UI)
     setSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? {
+      ...s,
+      endTime: newEndTime.toISOString(),
+      amountPaid: s.amountPaid + additionalAmount,
+      redemptionLimit: s.redemptionLimit + (rateCard ? rateCard.maxDrinks * session.persons * (extraHours / rateCard.durationHours) : 0),
+    } : s));
+    setAdminSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? {
       ...s,
       endTime: newEndTime.toISOString(),
       amountPaid: s.amountPaid + additionalAmount,
@@ -1100,6 +1128,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Close token (Optimistic UI)
     setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: TokenStatus.CLOSED } : s));
+    setAdminSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: TokenStatus.CLOSED } : s));
     
     // Release table (Optimistic UI)
     setTables(prev => prev.map(t => t.number === session.tableNumber ? { 
