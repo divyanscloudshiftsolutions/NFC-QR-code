@@ -212,6 +212,27 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [userToken]);
 
+  const mapBackendToken = (t: any): SessionToken => ({
+    id: t.id,
+    tokenNumber: t.tokenNumber,
+    customerName: t.customerName,
+    phoneNumber: t.phoneNumber,
+    email: t.email || undefined,
+    persons: t.persons,
+    placeType: t.placeType as PlaceType,
+    tableNumber: t.tableNumber,
+    amountPaid: typeof t.amountPaid === 'string' ? parseFloat(t.amountPaid) : t.amountPaid,
+    startTime: t.startTime,
+    endTime: t.endTime,
+    redemptionLimit: t.redemptionLimit,
+    redemptionCount: t.redemptionCount,
+    status: (t.status ? t.status.toLowerCase() : 'active') as TokenStatus,
+    cardUid: t.cardUid || null,
+    createdAt: t.createdAt,
+    deliveryMode: t.deliveryMode,
+    paymentVerified: t.paymentVerified
+  });
+
   const fetchLatestState = async (token?: string) => {
     const activeToken = token || userToken;
     if (!activeToken || systemMode === 'offline') return;
@@ -261,26 +282,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (tokensRes.ok) {
         const tokensData = await tokensRes.json();
-        const fetchedSessions: SessionToken[] = tokensData.map((t: any) => ({
-          id: t.id,
-          tokenNumber: t.tokenNumber,
-          customerName: t.customerName,
-          phoneNumber: t.phoneNumber,
-          email: t.email || undefined,
-          persons: t.persons,
-          placeType: t.placeType as PlaceType,
-          tableNumber: t.tableNumber,
-          amountPaid: typeof t.amountPaid === 'string' ? parseFloat(t.amountPaid) : t.amountPaid,
-          startTime: t.startTime,
-          endTime: t.endTime,
-          redemptionLimit: t.redemptionLimit,
-          redemptionCount: t.redemptionCount,
-          status: t.status.toLowerCase() as TokenStatus,
-          cardUid: t.cardUid,
-          createdAt: t.createdAt,
-          deliveryMode: t.deliveryMode,
-          paymentVerified: t.paymentVerified
-        }));
+        const fetchedSessions: SessionToken[] = tokensData.map(mapBackendToken);
 
         setSessions(fetchedSessions);
         await AsyncStorage.setItem('nfc_bar_cached_sessions', JSON.stringify(fetchedSessions)).catch(() => {});
@@ -831,9 +833,10 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (res.ok) {
         const data = await res.json();
-        setSessions(prev => [data, ...prev]);
+        const mapped = mapBackendToken(data);
+        setSessions(prev => [mapped, ...prev]);
         showToast(`QR check-in pending for ${guestData.customerName}`, 'success');
-        return data;
+        return mapped;
       } else {
         const errData = await res.json().catch(() => null);
         if (errData?.code === 'PENDING_SESSION_EXISTS') {
@@ -865,7 +868,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (res.ok) {
         const data = await res.json();
-        return data;
+        return mapBackendToken(data);
       } else {
         const errData = await res.json().catch(() => null);
         showToast(errData?.error?.message || 'Invalid or expired QR code.', 'danger');
@@ -894,15 +897,16 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (res.ok) {
         const data = await res.json();
-        setSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? data : s));
+        const mapped = mapBackendToken(data);
+        setSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? mapped : s));
         setTables(prev => prev.map(t => t.number === tableNumber ? {
           ...t,
           status: TableStatus.OCCUPIED,
-          occupiedSeats: data.persons,
-          availableSeats: t.allowSharedSeating ? (t.totalCapacity - data.persons) : 0
+          occupiedSeats: mapped.persons,
+          availableSeats: t.allowSharedSeating ? (t.totalCapacity - mapped.persons) : 0
         } : t));
         showToast('Check-in session activated successfully.', 'success');
-        return data;
+        return mapped;
       } else {
         const errData = await res.json().catch(() => null);
         showToast(errData?.error?.message || 'Failed to activate session.', 'danger');

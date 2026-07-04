@@ -1969,12 +1969,12 @@ router.get('/tokens/active', authenticate, async (req: Request, res: Response) =
       cardUid: t.card?.nfcUid,
       createdAt: t.issuedAt.toISOString(),
       deliveryMode: t.deliveryMode,
-      table: {
+      table: t.table ? {
         id: t.table.id,
         number: t.table.tableNumber,
         placeType: t.placeType.name,
         status: t.table.status.toUpperCase(),
-      }
+      } : null
     }));
 
     return res.json(oldTokens);
