@@ -365,10 +365,20 @@ export const CheckInWizard: React.FC = () => {
               transparent={false}
               onRequestClose={() => setIsCameraActive(false)}
             >
-              <View style={{ flex: 1, backgroundColor: '#000000' }}>
+              <View style={{ flex: 1, backgroundColor: '#000000', position: 'relative' }}>
                 {permission && permission.granted && isCameraActive && (
                   <CameraView
-                    style={StyleSheet.absoluteFillObject}
+                    key={isCameraActive ? "active-camera-view" : "inactive-camera-view"}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      width: '100%',
+                      height: '100%',
+                      zIndex: 1
+                    }}
                     facing="back"
                     onBarcodeScanned={async ({ data }) => {
                       if (data && !isVerifyingQr) {
@@ -388,8 +398,22 @@ export const CheckInWizard: React.FC = () => {
                   />
                 )}
                 
-                {/* Transparent Overlay Container to Align Controls without affecting CameraView layout */}
-                <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]}>
+                {/* Transparent Overlay Container to Align Controls over the CameraView layer */}
+                <View 
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 10,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: 'transparent'
+                  }}
+                >
                   {/* Scanner Target Guide Overlay */}
                   <View style={{ width: 250, height: 250, borderWidth: 2, borderColor: colors.gold, borderRadius: 16, backgroundColor: 'transparent', position: 'relative' }}>
                     <View 
@@ -402,7 +426,7 @@ export const CheckInWizard: React.FC = () => {
                   </Text>
                   
                   <TouchableOpacity
-                    style={{ position: 'absolute', bottom: 40, backgroundColor: 'rgba(255, 255, 255, 0.4)', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 20 }}
+                    style={{ position: 'absolute', bottom: 40, backgroundColor: 'rgba(255, 255, 255, 0.4)', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 20, zIndex: 12 }}
                     onPress={() => setIsCameraActive(false)}
                   >
                     <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14 }}>Cancel Scan</Text>
