@@ -140,31 +140,7 @@ export const CheckInWizard: React.FC = () => {
   const handleStep1Submit = async () => {
     if (isStep1Valid) {
       if (selectedDeliveryMode === 'EMAIL_QR') {
-        setIsActivating(true);
-        try {
-          const pendingSession = await createPendingSession({
-            customerName: fullName,
-            phoneNumber: phone,
-            email: email.trim(),
-            personsCount: guestCount,
-            placeType,
-            placeTypeId: rates.find(r => r.placeType === placeType)?.id
-          });
-          setIsActivating(false);
-          if (pendingSession) {
-            setPendingToken(pendingSession.tokenNumber);
-            setScannedToken('');
-            setQrVerificationSuccess(false);
-            setQrVerificationError(null);
-            setStep(5);
-          }
-        } catch (err: any) {
-          setIsActivating(false);
-          if (err.code === 'PENDING_SESSION_EXISTS') {
-            setPendingExistsTokenNumber(err.tokenNumber);
-            setShowPendingExistsModal(true);
-          }
-        }
+        setStep(2);
       } else {
         if (isTablePreselected) {
           setStep(3);
@@ -175,8 +151,41 @@ export const CheckInWizard: React.FC = () => {
     }
   };
 
-  const handleStep2Submit = () => {
-    if (isStep2Valid) setStep(3);
+  const handleStep2Submit = async () => {
+    if (selectedDeliveryMode === 'EMAIL_QR') {
+      setIsActivating(true);
+      try {
+        const pendingSession = await createPendingSession({
+          customerName: fullName,
+          phoneNumber: phone,
+          email: email.trim(),
+          personsCount: guestCount,
+          placeType,
+          placeTypeId: rates.find(r => r.placeType === placeType)?.id,
+          tableNumber: selectedTableNum || undefined
+        });
+        setIsActivating(false);
+        if (pendingSession) {
+          setPendingToken(pendingSession.tokenNumber);
+          setScannedToken('');
+          setQrVerificationSuccess(false);
+          setQrVerificationError(null);
+          if (selectedTableNum) {
+            setStep(5);
+          } else {
+            setStep(4);
+          }
+        }
+      } catch (err: any) {
+        setIsActivating(false);
+        if (err.code === 'PENDING_SESSION_EXISTS') {
+          setPendingExistsTokenNumber(err.tokenNumber);
+          setShowPendingExistsModal(true);
+        }
+      }
+    } else {
+      if (isStep2Valid) setStep(3);
+    }
   };
 
   // Load dynamic rates with safety fallbacks
@@ -316,14 +325,14 @@ export const CheckInWizard: React.FC = () => {
           let isActive = false;
           if (selectedDeliveryMode === 'EMAIL_QR') {
             if (s === 1) {
-              isDone = step === 5 || step === 2 || step === 3 || step === 4;
+              isDone = step === 2 || step === 5 || step === 3 || step === 4;
               isActive = step === 1;
             } else if (s === 2) {
-              isDone = step === 2 || step === 3 || step === 4;
-              isActive = step === 5;
+              isDone = step === 5 || step === 3 || step === 4;
+              isActive = step === 2;
             } else if (s === 3) {
               isDone = step === 3 || step === 4;
-              isActive = step === 2;
+              isActive = step === 5;
             } else if (s === 4) {
               isDone = step === 4;
               isActive = step === 3;
@@ -350,9 +359,9 @@ export const CheckInWizard: React.FC = () => {
             className="rounded-2xl p-5 shadow-xl border mb-4"
             style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
           >
-            <Text className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.gold }}>Step 2 — QR Verification</Text>
+            <Text className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.gold }}>Step 3 — QR Verification</Text>
             <Text className="text-sm font-semibold mb-4" style={{ color: colors.text }}>
-              A pending check-in session has been created. The QR code has been dispatched to {email.toLowerCase()}.
+              A pending check-in session has been created. The QR code has been dispatched to {email.toLowerCase() || 'your email'}.
             </Text>
 
             {/* START QR SCAN button (Reusing style from BartenderPortal.tsx) */}
@@ -413,8 +422,11 @@ export const CheckInWizard: React.FC = () => {
                           if (verifiedToken.persons) {
                             setGuestCount(verifiedToken.persons);
                           }
+                          if (verifiedToken.tableNumber) {
+                            setSelectedTableNum(verifiedToken.tableNumber);
+                          }
                           setQrVerificationSuccess(true);
-                          setStep(2); // Proceed to Table Selection
+                          setStep(3); // Proceed to Payment Confirmation
                         } else {
                           setQrVerificationError('Invalid or expired QR token.');
                         }
@@ -520,8 +532,11 @@ export const CheckInWizard: React.FC = () => {
                     if (verifiedToken.persons) {
                       setGuestCount(verifiedToken.persons);
                     }
+                    if (verifiedToken.tableNumber) {
+                      setSelectedTableNum(verifiedToken.tableNumber);
+                    }
                     setQrVerificationSuccess(true);
-                    setStep(2); // Proceed to Table Selection
+                    setStep(3); // Proceed to Payment Confirmation
                   } else {
                     setQrVerificationError('Invalid or expired QR token.');
                   }
@@ -798,7 +813,7 @@ export const CheckInWizard: React.FC = () => {
             className="rounded-[20px] p-5 shadow-xl border"
             style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
           >
-            <Text className="text-[11px] font-bold uppercase tracking-wider mb-4" style={{ color: colors.gold }}>{selectedDeliveryMode === 'EMAIL_QR' ? 'Step 3' : 'Step 2'} — Table Selection</Text>
+            <Text className="text-[11px] font-bold uppercase tracking-wider mb-4" style={{ color: colors.gold }}>Step 2 — Table Selection</Text>
             
             {/* Zone Choice Cards */}
             <Text className="text-[13px] font-medium mb-2" style={{ color: colors.text }}>Select Seating Area</Text>
@@ -917,17 +932,19 @@ export const CheckInWizard: React.FC = () => {
               <TouchableOpacity 
                 className="flex-[2] py-3.5 rounded-xl items-center justify-center min-h-[48px] border"
                 style={{ 
-                  backgroundColor: !isStep2Valid ? colors.input : colors.gold,
-                  borderColor: !isStep2Valid ? colors.border : colors.gold
+                  backgroundColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : colors.input,
+                  borderColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : colors.border
                 }}
-                disabled={!isStep2Valid}
+                disabled={selectedDeliveryMode !== 'EMAIL_QR' && !isStep2Valid}
                 onPress={handleStep2Submit}
               >
                 <Text 
                   className="font-bold text-sm" 
-                  style={{ color: !isStep2Valid ? colors.muted : colors.goldButtonText }}
+                  style={{ color: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.goldButtonText : colors.muted }}
                 >
-                  Check Bill
+                  {selectedDeliveryMode === 'EMAIL_QR' 
+                    ? (selectedTableNum ? 'Assign & Send QR' : 'Join Waiting List')
+                    : 'Check Bill'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1117,7 +1134,43 @@ export const CheckInWizard: React.FC = () => {
           >
             {selectedDeliveryMode === 'EMAIL_QR' ? (
               // EMAIL_QR Flow Success/Error Views
-              nfcWriteState === 'success' ? (
+              (!selectedTableNum && pendingToken) ? (
+                <View className="items-center justify-center py-4">
+                  <View className="w-16 h-16 rounded-full bg-gold/10 border justify-center items-center mb-4" style={{ borderColor: colors.gold }}>
+                    <Text className="text-3xl font-extrabold" style={{ color: colors.gold }}>⏳</Text>
+                  </View>
+                  
+                  <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>
+                    Customer Placed on Waiting List
+                  </Text>
+                  <Text className="text-xs text-center mb-6 leading-4 max-w-[85%]" style={{ color: colors.muted }}>
+                    All tables in this seating zone are currently occupied or too small. No email has been sent. Once a table is assigned, the QR code will be generated and dispatched.
+                  </Text>
+                  
+                  <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
+                    <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                      <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
+                      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
+                    </View>
+                    <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                      <Text className="text-[11px]" style={{ color: colors.muted }}>Phone Number:</Text>
+                      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{phone}</Text>
+                    </View>
+                    <View className="flex-row justify-between py-2">
+                      <Text className="text-[11px]" style={{ color: colors.muted }}>Email:</Text>
+                      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{email}</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity 
+                    className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border mb-3" 
+                    style={{ borderColor: colors.gold }} 
+                    onPress={resetWizard}
+                  >
+                    <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : nfcWriteState === 'success' ? (
                 <View className="items-center justify-center py-4">
                   <View className="w-16 h-16 rounded-full bg-teal/10 border justify-center items-center mb-4" style={{ borderColor: colors.teal }}>
                     <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>

@@ -1021,7 +1021,21 @@ router.post('/tables/assign', authenticate, authorize(['receptionist', 'admin'])
 
   try {
     const table = await tableService.assignTableToToken(tableId, tokenId);
-    const token = await prisma.token.findUnique({ where: { id: tokenId } });
+    const token = await prisma.token.findUnique({
+      where: { id: tokenId },
+      include: { customer: true }
+    });
+    if (token && token.status === TokenStatus.PENDING_PAYMENT && token.deliveryMode === 'EMAIL_QR') {
+      emailNotificationService.enqueueEmailJob(token.customer.email!, token.tokenNumber, token.customer.name);
+      await prisma.token.update({
+        where: { id: tokenId },
+        data: {
+          emailSent: true,
+          emailSentAt: new Date(),
+          emailDeliveryStatus: 'SENT'
+        }
+      });
+    }
     return res.json({
       success: true,
       data: {
@@ -1525,6 +1539,8 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
     persons,
     placeType,
     placeTypeId,
+    tableId,
+    tableNumber,
   } = req.body;
 
   const phoneRegex = /^(?:\+91)?[6-9]\d{9}$/;
@@ -1597,10 +1613,14 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
       email: finalEmail,
       personsCount: finalPersonsCount,
       placeTypeId: finalPlaceTypeId,
-      issuedBy: finalIssuedBy
+      issuedBy: finalIssuedBy,
+      tableId,
+      tableNumber
     });
 
-    emailNotificationService.enqueueEmailJob(finalEmail, token.tokenNumber, customerName);
+    if (token.tableId) {
+      emailNotificationService.enqueueEmailJob(finalEmail, token.tokenNumber, customerName);
+    }
 
     const responseData = {
       id: token.id,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TouchableOpacity, TextInput, ScrollView, 
-  Platform, Modal
+  Platform, Modal, ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../../context/NfcBarContext';
@@ -12,7 +12,7 @@ import { AppIcon } from '../../../components/common/AppIcon';
 import { useResponsive } from '../../../utils/responsive';
 
 export const TablesPortal: React.FC = () => {
-  const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab } = useNfcBar();
+  const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab, rates } = useNfcBar();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedPlace, setSelectedPlace] = useState<PlaceType>('STANDING_BAR');
@@ -26,6 +26,12 @@ export const TablesPortal: React.FC = () => {
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [selectedSession, setSelectedSession] = useState<SessionToken | null>(null);
+
+  // Extend session modal states
+  const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+  const [extendPaymentMode, setExtendPaymentMode] = useState<'CASH' | 'UPI' | 'CARD'>('CASH');
+  const [extendRefId, setExtendRefId] = useState('');
+  const [isExtendingLoading, setIsExtendingLoading] = useState(false);
 
   useEffect(() => {
     setOverlayActive(isBottomSheetOpen);
@@ -49,7 +55,6 @@ export const TablesPortal: React.FC = () => {
 
   const handleTableTap = (table: Table) => {
     setSelectedTable(table);
-    // Find active session for this table (active, extended, or expired)
     const activeToken = sessions.find(s => s.tableNumber === table.number && s.status !== TokenStatus.CLOSED);
     if (activeToken) {
       setSelectedSession(activeToken);
@@ -59,14 +64,25 @@ export const TablesPortal: React.FC = () => {
     setIsBottomSheetOpen(true);
   };
 
-  const handleExtend = () => {
+  const handleExtend = async () => {
     if (!selectedSession) return;
-    const success = extendSessionTime(selectedSession.tokenNumber, 1);
+    
+    // Calculate extension amount
+    const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
+    const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+    const duration = rateCard?.durationHours || 2;
+    const amount = rate * selectedSession.persons * (1 / duration);
+
+    setIsExtendingLoading(true);
+    const success = await extendSessionTime(selectedSession.tokenNumber, 1, amount);
+    setIsExtendingLoading(false);
     if (success) {
-      // Reload states locally
       const updated = sessions.find(s => s.tokenNumber === selectedSession.tokenNumber);
       if (updated) setSelectedSession(updated);
+      setIsExtendModalOpen(false);
       setIsBottomSheetOpen(false);
+      setExtendRefId('');
+      setExtendPaymentMode('CASH');
     }
   };
 
@@ -654,7 +670,7 @@ export const TablesPortal: React.FC = () => {
                     <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" style={{ borderColor: '#e63946' }} onPress={handleCloseSession}>
                       <Text className="font-bold text-sm" style={{ color: '#e63946' }}>Close Session</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" style={{ borderColor: colors.gold }} onPress={handleExtend}>
+                    <TouchableOpacity className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" style={{ borderColor: colors.gold }} onPress={() => setIsExtendModalOpen(true)}>
                       <Text className="font-bold text-[13px]" style={{ color: colors.goldButtonText }}>Extend Time</Text>
                     </TouchableOpacity>
                   </View>
@@ -675,6 +691,118 @@ export const TablesPortal: React.FC = () => {
                   onPress={() => setIsBottomSheetOpen(false)}
                 >
                   <Text className="font-bold text-sm" style={{ color: colors.text }}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* EXTEND SESSION PAYMENT CONFIRMATION MODAL */}
+      <Modal
+        visible={isExtendModalOpen && selectedSession !== null}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsExtendModalOpen(false)}
+      >
+        <View className="flex-1 bg-black/75 justify-center p-4">
+          {selectedSession && (
+            <View 
+              className="border border-gold/20 rounded-2xl p-5 shadow-2xl" 
+              style={{ backgroundColor: colors.surface }}
+            >
+              <Text className="text-base font-bold text-gold mb-3">Extend Session — 1 Hour</Text>
+              
+              <View className="mb-4 gap-2 py-2 border-t border-b" style={{ borderColor: colors.border }}>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs" style={{ color: colors.muted }}>Customer</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedSession.customerName}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs" style={{ color: colors.muted }}>Table</Text>
+                  <Text className="text-xs font-mono font-bold" style={{ color: colors.gold }}>Table {selectedSession.tableNumber || 'N/A'}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs" style={{ color: colors.muted }}>Guest Count</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedSession.persons} Pax</Text>
+                </View>
+                <View className="flex-row justify-between mt-1">
+                  <Text className="text-xs font-bold" style={{ color: colors.text }}>Extension Fee</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.gold }}>
+                    ₹{(() => {
+                      const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
+                      const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                      const duration = rateCard?.durationHours || 2;
+                      return (rate * selectedSession.persons * (1 / duration)).toFixed(0);
+                    })()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Payment Mode Selector */}
+              <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
+              <View className="flex-row gap-2 mb-4">
+                {(['CASH', 'UPI', 'CARD'] as const).map(mode => (
+                  <TouchableOpacity
+                    key={mode}
+                    className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+                    style={{
+                      backgroundColor: extendPaymentMode === mode ? 'rgba(212, 175, 55, 0.1)' : colors.input,
+                      borderColor: extendPaymentMode === mode ? colors.gold : colors.border,
+                      borderWidth: 1
+                    }}
+                    onPress={() => setExtendPaymentMode(mode)}
+                  >
+                    <Text className="text-[11px] font-bold" style={{ color: extendPaymentMode === mode ? colors.gold : colors.muted }}>
+                      {mode}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Reference ID input for digital payments */}
+              {extendPaymentMode !== 'CASH' && (
+                <View className="mb-4">
+                  <Text className="text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Transaction / Ref ID *</Text>
+                  <TextInput
+                    className="bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm"
+                    style={{ color: colors.text, borderColor: colors.border }}
+                    placeholder="e.g. TXN123456789"
+                    placeholderTextColor={colors.placeholder}
+                    value={extendRefId}
+                    onChangeText={setExtendRefId}
+                  />
+                </View>
+              )}
+
+              {/* Actions */}
+              <View className="flex-row gap-3">
+                <TouchableOpacity
+                  className="flex-1 py-3 rounded-xl border items-center justify-center"
+                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                  onPress={() => {
+                    setIsExtendModalOpen(false);
+                    setExtendRefId('');
+                  }}
+                  disabled={isExtendingLoading}
+                >
+                  <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 py-3 rounded-xl items-center justify-center border"
+                  style={{
+                    backgroundColor: (extendPaymentMode !== 'CASH' && !extendRefId.trim()) ? colors.input : colors.gold,
+                    borderColor: (extendPaymentMode !== 'CASH' && !extendRefId.trim()) ? colors.border : colors.gold,
+                    borderWidth: 1
+                  }}
+                  onPress={handleExtend}
+                  disabled={isExtendingLoading || (extendPaymentMode !== 'CASH' && !extendRefId.trim())}
+                >
+                  {isExtendingLoading ? (
+                    <ActivityIndicator size="small" color={colors.goldButtonText} />
+                  ) : (
+                    <Text className="text-sm font-bold" style={{ color: colors.goldButtonText }}>Confirm & Extend</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

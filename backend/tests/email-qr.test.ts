@@ -14,6 +14,7 @@ const PORT = 4006;
 const BASE_URL = `http://localhost:${PORT}/api`;
 
 let testCounter = 0;
+let dbPlaceTypes: Record<string, string> = {};
 function generateTestCustomer(prefix: string) {
   testCounter++;
   const charSuffix = (Date.now() + testCounter).toString(36).replace(/[0-9]/g, (d) => String.fromCharCode(97 + parseInt(d)));
@@ -75,7 +76,7 @@ async function cleanupDb() {
     },
   ];
 
-  const dbPlaceTypes: Record<string, string> = {};
+  dbPlaceTypes = {};
   for (const pt of placeTypeSpecs) {
     const createdPt = await prisma.placeTypeConfig.create({
       data: pt
@@ -266,6 +267,8 @@ async function runTests() {
       assert.strictEqual(dbToken?.emailDeliveryStatus, 'PENDING');
       console.log('✓ Database entity deliveryMode and emailDeliveryStatus verified.');
 
+
+
       // Test 6: Generate QR payload
       console.log('Test 6: POST /tokens/:id/generate-qr');
       const genQrRes = await fetch(`${BASE_URL}/tokens/${tokenId}/generate-qr`, {
@@ -329,6 +332,9 @@ async function runTests() {
           bartenderId: bartenderUser()?.id || adminUser.id
         })
       });
+      if (redeemRes.status !== 200) {
+        console.error('Test 9 failed with status:', redeemRes.status, 'body:', await redeemRes.json());
+      }
       assert.strictEqual(redeemRes.status, 200);
       const redeemData: any = await redeemRes.json();
       assert.strictEqual(redeemData.success, true);
@@ -428,7 +434,8 @@ async function runTests() {
           customerName: pendingCust.name,
           email: pendingCust.email,
           personsCount: 2,
-          placeType: 'STANDING_BAR'
+          placeType: 'STANDING_BAR',
+          tableNumber: 'S-01'
         })
       });
       assert.strictEqual(pendingRes.status, 201);
@@ -500,9 +507,9 @@ async function runTests() {
 
       // Test 15: POST /check-in/activate
       console.log('Test 15: POST /check-in/activate');
-      // Find an available table first
-      const availableTable = await prisma.table.findFirst({
-        where: { status: 'available', placeType: { name: 'STANDING_BAR' } }
+      // Use the table already assigned to the pending session
+      const availableTable = await prisma.table.findUnique({
+        where: { tableNumber_placeTypeId: { tableNumber: 'S-01', placeTypeId: dbPlaceTypes['STANDING_BAR'] } }
       });
       assert.ok(availableTable);
       const activateRes = await fetch(`${BASE_URL}/check-in/activate`, {
@@ -513,7 +520,7 @@ async function runTests() {
         },
         body: JSON.stringify({
           tokenNumber: pendingTokenNumber,
-          tableNumber: availableTable.tableNumber,
+          tableNumber: 'S-01',
           amountPaid: 1000
         })
       });
@@ -522,7 +529,7 @@ async function runTests() {
       assert.strictEqual(activateData.tokenNumber, pendingTokenNumber);
       assert.strictEqual(activateData.paymentVerified, true);
       assert.strictEqual(Number(activateData.amountPaid), 1000);
-      assert.strictEqual(activateData.tableNumber, availableTable.tableNumber);
+      assert.strictEqual(activateData.tableNumber, 'S-01');
 
       // Verify that the table status in DB is occupied
       const tableInDb = await prisma.table.findUnique({
@@ -586,6 +593,11 @@ async function runTests() {
 
       // QR Close Verification
       console.log('\nTest 17: QR Code Assisted Session Close');
+      const tableS4 = await prisma.table.findUnique({
+        where: { tableNumber_placeTypeId: { tableNumber: 'S-04', placeTypeId: dbPlaceTypes['STANDING_BAR'] } }
+      });
+      assert.ok(tableS4);
+
       // Create a new session for QR close test
       const qrCloseCust = generateTestCustomer('qr-close');
       const qrCheckInRes = await fetch(`${BASE_URL}/check-in/pending`, {
@@ -599,7 +611,8 @@ async function runTests() {
           phoneNumber: qrCloseCust.phone,
           email: qrCloseCust.email,
           personsCount: 2,
-          placeType: 'STANDING_BAR'
+          placeType: 'STANDING_BAR',
+          tableNumber: 'S-04'
         })
       });
       const qrCheckInData: any = await qrCheckInRes.json();
@@ -615,7 +628,7 @@ async function runTests() {
         },
         body: JSON.stringify({
           tokenNumber: qrToken,
-          tableNumber: availableTable.tableNumber,
+          tableNumber: 'S-04',
           amountPaid: 1000
         })
       });
@@ -625,7 +638,7 @@ async function runTests() {
       assert.strictEqual(qrActivateRes.status, 200);
 
       // Verify it is occupied
-      const occupiedTable2 = await prisma.table.findUnique({ where: { id: availableTable.id } });
+      const occupiedTable2 = await prisma.table.findUnique({ where: { id: tableS4.id } });
       assert.strictEqual(occupiedTable2?.status, 'occupied');
 
       // Close by QR
@@ -647,7 +660,7 @@ async function runTests() {
       assert.strictEqual(qrClosedToken?.closeReason, 'QR_SCAN');
 
       // Verify table is back to maintenance
-      const maintTable2 = await prisma.table.findUnique({ where: { id: availableTable.id } });
+      const maintTable2 = await prisma.table.findUnique({ where: { id: tableS4.id } });
       assert.strictEqual(maintTable2?.status, 'maintenance');
       console.log('✓ QR assisted session close successfully verified.');
 

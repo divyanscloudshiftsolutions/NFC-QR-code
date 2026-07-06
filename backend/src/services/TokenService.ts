@@ -378,7 +378,9 @@ export class TokenService {
       // If token was expired, set to extended
       const newStatus = token.status === 'EXPIRED' ? TokenStatus.EXTENDED : (token.status as TokenStatus);
 
-      const addedDrinks = additionalPersons * placeType.redemptionsPerPerson;
+      const hourlyDrinksRate = placeType.redemptionsPerPerson / (placeType.baseTimeMinutes / 60);
+      const extensionDrinks = Math.floor((extraMinutes / 60) * hourlyDrinksRate * tokenObj.personsCount);
+      const totalAddedDrinks = extensionDrinks + (additionalPersons * placeType.redemptionsPerPerson);
 
       const updatedToken = await tx.token.update({
         where: { id: token.id },
@@ -389,7 +391,7 @@ export class TokenService {
             increment: additionalPersons
           },
           totalRedemptionsAllowed: {
-            increment: addedDrinks
+            increment: totalAddedDrinks
           },
           amountPaid: {
             increment: finalAdditionalAmount
@@ -398,7 +400,8 @@ export class TokenService {
         include: {
           customer: true,
           placeType: true,
-          table: true
+          table: true,
+          card: true
         }
       });
 
@@ -420,6 +423,10 @@ export class TokenService {
         86400,
         JSON.stringify(updatedToken)
       );
+
+      if (updatedToken.card?.nfcUid) {
+        await redisService.del(`token:active:${updatedToken.card.nfcUid}`);
+      }
 
       return updatedToken;
     });
@@ -640,6 +647,8 @@ export class TokenService {
     personsCount: number;
     placeTypeId: string;
     issuedBy: string;
+    tableId?: string;
+    tableNumber?: string;
   }): Promise<any> {
     const tokenNumber = await this.generateTokenNumber();
     const start = new Date();
@@ -713,13 +722,32 @@ export class TokenService {
       const endTime = new Date(start.getTime() + placeType.baseTimeMinutes * 60 * 1000);
       const totalRedemptionsAllowed = request.personsCount * placeType.redemptionsPerPerson;
 
+      let resolvedTableId: string | null = null;
+      if (request.tableId || request.tableNumber) {
+        const table = await tx.table.findFirst({
+          where: request.tableId
+            ? { id: request.tableId }
+            : { tableNumber: request.tableNumber, placeTypeId: request.placeTypeId }
+        });
+        if (!table) {
+          throw new Error('Table not found or does not match selected place type.');
+        }
+        if (table.status !== 'available') {
+          throw new Error(`Table '${table.tableNumber}' is not available.`);
+        }
+        if (request.personsCount > table.capacity) {
+          throw new Error(`Group size of ${request.personsCount} exceeds table capacity of ${table.capacity}.`);
+        }
+        resolvedTableId = table.id;
+      }
+
       const token = await tx.token.create({
         data: {
           tokenNumber,
           customerId: customer.id,
           personsCount: request.personsCount,
           placeTypeId: request.placeTypeId,
-          tableId: null, // No table assigned yet
+          tableId: resolvedTableId,
           amountPaid: 0,
           paymentVerified: false,
           startTime: start,
@@ -739,6 +767,25 @@ export class TokenService {
         }
       });
 
+      if (resolvedTableId) {
+        await tx.table.update({
+          where: { id: resolvedTableId },
+          data: {
+            status: 'occupied',
+            currentTokenId: token.id,
+            occupiedSince: start,
+            lastAssignedAt: start
+          }
+        });
+        await tx.tableOccupancyLog.create({
+          data: {
+            tableId: resolvedTableId,
+            tokenId: token.id,
+            occupiedAt: start
+          }
+        });
+      }
+
       // Cache token and customer active status
       await redisService.setex(`token:${tokenNumber}`, 86400, JSON.stringify(token));
       await redisService.setex(
@@ -746,6 +793,12 @@ export class TokenService {
         86400,
         JSON.stringify({ tokenId: token.id, tokenNumber })
       );
+
+      if (resolvedTableId) {
+        await redisService.del(`table:available:${request.placeTypeId}`);
+        await redisService.del('table:available:all');
+        await redisService.del(`table:${resolvedTableId}:status`);
+      }
 
       return token;
     });
@@ -832,7 +885,7 @@ export class TokenService {
       if (!table) {
         throw new Error(`Table '${tableNumber}' not found for this place type.`);
       }
-      if (table.status !== 'available') {
+      if (table.status !== 'available' && table.currentTokenId !== token.id) {
         throw new Error(`Table '${tableNumber}' is not available.`);
       }
       if (token.personsCount > table.capacity) {

@@ -14,7 +14,7 @@ export const AdminPortal: React.FC = () => {
     registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard,
     salesSummary, tableUtilization, hourlyBreakdown, fetchReports, showToast,
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
-    fetchAdminSessions, adminDeactivateSession
+    fetchAdminSessions, adminDeactivateSession, extendSessionTime
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('live');
 
@@ -29,6 +29,13 @@ export const AdminPortal: React.FC = () => {
   const [deactivateTargetSession, setDeactivateTargetSession] = useState<{ tokenNumber: string; status: TokenStatus; customerName: string } | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [forceRelease, setForceRelease] = useState(false);
+
+  // Extend Session modal states (Admin)
+  const [isAdminExtendModalOpen, setIsAdminExtendModalOpen] = useState(false);
+  const [selectedAdminSession, setSelectedAdminSession] = useState<any | null>(null);
+  const [adminExtendPaymentMode, setAdminExtendPaymentMode] = useState<'CASH' | 'UPI' | 'CARD'>('CASH');
+  const [adminExtendRefId, setAdminExtendRefId] = useState('');
+  const [isAdminExtendingLoading, setIsAdminExtendingLoading] = useState(false);
 
   // Rate Modal state
   const [isEditRateOpen, setIsEditRateOpen] = useState(false);
@@ -160,6 +167,26 @@ export const AdminPortal: React.FC = () => {
   ];
   
   const maxVal = Math.max(...hourlyData.map(d => d.amount));
+
+  const handleAdminExtend = async () => {
+    if (!selectedAdminSession) return;
+    
+    const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
+    const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+    const duration = rateCard?.durationHours || 2;
+    const amount = rate * selectedAdminSession.persons * (1 / duration);
+
+    setIsAdminExtendingLoading(true);
+    const success = await extendSessionTime(selectedAdminSession.tokenNumber, 1, amount);
+    setIsAdminExtendingLoading(false);
+    if (success) {
+      setIsAdminExtendModalOpen(false);
+      setSelectedAdminSession(null);
+      setAdminExtendRefId('');
+      setAdminExtendPaymentMode('CASH');
+      await fetchAdminSessions();
+    }
+  };
 
   return (
     <View className="flex-1 bg-themeBg p-4" style={{ backgroundColor: colors.bg, paddingBottom: 0 }}>
@@ -1371,20 +1398,33 @@ export const AdminPortal: React.FC = () => {
                         )}
                       </View>
                       {isDeactivatable && (
-                        <TouchableOpacity
-                          style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}
-                          onPress={() => {
-                            setDeactivateTargetSession({
-                              tokenNumber: session.tokenNumber,
-                              status: session.status,
-                              customerName: session.customerName
-                            });
-                            setForceRelease(false);
-                            setDeactivateConfirmModalOpen(true);
-                          }}
-                        >
-                          <Text style={{ color: '#ef4444', fontSize: 9, fontWeight: 'bold' }}>End Session</Text>
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
+                            <TouchableOpacity
+                              style={{ backgroundColor: 'rgba(245, 166, 35, 0.1)', borderWidth: 1, borderColor: 'rgba(245, 166, 35, 0.3)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}
+                              onPress={() => {
+                                setSelectedAdminSession(session);
+                                setIsAdminExtendModalOpen(true);
+                              }}
+                            >
+                              <Text style={{ color: colors.gold, fontSize: 9, fontWeight: 'bold' }}>Extend</Text>
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity
+                            style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}
+                            onPress={() => {
+                              setDeactivateTargetSession({
+                                tokenNumber: session.tokenNumber,
+                                status: session.status,
+                                customerName: session.customerName
+                              });
+                              setForceRelease(false);
+                              setDeactivateConfirmModalOpen(true);
+                            }}
+                          >
+                            <Text style={{ color: '#ef4444', fontSize: 9, fontWeight: 'bold' }}>End Session</Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
                     </View>
                   </View>
@@ -1878,6 +1918,118 @@ export const AdminPortal: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* ADMIN EXTEND SESSION PAYMENT CONFIRMATION MODAL */}
+      <Modal
+        visible={isAdminExtendModalOpen && selectedAdminSession !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAdminExtendModalOpen(false)}
+      >
+        <View className="flex-1 bg-black/75 justify-center p-4">
+          {selectedAdminSession && (
+            <View 
+              className="border border-gold/20 rounded-2xl p-5 shadow-2xl" 
+              style={{ backgroundColor: colors.surface }}
+            >
+              <Text className="text-base font-bold text-gold mb-3">Extend Session — 1 Hour (Admin)</Text>
+              
+              <View className="mb-4 gap-2 py-2 border-t border-b" style={{ borderColor: colors.border }}>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs" style={{ color: colors.muted }}>Customer</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedAdminSession.customerName}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs" style={{ color: colors.muted }}>Table</Text>
+                  <Text className="text-xs font-mono font-bold" style={{ color: colors.gold }}>Table {selectedAdminSession.tableNumber || 'N/A'}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs" style={{ color: colors.muted }}>Guest Count</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedAdminSession.persons} Pax</Text>
+                </View>
+                <View className="flex-row justify-between mt-1">
+                  <Text className="text-xs font-bold" style={{ color: colors.text }}>Extension Fee</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.gold }}>
+                    ₹{(() => {
+                      const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
+                      const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                      const duration = rateCard?.durationHours || 2;
+                      return (rate * selectedAdminSession.persons * (1 / duration)).toFixed(0);
+                    })()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Payment Mode Selector */}
+              <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
+              <View className="flex-row gap-2 mb-4">
+                {(['CASH', 'UPI', 'CARD'] as const).map(mode => (
+                  <TouchableOpacity
+                    key={mode}
+                    className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+                    style={{
+                      backgroundColor: adminExtendPaymentMode === mode ? 'rgba(212, 175, 55, 0.1)' : colors.input,
+                      borderColor: adminExtendPaymentMode === mode ? colors.gold : colors.border,
+                      borderWidth: 1
+                    }}
+                    onPress={() => setAdminExtendPaymentMode(mode)}
+                  >
+                    <Text className="text-[11px] font-bold" style={{ color: adminExtendPaymentMode === mode ? colors.gold : colors.muted }}>
+                      {mode}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Reference ID input for digital payments */}
+              {adminExtendPaymentMode !== 'CASH' && (
+                <View className="mb-4">
+                  <Text className="text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Transaction / Ref ID *</Text>
+                  <TextInput
+                    className="bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm"
+                    style={{ color: colors.text, borderColor: colors.border }}
+                    placeholder="e.g. TXN123456789"
+                    placeholderTextColor={colors.placeholder}
+                    value={adminExtendRefId}
+                    onChangeText={setAdminExtendRefId}
+                  />
+                </View>
+              )}
+
+              {/* Actions */}
+              <View className="flex-row gap-3">
+                <TouchableOpacity
+                  className="flex-1 py-3 rounded-xl border items-center justify-center"
+                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                  onPress={() => {
+                    setIsAdminExtendModalOpen(false);
+                    setAdminExtendRefId('');
+                  }}
+                  disabled={isAdminExtendingLoading}
+                >
+                  <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 py-3 rounded-xl items-center justify-center border"
+                  style={{
+                    backgroundColor: (adminExtendPaymentMode !== 'CASH' && !adminExtendRefId.trim()) ? colors.input : colors.gold,
+                    borderColor: (adminExtendPaymentMode !== 'CASH' && !adminExtendRefId.trim()) ? colors.border : colors.gold,
+                    borderWidth: 1
+                  }}
+                  onPress={handleAdminExtend}
+                  disabled={isAdminExtendingLoading || (adminExtendPaymentMode !== 'CASH' && !adminExtendRefId.trim())}
+                >
+                  {isAdminExtendingLoading ? (
+                    <ActivityIndicator size="small" color={colors.goldButtonText} />
+                  ) : (
+                    <Text className="text-sm font-bold" style={{ color: colors.goldButtonText }}>Confirm & Extend</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </Modal>
     </View>
