@@ -235,14 +235,14 @@ async function main() {
   console.log('Seeding place types...');
   const placeTypeSpecs = [
     {
-      name: 'STANDARD',
+      name: 'STANDING_BAR',
       ratePerPerson: 500.0,
       baseTimeMinutes: 120,
       redemptionsPerPerson: 2,
       isActive: true,
     },
     {
-      name: 'PREMIUM',
+      name: 'PREMIUM_LOUNGE',
       ratePerPerson: 1200.0,
       baseTimeMinutes: 180,
       redemptionsPerPerson: 3,
@@ -273,7 +273,7 @@ async function main() {
       where: {
         tableNumber_placeTypeId: {
           tableNumber,
-          placeTypeId: dbPlaceTypes['STANDARD'],
+          placeTypeId: dbPlaceTypes['STANDING_BAR'],
         },
       },
       update: {
@@ -283,7 +283,7 @@ async function main() {
       },
       create: {
         tableNumber,
-        placeTypeId: dbPlaceTypes['STANDARD'],
+        placeTypeId: dbPlaceTypes['STANDING_BAR'],
         capacity,
         status: 'available',
         isActive: true,
@@ -299,7 +299,7 @@ async function main() {
       where: {
         tableNumber_placeTypeId: {
           tableNumber,
-          placeTypeId: dbPlaceTypes['PREMIUM'],
+          placeTypeId: dbPlaceTypes['PREMIUM_LOUNGE'],
         },
       },
       update: {
@@ -309,7 +309,7 @@ async function main() {
       },
       create: {
         tableNumber,
-        placeTypeId: dbPlaceTypes['PREMIUM'],
+        placeTypeId: dbPlaceTypes['PREMIUM_LOUNGE'],
         capacity,
         status: 'available',
         isActive: true,

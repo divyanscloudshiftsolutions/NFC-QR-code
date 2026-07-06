@@ -410,6 +410,9 @@ export const CheckInWizard: React.FC = () => {
                           if (verifiedToken.placeType) {
                             setPlaceType(verifiedToken.placeType);
                           }
+                          if (verifiedToken.persons) {
+                            setGuestCount(verifiedToken.persons);
+                          }
                           setQrVerificationSuccess(true);
                           setStep(2); // Proceed to Table Selection
                         } else {
@@ -513,6 +516,9 @@ export const CheckInWizard: React.FC = () => {
                   if (verifiedToken) {
                     if (verifiedToken.placeType) {
                       setPlaceType(verifiedToken.placeType);
+                    }
+                    if (verifiedToken.persons) {
+                      setGuestCount(verifiedToken.persons);
                     }
                     setQrVerificationSuccess(true);
                     setStep(2); // Proceed to Table Selection

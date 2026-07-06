@@ -91,14 +91,16 @@ async function cleanupDb() {
   }
 
   // Re-seed tables
+  const seatCapacities = [2, 4, 6];
   // Standard tables S-01 to S-15
   for (let i = 1; i <= 15; i++) {
     const tableNumber = `S-${String(i).padStart(2, '0')}`;
+    const capacity = seatCapacities[(i - 1) % seatCapacities.length];
     await prisma.table.create({
       data: {
         tableNumber,
         placeTypeId: dbPlaceTypes['STANDING_BAR'],
-        capacity: 2,
+        capacity,
         status: 'available',
         isActive: true,
       }
@@ -108,11 +110,12 @@ async function cleanupDb() {
   // Premium tables L-01 to L-10
   for (let i = 1; i <= 10; i++) {
     const tableNumber = `L-${String(i).padStart(2, '0')}`;
+    const capacity = seatCapacities[(i - 1) % seatCapacities.length];
     await prisma.table.create({
       data: {
         tableNumber,
         placeTypeId: dbPlaceTypes['PREMIUM_LOUNGE'],
-        capacity: 6,
+        capacity,
         status: 'available',
         isActive: true,
       }
