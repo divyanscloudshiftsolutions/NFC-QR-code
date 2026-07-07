@@ -242,7 +242,10 @@ export class RedemptionService {
 
         return {
           success: true,
-          redemption: lastRedemption,
+          redemption: {
+            ...lastRedemption,
+            token: updatedToken
+          },
           remainingRedemptions: updatedToken.totalRedemptionsAllowed - updatedToken.redemptionsUsed,
           tokenStatus: updatedToken.status
         };

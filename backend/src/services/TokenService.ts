@@ -226,12 +226,12 @@ export class TokenService {
       const start = request.startTime ? new Date(request.startTime) : new Date();
       const endTime = new Date(start.getTime() + placeType.baseTimeMinutes * 60 * 1000);
 
-      // Calculate total redemptions with carry-forward balance from customer's previous sessions
+      // Find the most recent inactive token of the customer to carry forward remaining balance
       const mostRecentInactiveToken = await tx.token.findFirst({
         where: {
           customerId: customer.id,
           status: {
-            notIn: ['ACTIVE', 'EXTENDED', 'PENDING_PAYMENT']
+            notIn: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
           }
         },
         orderBy: { endTime: 'desc' }
@@ -242,6 +242,7 @@ export class TokenService {
         carriedForwardBalance = Math.max(0, mostRecentInactiveToken.totalRedemptionsAllowed - mostRecentInactiveToken.redemptionsUsed);
       }
 
+      // Calculate total redemptions
       const totalRedemptionsAllowed = (request.personsCount * placeType.redemptionsPerPerson) + carriedForwardBalance;
 
       // Find Card and validate status (only in NFC mode or if provided)
@@ -736,12 +737,12 @@ export class TokenService {
 
       const endTime = new Date(start.getTime() + placeType.baseTimeMinutes * 60 * 1000);
 
-      // Calculate total redemptions with carry-forward balance from customer's previous sessions
+      // Find the most recent inactive token of the customer to carry forward remaining balance
       const mostRecentInactiveToken = await tx.token.findFirst({
         where: {
           customerId: customer.id,
           status: {
-            notIn: ['ACTIVE', 'EXTENDED', 'PENDING_PAYMENT']
+            notIn: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
           }
         },
         orderBy: { endTime: 'desc' }
