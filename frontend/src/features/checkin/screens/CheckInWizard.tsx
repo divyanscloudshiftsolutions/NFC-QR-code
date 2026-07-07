@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
-  ActivityIndicator, StyleSheet, Platform, Alert, Modal
+  ActivityIndicator, StyleSheet, Platform, Alert, Modal, Image
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
@@ -128,6 +128,7 @@ export const CheckInWizard: React.FC = () => {
   const [pendingExistsTokenNumber, setPendingExistsTokenNumber] = useState('');
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
+  const [checkinPaymentMode, setCheckinPaymentMode] = useState<'CASH' | 'UPI'>('CASH');
 
   const isPhoneOk = isValidPhoneNumber(phone) && !isPhoneActive;
   const isEmailOk = selectedDeliveryMode === 'EMAIL_QR'
@@ -1079,6 +1080,52 @@ export const CheckInWizard: React.FC = () => {
               <Text style={{ color: colors.gold, fontSize: 22, fontWeight: '900' }}>₹{totalPrice.toLocaleString('en-IN')}</Text>
             </View>
 
+            {/* Payment Mode Selector */}
+            <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.text, marginBottom: 8 }}>Payment Mode *</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+              {(['CASH', 'UPI'] as const).map(mode => (
+                <TouchableOpacity
+                  key={mode}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: checkinPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)') : colors.input,
+                    borderColor: checkinPaymentMode === mode ? colors.gold : colors.border
+                  }}
+                  onPress={() => setCheckinPaymentMode(mode)}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: checkinPaymentMode === mode ? colors.gold : colors.muted }}>
+                    {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Static Dummy QR Code for UPI */}
+            {checkinPaymentMode === 'UPI' && (
+              <View style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.input,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 16,
+                padding: 16,
+                marginBottom: 16
+              }}>
+                <Text style={{ fontSize: 11, fontWeight: 'bold', color: colors.gold, marginBottom: 8 }}>Scan dummy QR to pay</Text>
+                <Image
+                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${totalPrice}` }}
+                  style={{ width: 150, height: 150, borderRadius: 8 }}
+                />
+                <Text style={{ fontSize: 9, color: colors.muted, marginTop: 8, fontWeight: '600' }}>Demo purposes only • No actual verification</Text>
+              </View>
+            )}
+
             {/* Prompt Box */}
             <View style={{
               backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : 'rgba(200, 155, 60, 0.08)',
@@ -1091,9 +1138,11 @@ export const CheckInWizard: React.FC = () => {
               gap: 12,
               marginBottom: 20
             }}>
-              <Text style={{ fontSize: 18 }}>💳</Text>
+              <Text style={{ fontSize: 18 }}>{checkinPaymentMode === 'CASH' ? '💵' : '📱'}</Text>
               <Text style={{ color: colors.gold, fontSize: 12, fontWeight: 'bold', flex: 1 }}>
-                Collect ₹{totalPrice.toLocaleString('en-IN')} — then confirm payment below
+                {checkinPaymentMode === 'CASH' 
+                  ? `Collect Cash ₹${totalPrice.toLocaleString('en-IN')} — then confirm payment below`
+                  : `Verify UPI transfer of ₹${totalPrice.toLocaleString('en-IN')} — then confirm payment below`}
               </Text>
             </View>
 

@@ -198,6 +198,17 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(timer);
   }, [sessions, notifiedTokens]);
 
+  // 5-second periodic background state synchronization (polling)
+  useEffect(() => {
+    if (!userToken || systemMode === 'offline') return;
+
+    const syncTimer = setInterval(() => {
+      fetchLatestState().catch(err => console.log('Periodic state sync failed:', err));
+    }, 5000);
+
+    return () => clearInterval(syncTimer);
+  }, [userToken, systemMode]);
+
   const forceLogoutForExpiredSession = async () => {
     setUser(null);
     setUserToken(null);

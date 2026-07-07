@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TouchableOpacity, TextInput, ScrollView, 
-  Platform, Modal, ActivityIndicator
+  Platform, Modal, ActivityIndicator, Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../../context/NfcBarContext';
@@ -29,7 +29,7 @@ export const TablesPortal: React.FC = () => {
 
   // Extend session modal states
   const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
-  const [extendPaymentMode, setExtendPaymentMode] = useState<'CASH' | 'UPI' | 'CARD'>('CASH');
+  const [extendPaymentMode, setExtendPaymentMode] = useState<'CASH' | 'UPI'>('CASH');
   const [extendRefId, setExtendRefId] = useState('');
   const [isExtendingLoading, setIsExtendingLoading] = useState(false);
 
@@ -37,6 +37,16 @@ export const TablesPortal: React.FC = () => {
     setOverlayActive(isBottomSheetOpen);
     return () => setOverlayActive(false);
   }, [isBottomSheetOpen, setOverlayActive]);
+
+  // Automatically sync local selectedSession state with global sessions context updates
+  useEffect(() => {
+    if (selectedTable) {
+      const activeToken = sessions.find(s => s.tableNumber === selectedTable.number && s.status !== TokenStatus.CLOSED);
+      setSelectedSession(activeToken || null);
+    } else {
+      setSelectedSession(null);
+    }
+  }, [sessions, selectedTable]);
 
   const [timeTick, setTimeTick] = useState(0);
 
@@ -742,7 +752,7 @@ export const TablesPortal: React.FC = () => {
               {/* Payment Mode Selector */}
               <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
               <View className="flex-row gap-2 mb-4">
-                {(['CASH', 'UPI', 'CARD'] as const).map(mode => (
+                {(['CASH', 'UPI'] as const).map(mode => (
                   <TouchableOpacity
                     key={mode}
                     className="flex-1 py-2.5 rounded-xl border items-center justify-center"
@@ -754,24 +764,26 @@ export const TablesPortal: React.FC = () => {
                     onPress={() => setExtendPaymentMode(mode)}
                   >
                     <Text className="text-[11px] font-bold" style={{ color: extendPaymentMode === mode ? colors.gold : colors.muted }}>
-                      {mode}
+                      {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Reference ID input for digital payments */}
-              {extendPaymentMode !== 'CASH' && (
-                <View className="mb-4">
-                  <Text className="text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Transaction / Ref ID *</Text>
-                  <TextInput
-                    className="bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm"
-                    style={{ color: colors.text, borderColor: colors.border }}
-                    placeholder="e.g. TXN123456789"
-                    placeholderTextColor={colors.placeholder}
-                    value={extendRefId}
-                    onChangeText={setExtendRefId}
+              {/* Static Dummy QR Code for UPI */}
+              {extendPaymentMode === 'UPI' && (
+                <View className="items-center justify-center mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.input, borderColor: colors.border }}>
+                  <Text className="text-[11px] font-bold mb-2" style={{ color: colors.gold }}>Scan dummy QR to pay</Text>
+                  <Image
+                    source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${(() => {
+                      const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
+                      const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                      const duration = rateCard?.durationHours || 2;
+                      return (rate * selectedSession.persons * (1 / duration)).toFixed(0);
+                    })()}` }}
+                    style={{ width: 150, height: 150, borderRadius: 8 }}
                   />
+                  <Text className="text-[9px] font-semibold mt-2" style={{ color: colors.muted }}>Demo purposes only • No actual verification</Text>
                 </View>
               )}
 
@@ -791,12 +803,12 @@ export const TablesPortal: React.FC = () => {
                 <TouchableOpacity
                   className="flex-1 py-3 rounded-xl items-center justify-center border"
                   style={{
-                    backgroundColor: (extendPaymentMode !== 'CASH' && !extendRefId.trim()) ? colors.input : colors.gold,
-                    borderColor: (extendPaymentMode !== 'CASH' && !extendRefId.trim()) ? colors.border : colors.gold,
+                    backgroundColor: colors.gold,
+                    borderColor: colors.gold,
                     borderWidth: 1
                   }}
                   onPress={handleExtend}
-                  disabled={isExtendingLoading || (extendPaymentMode !== 'CASH' && !extendRefId.trim())}
+                  disabled={isExtendingLoading}
                 >
                   {isExtendingLoading ? (
                     <ActivityIndicator size="small" color={colors.goldButtonText} />

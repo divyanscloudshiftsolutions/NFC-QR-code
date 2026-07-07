@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator
+  View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator, Image
 } from 'react-native';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard } from '../../../types/nfc_bar';
@@ -1965,7 +1965,7 @@ export const AdminPortal: React.FC = () => {
               {/* Payment Mode Selector */}
               <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
               <View className="flex-row gap-2 mb-4">
-                {(['CASH', 'UPI', 'CARD'] as const).map(mode => (
+                {(['CASH', 'UPI'] as const).map(mode => (
                   <TouchableOpacity
                     key={mode}
                     className="flex-1 py-2.5 rounded-xl border items-center justify-center"
@@ -1977,24 +1977,26 @@ export const AdminPortal: React.FC = () => {
                     onPress={() => setAdminExtendPaymentMode(mode)}
                   >
                     <Text className="text-[11px] font-bold" style={{ color: adminExtendPaymentMode === mode ? colors.gold : colors.muted }}>
-                      {mode}
+                      {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Reference ID input for digital payments */}
-              {adminExtendPaymentMode !== 'CASH' && (
-                <View className="mb-4">
-                  <Text className="text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Transaction / Ref ID *</Text>
-                  <TextInput
-                    className="bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm"
-                    style={{ color: colors.text, borderColor: colors.border }}
-                    placeholder="e.g. TXN123456789"
-                    placeholderTextColor={colors.placeholder}
-                    value={adminExtendRefId}
-                    onChangeText={setAdminExtendRefId}
+              {/* Static Dummy QR Code for UPI */}
+              {adminExtendPaymentMode === 'UPI' && (
+                <View className="items-center justify-center mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.input, borderColor: colors.border }}>
+                  <Text className="text-[11px] font-bold mb-2" style={{ color: colors.gold }}>Scan dummy QR to pay</Text>
+                  <Image
+                    source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${(() => {
+                      const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
+                      const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                      const duration = rateCard?.durationHours || 2;
+                      return (rate * selectedAdminSession.persons * (1 / duration)).toFixed(0);
+                    })()}` }}
+                    style={{ width: 150, height: 150, borderRadius: 8 }}
                   />
+                  <Text className="text-[9px] font-semibold mt-2" style={{ color: colors.muted }}>Demo purposes only • No actual verification</Text>
                 </View>
               )}
 
@@ -2014,12 +2016,12 @@ export const AdminPortal: React.FC = () => {
                 <TouchableOpacity
                   className="flex-1 py-3 rounded-xl items-center justify-center border"
                   style={{
-                    backgroundColor: (adminExtendPaymentMode !== 'CASH' && !adminExtendRefId.trim()) ? colors.input : colors.gold,
-                    borderColor: (adminExtendPaymentMode !== 'CASH' && !adminExtendRefId.trim()) ? colors.border : colors.gold,
+                    backgroundColor: colors.gold,
+                    borderColor: colors.gold,
                     borderWidth: 1
                   }}
                   onPress={handleAdminExtend}
-                  disabled={isAdminExtendingLoading || (adminExtendPaymentMode !== 'CASH' && !adminExtendRefId.trim())}
+                  disabled={isAdminExtendingLoading}
                 >
                   {isAdminExtendingLoading ? (
                     <ActivityIndicator size="small" color={colors.goldButtonText} />
