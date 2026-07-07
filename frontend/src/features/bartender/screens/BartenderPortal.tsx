@@ -440,26 +440,34 @@ export const BartenderPortal: React.FC = () => {
                     <Text style={{ color: colors.muted, fontSize: 12 }}>No active guest sessions found.</Text>
                   </View>
                 ) : (
-                  sessions.filter(s => s.status === TokenStatus.ACTIVE && s.paymentVerified === true).map(s => (
-                    <TouchableOpacity
-                      key={s.id}
-                      className="rounded-xl p-4 mb-2 flex-row justify-between items-center border"
-                      style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
-                      onPress={() => {
-                        setEnteredToken(s.tokenNumber);
-                        handleTokenLookup(s.tokenNumber);
-                      }}
-                    >
-                      <View>
-                        <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
-                        <Text className="text-[10px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
-                      </View>
-                      <View className="items-end">
-                        <Text className="text-[10px] font-extrabold uppercase" style={{ color: colors.gold }}>Table {s.tableNumber}</Text>
-                        <Text className="text-[9px] mt-0.5" style={{ color: colors.muted }}>Drinks: {s.redemptionCount}/{s.redemptionLimit}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))
+                  sessions.filter(s => s.status === TokenStatus.ACTIVE && s.paymentVerified === true).map(s => {
+                    const isExpired = calculateTimeRemaining(s.endTime) === 'Expired';
+                    return (
+                      <TouchableOpacity
+                        key={s.id}
+                        className="rounded-xl p-4 mb-2 flex-row justify-between items-center border"
+                        style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                        onPress={() => {
+                          setEnteredToken(s.tokenNumber);
+                          handleTokenLookup(s.tokenNumber);
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
+                          <Text className="text-[10px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
+                        </View>
+                        <View className="items-center px-2">
+                          <Text className="text-[10px] font-bold" style={{ color: isExpired ? '#ff6b6b' : colors.gold }}>
+                            ⏰ {calculateTimeRemaining(s.endTime)}
+                          </Text>
+                        </View>
+                        <View className="items-end" style={{ minWidth: 70 }}>
+                          <Text className="text-[10px] font-extrabold uppercase" style={{ color: colors.gold }}>Table {s.tableNumber}</Text>
+                          <Text className="text-[9px] mt-0.5" style={{ color: colors.muted }}>Drinks: {s.redemptionCount}/{s.redemptionLimit}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
                 )}
               </ScrollView>
             </View>
@@ -559,26 +567,34 @@ export const BartenderPortal: React.FC = () => {
                   <Text style={{ color: colors.muted, fontSize: 12 }}>No active guest sessions found.</Text>
                 </View>
               ) : (
-                sessions.filter(s => s.status === TokenStatus.ACTIVE && s.paymentVerified === true).map(s => (
-                  <TouchableOpacity
-                    key={s.id}
-                    className="rounded-xl p-3.5 mb-2 flex-row justify-between items-center border"
-                    style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
-                    onPress={() => {
-                      setEnteredToken(s.tokenNumber);
-                      handleTokenLookup(s.tokenNumber);
-                    }}
-                  >
-                    <View>
-                      <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
-                      <Text className="text-[9px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
-                    </View>
-                    <View className="items-end">
-                      <Text className="text-[10px] font-extrabold uppercase" style={{ color: colors.gold }}>Table {s.tableNumber}</Text>
-                      <Text className="text-[9px] mt-0.5" style={{ color: colors.muted }}>Drinks: {s.redemptionCount}/{s.redemptionLimit}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
+                sessions.filter(s => s.status === TokenStatus.ACTIVE && s.paymentVerified === true).map(s => {
+                  const isExpired = calculateTimeRemaining(s.endTime) === 'Expired';
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      className="rounded-xl p-3.5 mb-2 flex-row justify-between items-center border"
+                      style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                      onPress={() => {
+                        setEnteredToken(s.tokenNumber);
+                        handleTokenLookup(s.tokenNumber);
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
+                        <Text className="text-[9px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
+                      </View>
+                      <View className="items-center px-2">
+                        <Text className="text-[9px] font-bold" style={{ color: isExpired ? '#ff6b6b' : colors.gold }}>
+                          ⏰ {calculateTimeRemaining(s.endTime)}
+                        </Text>
+                      </View>
+                      <View className="items-end" style={{ minWidth: 65 }}>
+                        <Text className="text-[10px] font-extrabold uppercase" style={{ color: colors.gold }}>Table {s.tableNumber}</Text>
+                        <Text className="text-[9px] mt-0.5" style={{ color: colors.muted }}>Drinks: {s.redemptionCount}/{s.redemptionLimit}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </ScrollView>
           )}
