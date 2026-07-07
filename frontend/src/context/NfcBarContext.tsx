@@ -1143,10 +1143,12 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // EXTEND TIME ACTION
   const extendSessionTime = async (tokenNumber: string, extraHours: number, additionalAmountInput?: number): Promise<boolean> => {
-    const sessionIndex = sessions.findIndex(s => s.tokenNumber === tokenNumber && (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED || s.status === TokenStatus.EXPIRED));
-    if (sessionIndex === -1) return false;
+    let session = sessions.find(s => s.tokenNumber === tokenNumber && (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED || s.status === TokenStatus.EXPIRED));
+    if (!session) {
+      session = adminSessions.find(s => s.tokenNumber === tokenNumber && (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED || s.status === TokenStatus.EXPIRED));
+    }
+    if (!session) return false;
 
-    const session = sessions[sessionIndex];
     const currentEndTime = new Date(session.endTime);
     const newEndTime = new Date(currentEndTime.getTime() + extraHours * 60 * 60 * 1000);
 
@@ -1175,6 +1177,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         if (res.ok) {
           await fetchLatestState();
+          await fetchAdminSessions().catch(() => {});
           setNotifiedTokens(prev => prev.filter(t => t !== tokenNumber));
           showToast(`Extended session by ${extraHours} hour(s) successfully!`, 'success');
           return true;
@@ -1193,17 +1196,19 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ...s,
       endTime: newEndTime.toISOString(),
       amountPaid: s.amountPaid + additionalAmount,
-      redemptionLimit: s.redemptionLimit + (rateCard ? rateCard.maxDrinks * session.persons * (extraHours / rateCard.durationHours) : 0),
+      redemptionLimit: s.redemptionLimit + (rateCard ? rateCard.maxDrinks * session!.persons * (extraHours / rateCard.durationHours) : 0),
     } : s));
     setAdminSessions(prev => prev.map(s => s.tokenNumber === tokenNumber ? {
       ...s,
       endTime: newEndTime.toISOString(),
       amountPaid: s.amountPaid + additionalAmount,
-      redemptionLimit: s.redemptionLimit + (rateCard ? rateCard.maxDrinks * session.persons * (extraHours / rateCard.durationHours) : 0),
+      redemptionLimit: s.redemptionLimit + (rateCard ? rateCard.maxDrinks * session!.persons * (extraHours / rateCard.durationHours) : 0),
     } : s));
 
     // Update table status (Optimistic UI fallback)
-    setTables(prev => prev.map(t => t.number === session.tableNumber ? { ...t, status: TableStatus.OCCUPIED } : t));
+    if (session.tableNumber) {
+      setTables(prev => prev.map(t => t.number === session!.tableNumber ? { ...t, status: TableStatus.OCCUPIED } : t));
+    }
 
     // Queue operation
     queueOperation('TIME_EXTENSION', {
@@ -1213,9 +1218,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       approvedBy: user?.id || 'staff-uuid',
       additionalPersons: 0
     });
-
-    setNotifiedTokens(prev => prev.filter(t => t !== tokenNumber));
-    showToast(`Extended session offline by ${extraHours} hour(s) for ₹${additionalAmount.toFixed(0)}`, 'success');
+    showToast(`Session extended locally (Offline fallback)`, 'success');
     return true;
   };
 

@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator, Image
 } from 'react-native';
 import { useNfcBar } from '../../../context/NfcBarContext';
-import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard } from '../../../types/nfc_bar';
+import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard, SessionToken } from '../../../types/nfc_bar';
 import { AppIcon } from '../../../components/common/AppIcon';
 import { useTheme } from '../../../context/ThemeContext';
 
@@ -14,7 +14,7 @@ export const AdminPortal: React.FC = () => {
     registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard,
     salesSummary, tableUtilization, hourlyBreakdown, fetchReports, showToast,
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
-    fetchAdminSessions, adminDeactivateSession, extendSessionTime
+    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('live');
 
@@ -32,7 +32,7 @@ export const AdminPortal: React.FC = () => {
 
   // Extend Session modal states (Admin)
   const [isAdminExtendModalOpen, setIsAdminExtendModalOpen] = useState(false);
-  const [selectedAdminSession, setSelectedAdminSession] = useState<any | null>(null);
+  const [selectedAdminSession, setSelectedAdminSession] = useState<SessionToken | null>(null);
   const [adminExtendPaymentMode, setAdminExtendPaymentMode] = useState<'CASH' | 'UPI' | 'CARD'>('CASH');
   const [adminExtendRefId, setAdminExtendRefId] = useState('');
   const [isAdminExtendingLoading, setIsAdminExtendingLoading] = useState(false);
@@ -74,6 +74,27 @@ export const AdminPortal: React.FC = () => {
       fetchReports('day');
     }
   }, [adminSubTab, reportFilter, startDateStr, endDateStr]);
+
+  // 5-second periodic background polling for active admin subtabs
+  useEffect(() => {
+    if (systemMode === 'offline') return;
+
+    const syncTimer = setInterval(() => {
+      if (adminSubTab === 'cards') {
+        fetchCards().catch(() => {});
+      } else if (adminSubTab === 'rates') {
+        fetchRates().catch(() => {});
+      } else if (adminSubTab === 'chart') {
+        fetchReports(reportFilter, startDateStr || undefined, endDateStr || undefined).catch(() => {});
+      } else if (adminSubTab === 'customers') {
+        fetchAdminSessions().catch(() => {});
+      } else if (adminSubTab === 'live') {
+        fetchReports('day').catch(() => {});
+      }
+    }, 5000);
+
+    return () => clearInterval(syncTimer);
+  }, [adminSubTab, reportFilter, startDateStr, endDateStr, systemMode]);
 
   // Sync selectedAdminSession details whenever global adminSessions array updates
   useEffect(() => {
