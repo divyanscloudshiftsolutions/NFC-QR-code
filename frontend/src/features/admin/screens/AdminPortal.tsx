@@ -70,8 +70,20 @@ export const AdminPortal: React.FC = () => {
       fetchReports(reportFilter, startDateStr || undefined, endDateStr || undefined);
     } else if (adminSubTab === 'customers') {
       fetchAdminSessions();
+    } else if (adminSubTab === 'live') {
+      fetchReports('day');
     }
   }, [adminSubTab, reportFilter, startDateStr, endDateStr]);
+
+  // Sync selectedAdminSession details whenever global adminSessions array updates
+  useEffect(() => {
+    if (selectedAdminSession) {
+      const updated = adminSessions.find(s => s.tokenNumber === selectedAdminSession.tokenNumber);
+      if (updated) {
+        setSelectedAdminSession(updated);
+      }
+    }
+  }, [adminSessions]);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -226,7 +238,7 @@ export const AdminPortal: React.FC = () => {
               <AppIcon name="credit-card" label="Revenue Logo" color="#f5a623" size={12} />
               <Text className="text-muted text-[9px] font-bold uppercase tracking-wider">Revenue</Text>
             </View>
-            <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>₹{(totalCollections / 1000).toFixed(1)}K</Text>
+            <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>₹{((salesSummary?.todaySales || 0) / 1000).toFixed(1)}K</Text>
             <Text className="text-[#22c55e] text-[8px] font-semibold mt-0.5">+12.4% today</Text>
           </View>
 
@@ -236,7 +248,7 @@ export const AdminPortal: React.FC = () => {
               <AppIcon name="users" label="Guests Logo" color="#4ecdc4" size={12} />
               <Text className="text-muted text-[9px] font-bold uppercase tracking-wider">Guests</Text>
             </View>
-            <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>{guestCount}</Text>
+            <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>{salesSummary?.totalCustomers || 0}</Text>
             <Text className="text-[#22c55e] text-[8px] font-semibold mt-0.5">{activeCount} active groups</Text>
           </View>
 
@@ -246,7 +258,7 @@ export const AdminPortal: React.FC = () => {
               <AppIcon name="cup" label="Served Logo" color="#f5a623" size={12} />
               <Text className="text-muted text-[9px] font-bold uppercase tracking-wider">Served</Text>
             </View>
-            <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>{totalDrinksRedeemed}</Text>
+            <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>{salesSummary?.todayRedemptions || 0}</Text>
             <Text className="text-[#22c55e] text-[8px] font-semibold mt-0.5">coupons redeemed</Text>
           </View>
 

@@ -139,6 +139,20 @@ export const BartenderPortal: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Sync activeSession details whenever global sessions array refreshes (e.g. from background polling sync)
+  React.useEffect(() => {
+    if (activeSession) {
+      const updated = sessions.find(s => s.tokenNumber === activeSession.tokenNumber);
+      if (updated) {
+        setActiveSession(updated);
+      } else {
+        // If session was closed, cancelled or checked out, dismiss the detail view
+        setActiveSession(null);
+        setBartenderState('scanning');
+      }
+    }
+  }, [sessions]);
+
   const getBackendUrl = () => {
     const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (envApiUrl && envApiUrl.trim().length > 0) {

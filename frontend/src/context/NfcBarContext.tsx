@@ -378,6 +378,18 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } catch (adminErr) {
           console.log('Failed to fetch admin sessions inside fetchLatestState:', adminErr);
         }
+
+        try {
+          const salesRes = await fetch(`${BACKEND_URL}/reports/sales?filter=day`, {
+            headers: { 'Authorization': `Bearer ${activeToken}` }
+          });
+          if (salesRes.ok) {
+            const salesData = await salesRes.json();
+            setSalesSummary(salesData.data || salesData);
+          }
+        } catch (salesErr) {
+          console.log('Failed to fetch sales report inside fetchLatestState:', salesErr);
+        }
       }
 
       // Fetch rates (for check-in / extensions)
