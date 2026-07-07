@@ -113,6 +113,16 @@ export const AdminPortal: React.FC = () => {
     setLocalEmailQrEnabled(emailQrEnabled);
   }, [nfcEnabled, emailQrEnabled]);
 
+  const formatTimeRemaining = (timeDiff: number) => {
+    if (timeDiff <= 0) return 'Expired';
+    const totalSecs = Math.floor(timeDiff / 1000);
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+  };
+
   // Real-time Visual Validators
   // 1. Add Table Modal
   const isNewTableNumberValid = /^[SL]-\d{2,3}$/.test(newTableNumber.trim().toUpperCase());
@@ -348,16 +358,6 @@ export const AdminPortal: React.FC = () => {
             const diff = new Date(session.endTime).getTime() - Date.now();
             const isExpiring = diff > 0 && diff < 15 * 60 * 1000; // less than 15 mins
             const isExpired = diff <= 0;
-
-            const formatTimeRemaining = (timeDiff: number) => {
-              if (timeDiff <= 0) return 'Expired';
-              const totalSecs = Math.floor(timeDiff / 1000);
-              const hours = Math.floor(totalSecs / 3600);
-              const mins = Math.floor((totalSecs % 3600) / 60);
-              const secs = totalSecs % 60;
-              const pad = (num: number) => String(num).padStart(2, '0');
-              return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
-            };
 
             return (
               <View 
@@ -1398,16 +1398,7 @@ export const AdminPortal: React.FC = () => {
                             </Text>
                             {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
                               <Text style={{ color: (new Date(session.endTime).getTime() - Date.now() <= 15 * 60 * 1000) ? '#ef4444' : colors.gold, fontSize: 9, fontWeight: 'bold' }}>
-                                ⏰ {(() => {
-                                  const timeDiff = new Date(session.endTime).getTime() - Date.now();
-                                  if (timeDiff <= 0) return 'Expired';
-                                  const totalSecs = Math.floor(timeDiff / 1000);
-                                  const hours = Math.floor(totalSecs / 3600);
-                                  const mins = Math.floor((totalSecs % 3600) / 60);
-                                  const secs = totalSecs % 60;
-                                  const pad = (num: number) => String(num).padStart(2, '0');
-                                  return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
-                                })()} left
+                                ⏰ {formatTimeRemaining(new Date(session.endTime).getTime() - Date.now())} left
                               </Text>
                             )}
                           </View>
