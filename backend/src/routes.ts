@@ -3022,8 +3022,19 @@ function getDateRangeFromFilter(filter?: string, queryStart?: string, queryEnd?:
     startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     endDate = now;
   } else if (filter === 'custom' || (!filter && queryStart)) {
-    startDate = queryStart ? new Date(queryStart) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    endDate = queryEnd ? new Date(queryEnd) : now;
+    if (queryStart) {
+      startDate = new Date(queryStart);
+      startDate.setHours(0, 0, 0, 0);
+    } else {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      startDate.setHours(0, 0, 0, 0);
+    }
+    if (queryEnd) {
+      endDate = new Date(queryEnd);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      endDate = now;
+    }
   } else {
     // Default to 'day' (today)
     startDate = new Date();
@@ -3034,6 +3045,217 @@ function getDateRangeFromFilter(filter?: string, queryStart?: string, queryEnd?:
 
   return { startDate, endDate };
 }
+
+// GET /reports/dashboard
+router.get('/reports/dashboard', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+  try {
+    const { filter, startDate: qStart, endDate: qEnd } = req.query;
+    const { startDate, endDate } = getDateRangeFromFilter(filter as string, qStart as string, qEnd as string);
+
+    // 1. Sales summary query
+    const tokens = await prisma.token.findMany({
+      where: { 
+        startTime: { gte: startDate, lte: endDate },
+        paymentVerified: true
+      },
+    });
+
+    const totalCollectionsDec = tokens.reduce((acc, t) => acc.add(t.amountPaid), new Decimal(0));
+    const totalCollections = totalCollectionsDec.toNumber();
+    const totalPersonsServed = tokens.reduce((acc, t) => acc + t.personsCount, 0);
+
+    const redemptionsCount = await prisma.redemption.count({
+      where: { redeemedAt: { gte: startDate, lte: endDate } },
+    });
+
+    const salesSummary = {
+      todaySales: totalCollections,
+      todayRedemptions: redemptionsCount,
+      totalCustomers: totalPersonsServed,
+      checkoutCount: tokens.filter((t: any) => t.status === TokenStatus.CLOSED).length,
+      period: { startDate, endDate }
+    };
+
+    // 2. Table utilization query
+    const tables = await prisma.table.findMany({
+      include: { placeType: true }
+    });
+
+    const periodDurationMs = Math.max(1000, endDate.getTime() - startDate.getTime());
+    const periodHours = periodDurationMs / (3600 * 1000);
+    const periodDays = Math.max(1, periodHours / 24);
+
+    let totalOccupancyHoursSum = 0;
+    const tablesReport = [];
+
+    for (const t of tables) {
+      const logs = await prisma.tableOccupancyLog.findMany({
+        where: {
+          tableId: t.id,
+          occupiedAt: { lte: endDate },
+          OR: [
+            { vacatedAt: null },
+            { vacatedAt: { gte: startDate } }
+          ]
+        }
+      });
+
+      let totalOccupancyMs = 0;
+      let turnoverCount = 0;
+      let sessionDurationsSum = 0;
+      let finishedSessionsCount = 0;
+
+      for (const log of logs) {
+        const logStart = log.occupiedAt.getTime();
+        const logEnd = log.vacatedAt ? log.vacatedAt.getTime() : Date.now();
+        const overlapStart = Math.max(logStart, startDate.getTime());
+        const overlapEnd = Math.min(logEnd, endDate.getTime());
+
+        if (overlapStart < overlapEnd) {
+          totalOccupancyMs += (overlapEnd - overlapStart);
+        }
+
+        if (logStart >= startDate.getTime() && logStart <= endDate.getTime()) {
+          turnoverCount++;
+        }
+
+        const duration = logEnd - logStart;
+        sessionDurationsSum += duration;
+        finishedSessionsCount++;
+      }
+
+      const totalOccupancyHours = Number((totalOccupancyMs / (3600 * 1000)).toFixed(2));
+      totalOccupancyHoursSum += totalOccupancyHours;
+
+      const averageOccupancyPerDay = Number((totalOccupancyHours / periodDays).toFixed(2));
+      const averageSessionDurationMinutes = finishedSessionsCount > 0
+        ? Number((sessionDurationsSum / (finishedSessionsCount * 60 * 1000)).toFixed(2))
+        : 0;
+
+      tablesReport.push({
+        tableNumber: t.tableNumber,
+        placeType: t.placeType.name,
+        totalOccupancyHours,
+        averageOccupancyPerDay,
+        turnoverCount,
+        averageSessionDurationMinutes
+      });
+    }
+
+    const totalTableHours = Number((periodHours * tables.length).toFixed(2));
+    const averageOccupancyRate = totalTableHours > 0
+      ? Number((totalOccupancyHoursSum / totalTableHours).toFixed(4))
+      : 0;
+
+    const tableUtilization = {
+      period: {
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
+      },
+      tables: tablesReport,
+      summary: {
+        totalTableHours,
+        averageOccupancyRate: Math.min(1.0, averageOccupancyRate)
+      }
+    };
+
+    // 3. Hourly breakdown query
+    const redemptions = await prisma.redemption.findMany({
+      where: { redeemedAt: { gte: startDate, lte: endDate } }
+    });
+
+    const activeTokens = await prisma.token.findMany({
+      where: {
+        startTime: { lte: endDate },
+        paymentVerified: true,
+        OR: [
+          { closedAt: null },
+          { closedAt: { gte: startDate } }
+        ]
+      }
+    });
+
+    const hourlyCounts: number[] = new Array(24).fill(0);
+    const hourlyData = [];
+    const dateStr = startDate.getFullYear() + '-' + String(startDate.getMonth() + 1).padStart(2, '0') + '-' + String(startDate.getDate()).padStart(2, '0');
+
+    for (let hour = 0; hour < 24; hour++) {
+      const hrRedemptions = redemptions.filter(r => new Date(r.redeemedAt).getHours() === hour).length;
+      hourlyCounts[hour] = hrRedemptions;
+
+      const hrNewTokens = activeTokens.filter(t => new Date(t.startTime).getHours() === hour && t.startTime.getTime() >= startDate.getTime() && t.startTime.getTime() <= endDate.getTime()).length;
+
+      let activeTokensSum = 0;
+      const dayStart = new Date(startDate);
+      dayStart.setHours(0, 0, 0, 0);
+      let dayCount = 0;
+
+      while (dayStart.getTime() <= endDate.getTime()) {
+        const hrStart = new Date(dayStart);
+        hrStart.setHours(hour, 0, 0, 0);
+        const hrEnd = new Date(dayStart);
+        hrEnd.setHours(hour, 59, 59, 999);
+
+        const activeCount = activeTokens.filter(t => {
+          const tStart = t.startTime.getTime();
+          const tEnd = t.closedAt ? t.closedAt.getTime() : Date.now();
+          return tStart <= hrEnd.getTime() && tEnd >= hrStart.getTime();
+        }).length;
+
+        activeTokensSum += activeCount;
+        dayCount++;
+
+        dayStart.setDate(dayStart.getDate() + 1);
+      }
+
+      const averageActiveTokens = dayCount > 0 ? Number((activeTokensSum / dayCount).toFixed(1)) : 0;
+
+      hourlyData.push({
+        hour,
+        redemptions: hrRedemptions,
+        newTokens: hrNewTokens,
+        activeTokens: averageActiveTokens
+      });
+    }
+
+    let peakHour = 0;
+    let peakRedemptions = 0;
+    for (let hour = 0; hour < 24; hour++) {
+      if (hourlyCounts[hour] > peakRedemptions) {
+        peakRedemptions = hourlyCounts[hour];
+        peakHour = hour;
+      }
+    }
+
+    if (peakRedemptions === 0) {
+      let maxNew = 0;
+      for (let i = 0; i < 24; i++) {
+        if (hourlyData[i].newTokens > maxNew) {
+          maxNew = hourlyData[i].newTokens;
+          peakHour = i;
+        }
+      }
+    }
+
+    const hourlyBreakdown = {
+      date: dateStr,
+      hourlyData,
+      peakHour,
+      peakRedemptions
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        salesSummary,
+        tableUtilization,
+        hourlyBreakdown
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // Sales summary
 router.get('/reports/sales', authenticate, authorize(['admin']), async (req: Request, res: Response) => {

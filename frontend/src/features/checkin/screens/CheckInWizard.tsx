@@ -829,7 +829,7 @@ export const CheckInWizard: React.FC = () => {
                     <TouchableOpacity 
                       style={{ 
                         minHeight: 92,
-                        backgroundColor: isSelected ? (isPremium ? 'rgba(245,166,35,0.05)' : 'rgba(78,205,196,0.05)') : colors.input,
+                        backgroundColor: isSelected ? (isPremium ? 'rgba(245,166,35,0.05)' : 'rgba(78,205,196,0.05)') : colors.themeInput,
                         borderColor: isSelected ? (isPremium ? colors.gold : colors.teal) : colors.border,
                         borderWidth: 1,
                         borderRadius: 12,
@@ -864,7 +864,7 @@ export const CheckInWizard: React.FC = () => {
                   const isTooSmall = table.seats < guestCount;
                   const isSelected = selectedTableNum === table.number;
                   
-                  let bgCol = colors.input;
+                  let bgCol = colors.themeInput;
                   let borderCol = colors.border;
                   let textCol = colors.muted;
                   let labelTag = `${table.seats} Seats`;
@@ -879,17 +879,17 @@ export const CheckInWizard: React.FC = () => {
                     textCol = '#e63946';
                     labelTag = 'OCC';
                   } else if (isMaintenance) {
-                    bgCol = colors.surface;
+                    bgCol = colors.themeInput;
                     borderCol = colors.border;
                     textCol = colors.muted;
                     labelTag = 'MNT';
                   } else if (isTooSmall) {
-                    bgCol = colors.surface;
+                    bgCol = colors.themeInput;
                     borderCol = colors.border;
                     textCol = colors.muted;
                     labelTag = `${table.seats} PAX`;
                   } else {
-                    bgCol = colors.input;
+                    bgCol = colors.themeInput;
                     borderCol = isDark ? 'rgba(78,205,196,0.3)' : 'rgba(28,46,74,0.3)';
                     textCol = colors.teal;
                   }
@@ -1093,7 +1093,7 @@ export const CheckInWizard: React.FC = () => {
                     borderWidth: 1,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: checkinPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)') : colors.input,
+                    backgroundColor: checkinPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)') : colors.themeInput,
                     borderColor: checkinPaymentMode === mode ? colors.gold : colors.border
                   }}
                   onPress={() => setCheckinPaymentMode(mode)}
@@ -1110,7 +1110,7 @@ export const CheckInWizard: React.FC = () => {
               <View style={{
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: colors.input,
+                backgroundColor: colors.themeInput,
                 borderWidth: 1,
                 borderColor: colors.border,
                 borderRadius: 16,

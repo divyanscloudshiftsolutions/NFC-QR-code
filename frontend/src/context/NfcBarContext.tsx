@@ -380,15 +380,20 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         try {
-          const salesRes = await fetch(`${BACKEND_URL}/reports/sales?filter=day`, {
+          const dashRes = await fetch(`${BACKEND_URL}/reports/dashboard?filter=day`, {
             headers: { 'Authorization': `Bearer ${activeToken}` }
           });
-          if (salesRes.ok) {
-            const salesData = await salesRes.json();
-            setSalesSummary(salesData.data || salesData);
+          if (dashRes.ok) {
+            const dashData = await dashRes.json();
+            if (dashData.success && dashData.data) {
+              const { salesSummary: sSum, tableUtilization: tUtil, hourlyBreakdown: hBreak } = dashData.data;
+              setSalesSummary(sSum);
+              setTableUtilization(tUtil);
+              setHourlyBreakdown(hBreak);
+            }
           }
-        } catch (salesErr) {
-          console.log('Failed to fetch sales report inside fetchLatestState:', salesErr);
+        } catch (dashErr) {
+          console.log('Failed to fetch consolidated dashboard reports inside fetchLatestState:', dashErr);
         }
       }
 
@@ -1772,10 +1777,8 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const fetchReports = async (filter: string, startDate?: string, endDate?: string): Promise<boolean> => {
-    if (systemMode === 'offline') {
-      return false;
-    }
-
+    if (systemMode === 'offline') return false;
+    
     try {
       const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
       if (!activeToken) return false;
@@ -1787,31 +1790,28 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const queryStr = params.toString() ? `?${params.toString()}` : '';
 
-      const [salesRes, utilRes, hourlyRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/reports/sales${queryStr}`, {
-          headers: { 'Authorization': `Bearer ${activeToken}` }
-        }),
-        fetch(`${BACKEND_URL}/reports/table-utilization${queryStr}`, {
-          headers: { 'Authorization': `Bearer ${activeToken}` }
-        }),
-        fetch(`${BACKEND_URL}/reports/hourly-breakdown${queryStr}`, {
-          headers: { 'Authorization': `Bearer ${activeToken}` }
-        })
-      ]);
+      const res = await fetch(`${BACKEND_URL}/reports/dashboard${queryStr}`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
 
-      if (salesRes.ok && utilRes.ok && hourlyRes.ok) {
-        const salesData = await salesRes.json();
-        const utilData = await utilRes.json();
-        const hourlyData = await hourlyRes.json();
-
-        setSalesSummary(salesData.data || salesData);
-        setTableUtilization(utilData.data || utilData);
-        setHourlyBreakdown(hourlyData.data || hourlyData);
-        return true;
+      if (res.ok) {
+        const resData = await res.json();
+        if (resData.success && resData.data) {
+          const { salesSummary: sSum, tableUtilization: tUtil, hourlyBreakdown: hBreak } = resData.data;
+          setSalesSummary(sSum);
+          setTableUtilization(tUtil);
+          setHourlyBreakdown(hBreak);
+          return true;
+        } else {
+          console.warn('Dashboard reports API returned failure:', resData.error || resData);
+        }
+      } else {
+        const errText = await res.text().catch(() => '');
+        console.error(`Dashboard reports API failed with status ${res.status}: ${errText}`);
       }
       return false;
     } catch (err) {
-      console.log('Failed to fetch reports:', err);
+      console.error('Failed to fetch consolidated dashboard reports:', err);
       return false;
     }
   };

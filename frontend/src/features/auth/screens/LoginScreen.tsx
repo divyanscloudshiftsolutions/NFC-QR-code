@@ -163,7 +163,7 @@ export const LoginScreen: React.FC = () => {
 
           {/* Role Segmented Controller */}
           <Text className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.muted }}>1. Select Shift Role</Text>
-          <View className="flex-row rounded-xl p-1 mb-5 gap-1" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: isDark ? 0 : 1 }}>
+          <View className="flex-row rounded-xl p-1 mb-5 gap-1" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: isDark ? 0 : 1 }}>
             {(['REC', 'BAR', 'ADM', 'MGR'] as const).map(role => {
               const isSel = selectedRole === role;
               const roleLabels = { REC: 'Recep', BAR: 'Bar', ADM: 'Admin', MGR: 'Mngr' };
@@ -193,7 +193,7 @@ export const LoginScreen: React.FC = () => {
             <TouchableOpacity 
               className="flex-1 border rounded-xl p-3 items-center justify-center min-h-[56px]"
               style={{
-                backgroundColor: colors.input,
+                backgroundColor: colors.secondarySurface,
                 borderColor: activeField === 'id' ? colors.gold : colors.inputBorder,
                 borderWidth: 1
               }}
@@ -218,7 +218,7 @@ export const LoginScreen: React.FC = () => {
             <TouchableOpacity 
               className="flex-1 border rounded-xl p-3 items-center justify-center min-h-[56px]"
               style={{
-                backgroundColor: colors.input,
+                backgroundColor: colors.secondarySurface,
                 borderColor: activeField === 'pin' ? colors.gold : colors.inputBorder,
                 borderWidth: 1
               }}

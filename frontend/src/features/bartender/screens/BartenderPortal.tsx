@@ -651,12 +651,12 @@ export const BartenderPortal: React.FC = () => {
                   flex: 1,
                   justifyContent: 'center',
                   alignItems: 'center',
-                  backgroundColor: '#000000'
+                  backgroundColor: colors.bg
                 }}
               >
                 <ActivityIndicator size="large" color={colors.teal} />
-                <Text className="text-sm font-bold mt-4 uppercase tracking-wider" style={{ color: '#ffffff' }}>Scanning Smart Tag...</Text>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 11, marginTop: 4 }}>Interfacing credentials via NFC link</Text>
+                <Text className="text-sm font-bold mt-4 uppercase tracking-wider" style={{ color: colors.text }}>Scanning Smart Tag...</Text>
+                <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Interfacing credentials via NFC link</Text>
               </View>
             )}
 
@@ -717,12 +717,12 @@ export const BartenderPortal: React.FC = () => {
           <View 
             className="border rounded-xl p-3 mb-4 flex-row items-center justify-between"
             style={{ 
-              backgroundColor: isDark ? 'rgba(78,205,196,0.1)' : 'rgba(29, 78, 216, 0.05)',
-              borderColor: isDark ? 'rgba(78,205,196,0.2)' : 'rgba(29, 78, 216, 0.1)'
+              backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(34, 197, 94, 0.05)',
+              borderColor: isDark ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)'
             }}
           >
             <Text className="text-xs font-bold" style={{ color: colors.teal }}>✓ Active Session: {activeSession.tokenNumber}</Text>
-            <View className="px-2 py-0.5 rounded" style={{ backgroundColor: isDark ? 'rgba(78,205,196,0.2)' : 'rgba(29, 78, 216, 0.1)' }}>
+            <View className="px-2 py-0.5 rounded" style={{ backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)' }}>
               <Text className="font-extrabold text-[8px]" style={{ color: colors.teal }}>{activeSession.placeType.replace('_', ' ')}</Text>
             </View>
           </View>

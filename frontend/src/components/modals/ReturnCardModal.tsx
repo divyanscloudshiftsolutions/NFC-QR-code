@@ -292,7 +292,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
           <View className="flex-grow justify-center py-2">
             {isSanitizing ? (
               <View className="items-center justify-center py-8">
-                <ActivityIndicator size="large" color="#e63946" />
+                <ActivityIndicator size="large" color={colors.red} />
                 <Text className="text-red font-bold text-sm mt-4 uppercase tracking-widest">
                   Sanitizing Card Block...
                 </Text>
@@ -357,8 +357,8 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                   >
                     <Text className="font-bold text-sm" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity className="flex-1 bg-red/10 border border-red py-3.5 rounded-xl items-center justify-center min-h-[48px] active:opacity-90" style={{ borderColor: '#e63946' }} onPress={handleConfirmClosure}>
-                    <Text className="font-bold text-sm" style={{ color: '#e63946' }}>Close Session</Text>
+                  <TouchableOpacity className="flex-1 bg-red/10 border border-red py-3.5 rounded-xl items-center justify-center min-h-[48px] active:opacity-90" style={{ borderColor: colors.red }} onPress={handleConfirmClosure}>
+                    <Text className="font-bold text-sm" style={{ color: colors.red }}>Close Session</Text>
                   </TouchableOpacity>
                 </View>
               </>

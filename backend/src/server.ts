@@ -32,7 +32,7 @@ if (process.env.REDIS_URL) {
 // API Gateway Rate Limiter (B2 component in nfc.md)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per 15-minute window
+  max: 1000, // Limit each IP to 1000 requests per 15-minute window
   store: rateLimitStore,
   message: {
     success: false,

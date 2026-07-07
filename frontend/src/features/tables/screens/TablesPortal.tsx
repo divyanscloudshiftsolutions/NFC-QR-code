@@ -130,7 +130,7 @@ export const TablesPortal: React.FC = () => {
       primaryColor = '#3b82f6'; // Blue
       labelText = 'Reserved';
     } else if (isExpiring) {
-      primaryColor = '#e63946'; // Red
+      primaryColor = colors.red; // Red
       labelText = 'Expiring';
     } else if (table.status === TableStatus.AVAILABLE) {
       primaryColor = '#22c55e'; // Green
@@ -305,7 +305,7 @@ export const TablesPortal: React.FC = () => {
         </View>
         <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Status</Text>
-          <Text className={`text-[11px] font-bold ${statusTextColor}`} style={statusTextColor === 'text-red' ? { color: '#e63946' } : statusTextColor === 'text-gold' ? { color: colors.gold } : statusTextColor === 'text-muted' ? { color: colors.muted } : statusTextColor === 'text-[#3b82f6]' ? { color: '#3b82f6' } : { color: '#22c55e' }}>{statusText}</Text>
+          <Text className={`text-[11px] font-bold ${statusTextColor}`} style={statusTextColor === 'text-red' ? { color: colors.red } : statusTextColor === 'text-gold' ? { color: colors.gold } : statusTextColor === 'text-muted' ? { color: colors.muted } : statusTextColor === 'text-[#3b82f6]' ? { color: '#3b82f6' } : { color: '#22c55e' }}>{statusText}</Text>
         </View>
 
         {activeToken ? (
@@ -322,7 +322,7 @@ export const TablesPortal: React.FC = () => {
             </View>
             <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Time Left</Text>
-              <Text className="text-[11px] font-bold" style={{ color: isExpiring ? '#e63946' : itemValueColor }}>
+              <Text className="text-[11px] font-bold" style={{ color: isExpiring ? colors.red : itemValueColor }}>
                 {calculateTimeRemaining(activeToken.endTime) === 'Expired' ? 'Expired' : `${calculateTimeRemaining(activeToken.endTime)} left`}
               </Text>
             </View>
@@ -402,11 +402,11 @@ export const TablesPortal: React.FC = () => {
       {/* Segmented Place Types */}
       <View 
         className="flex-row rounded-xl p-1 mb-4 border"
-        style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+        style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1 }}
       >
         <TouchableOpacity 
           className="flex-1 py-[13px] items-center rounded-lg"
-          style={selectedPlace === 'STANDING_BAR' ? { backgroundColor: colors.input, borderWidth: 0.5, borderColor: colors.border } : {}}
+          style={selectedPlace === 'STANDING_BAR' ? { backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.border } : {}}
           onPress={() => setSelectedPlace('STANDING_BAR')}
         >
           <Text 
@@ -418,7 +418,7 @@ export const TablesPortal: React.FC = () => {
         </TouchableOpacity>
         <TouchableOpacity 
           className="flex-1 py-[13px] items-center rounded-lg"
-          style={selectedPlace === 'PREMIUM_LOUNGE' ? { backgroundColor: colors.input, borderWidth: 0.5, borderColor: colors.border } : {}}
+          style={selectedPlace === 'PREMIUM_LOUNGE' ? { backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.border } : {}}
           onPress={() => setSelectedPlace('PREMIUM_LOUNGE')}
         >
           <Text 
@@ -508,8 +508,8 @@ export const TablesPortal: React.FC = () => {
               statusTextColor = '#3b82f6';
               statusText = 'Reserved';
             } else if (isExp) {
-              statusColor = 'bg-[#e63946]'; // Red
-              statusTextColor = '#e63946';
+              statusColor = 'bg-[#ef4444]'; // Red
+              statusTextColor = colors.red;
               statusText = 'Expiring Soon';
             } else if (isOccupied) {
               statusColor = 'bg-[#f5a623]'; // Amber
@@ -522,8 +522,8 @@ export const TablesPortal: React.FC = () => {
                 <TouchableOpacity
                   style={{ 
                     minHeight: 110,
-                    backgroundColor: isExp ? (isDark ? 'rgba(230,57,70,0.05)' : 'rgba(230,57,70,0.08)') : colors.surface,
-                    borderColor: isExp ? '#e63946' : (table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.3)') : (table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.3)') : colors.border)),
+                    backgroundColor: isExp ? (isDark ? 'rgba(239,68,68,0.05)' : 'rgba(239,68,68,0.08)') : colors.surface,
+                    borderColor: isExp ? colors.red : (table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.3)') : (table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.3)') : colors.border)),
                     borderWidth: 1,
                     borderRadius: 12,
                     padding: 10
@@ -558,7 +558,7 @@ export const TablesPortal: React.FC = () => {
                       </View>
                       <View className="flex-row items-center gap-1">
                         <Text className="text-[10px]">⏱</Text>
-                        <Text className="text-[10px] font-bold" style={{ color: isExp ? '#e63946' : colors.text }}>
+                        <Text className="text-[10px] font-bold" style={{ color: isExp ? colors.red : colors.text }}>
                           {calculateTimeRemaining(activeToken.endTime) === 'Expired' ? 'Expired' : `${calculateTimeRemaining(activeToken.endTime)}`}
                         </Text>
                       </View>
@@ -677,8 +677,8 @@ export const TablesPortal: React.FC = () => {
  
                 {selectedSession && user?.role !== UserRole.MANAGER && (
                   <View className="flex-row gap-2.5 mb-1.5">
-                    <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" style={{ borderColor: '#e63946' }} onPress={handleCloseSession}>
-                      <Text className="font-bold text-sm" style={{ color: '#e63946' }}>Close Session</Text>
+                    <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" style={{ borderColor: colors.red }} onPress={handleCloseSession}>
+                      <Text className="font-bold text-sm" style={{ color: colors.red }}>Close Session</Text>
                     </TouchableOpacity>
                     <TouchableOpacity className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" style={{ borderColor: colors.gold }} onPress={() => setIsExtendModalOpen(true)}>
                       <Text className="font-bold text-[13px]" style={{ color: colors.goldButtonText }}>Extend Time</Text>
