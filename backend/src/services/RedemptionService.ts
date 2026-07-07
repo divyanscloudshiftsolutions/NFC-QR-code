@@ -113,7 +113,14 @@ export class RedemptionService {
             redeemedAt: now
           },
           include: {
-            bartender: true
+            bartender: true,
+            token: {
+              include: {
+                customer: true,
+                placeType: true,
+                table: true
+              }
+            }
           }
         });
 

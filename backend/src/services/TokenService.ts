@@ -226,8 +226,23 @@ export class TokenService {
       const start = request.startTime ? new Date(request.startTime) : new Date();
       const endTime = new Date(start.getTime() + placeType.baseTimeMinutes * 60 * 1000);
 
-      // Calculate total redemptions
-      const totalRedemptionsAllowed = request.personsCount * placeType.redemptionsPerPerson;
+      // Calculate total redemptions with carry-forward balance from customer's previous sessions
+      const mostRecentInactiveToken = await tx.token.findFirst({
+        where: {
+          customerId: customer.id,
+          status: {
+            notIn: ['ACTIVE', 'EXTENDED', 'PENDING_PAYMENT']
+          }
+        },
+        orderBy: { endTime: 'desc' }
+      });
+
+      let carriedForwardBalance = 0;
+      if (mostRecentInactiveToken) {
+        carriedForwardBalance = Math.max(0, mostRecentInactiveToken.totalRedemptionsAllowed - mostRecentInactiveToken.redemptionsUsed);
+      }
+
+      const totalRedemptionsAllowed = (request.personsCount * placeType.redemptionsPerPerson) + carriedForwardBalance;
 
       // Find Card and validate status (only in NFC mode or if provided)
       let cardId = request.cardId;
@@ -720,7 +735,24 @@ export class TokenService {
       }
 
       const endTime = new Date(start.getTime() + placeType.baseTimeMinutes * 60 * 1000);
-      const totalRedemptionsAllowed = request.personsCount * placeType.redemptionsPerPerson;
+
+      // Calculate total redemptions with carry-forward balance from customer's previous sessions
+      const mostRecentInactiveToken = await tx.token.findFirst({
+        where: {
+          customerId: customer.id,
+          status: {
+            notIn: ['ACTIVE', 'EXTENDED', 'PENDING_PAYMENT']
+          }
+        },
+        orderBy: { endTime: 'desc' }
+      });
+
+      let carriedForwardBalance = 0;
+      if (mostRecentInactiveToken) {
+        carriedForwardBalance = Math.max(0, mostRecentInactiveToken.totalRedemptionsAllowed - mostRecentInactiveToken.redemptionsUsed);
+      }
+
+      const totalRedemptionsAllowed = (request.personsCount * placeType.redemptionsPerPerson) + carriedForwardBalance;
 
       let resolvedTableId: string | null = null;
       if (request.tableId || request.tableNumber) {
