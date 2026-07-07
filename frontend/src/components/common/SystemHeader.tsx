@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../context/NfcBarContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -17,7 +17,14 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
 
   const toggleConnection = () => {
     if (systemMode === 'online') {
-      setMode('offline');
+      Alert.alert(
+        'Switch to Offline Mode',
+        'Are you sure you want to switch to Offline mode?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Confirm', onPress: () => setMode('offline') }
+        ]
+      );
     } else {
       setMode('online');
     }

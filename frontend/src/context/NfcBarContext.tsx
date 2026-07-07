@@ -417,8 +417,13 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (err) {
       console.log('Failed to fetch latest server state:', err);
       if ((systemMode as any) !== 'offline') {
-        setSystemMode('offline');
-        showToast('Backend server unreachable. Running in Offline Mode.', 'warning');
+        const netState = await NetInfo.fetch();
+        if (netState.isConnected === false || netState.isInternetReachable === false) {
+          setSystemMode('offline');
+          showToast('Network unreachable. Running in Offline Mode.', 'warning');
+        } else {
+          showToast('Failed to fetch latest server state: Server down.', 'danger');
+        }
       }
     }
   };
@@ -513,8 +518,14 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     } catch (e) {
       console.log('Sync failed, network unreachable:', e);
-      setSystemMode('offline');
-      showToast('Network unreachable. Running in Offline Mode.', 'warning');
+      const netState = await NetInfo.fetch();
+      if (netState.isConnected === false || netState.isInternetReachable === false) {
+        setSystemMode('offline');
+        showToast('Network unreachable. Running in Offline Mode.', 'warning');
+      } else {
+        showToast('Sync failed: Backend server unreachable.', 'danger');
+        setSystemMode('online');
+      }
     }
   };
 
@@ -714,31 +725,37 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     // Fallback to local cache validation of the last logged-in user
     try {
-      const savedUserStr = await AsyncStorage.getItem('nfc_bar_user');
-      if (savedUserStr) {
-        const savedUser = JSON.parse(savedUserStr);
-        if (savedUser && savedUser.id.toLowerCase() === id.toLowerCase() && savedUser.pin === pin) {
-          setUser(savedUser);
-          const offlineToken = `offline-mock-${savedUser.id}`;
-          setUserToken(offlineToken);
-          setSystemMode('offline');
-          await AsyncStorage.setItem('nfc_bar_user', JSON.stringify(savedUser));
-          await AsyncStorage.setItem('nfc_bar_user_token', offlineToken);
-          setCurrentScreen('app');
-          showToast(`Welcome back, ${savedUser.name} (Offline)!`, 'success');
-          
-          if (savedUser.role === UserRole.BARTENDER) {
-            setActiveTab('bartender');
-          } else if (savedUser.role === UserRole.MANAGER) {
-            setActiveTab('tables');
-          } else {
-            setActiveTab('checkin');
+      const netState = await NetInfo.fetch();
+      const isActualFailure = netState.isConnected === false || netState.isInternetReachable === false;
+      if (isActualFailure) {
+        const savedUserStr = await AsyncStorage.getItem('nfc_bar_user');
+        if (savedUserStr) {
+          const savedUser = JSON.parse(savedUserStr);
+          if (savedUser && savedUser.id.toLowerCase() === id.toLowerCase() && savedUser.pin === pin) {
+            setUser(savedUser);
+            const offlineToken = `offline-mock-${savedUser.id}`;
+            setUserToken(offlineToken);
+            setSystemMode('offline');
+            await AsyncStorage.setItem('nfc_bar_user', JSON.stringify(savedUser));
+            await AsyncStorage.setItem('nfc_bar_user_token', offlineToken);
+            setCurrentScreen('app');
+            showToast(`Welcome back, ${savedUser.name} (Offline)!`, 'success');
+            
+            if (savedUser.role === UserRole.BARTENDER) {
+              setActiveTab('bartender');
+            } else if (savedUser.role === UserRole.MANAGER) {
+              setActiveTab('tables');
+            } else {
+              setActiveTab('checkin');
+            }
+            return true;
           }
-          return true;
         }
+      } else {
+        showToast('Login failed: Backend server unreachable.', 'danger');
       }
     } catch (cacheErr) {
-      console.log('Failed to validate offline cache:', cacheErr);
+      console.log('Offline login fallback failed:', cacheErr);
     }
 
     return false;
@@ -1272,7 +1289,10 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       } catch (err: any) {
         console.log('addTable connection failed, falling back to offline:', err);
-        setSystemMode('offline');
+        const netState = await NetInfo.fetch();
+        if (netState.isConnected === false || netState.isInternetReachable === false) {
+          setSystemMode('offline');
+        }
         // Offline fallback
         const newTable: Table = {
           id: Math.random().toString(),
@@ -1732,7 +1752,10 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     } catch (err: any) {
       console.log('updateRateCard connection failed, falling back to offline:', err);
-      setSystemMode('offline');
+      const netState = await NetInfo.fetch();
+      if (netState.isConnected === false || netState.isInternetReachable === false) {
+        setSystemMode('offline');
+      }
       setRates(prev => prev.map(r => r.id === id || r.placeType === placeType ? {
         ...r,
         ratePerPerson,
