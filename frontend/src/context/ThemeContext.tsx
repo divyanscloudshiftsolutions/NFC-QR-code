@@ -104,7 +104,7 @@ export const lightColors: ThemeColors = {
   border: '#CBD5E1',
   inputBorder: '#CBD5E1',
   divider: '#E2E8F0',
-  goldButtonText: '#FFFFFF',
+  goldButtonText: '#1F2937',
 
   // New Tokens
   card: '#FFFFFF',

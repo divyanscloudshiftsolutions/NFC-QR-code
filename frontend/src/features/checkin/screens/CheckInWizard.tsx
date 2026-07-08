@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
-  ActivityIndicator, StyleSheet, Platform, Alert, Modal, Image
+  ActivityIndicator, StyleSheet, Platform, Alert, Modal, Image,
+  Animated, LayoutAnimation, UIManager
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
@@ -11,6 +12,10 @@ import { isTableExpiring } from '../../../context/nfc_bar_utils';
 import { AppIcon } from '../../../components/common/AppIcon';
 import nfcService from '../../../services/nfc/nfcManager';
 import { useResponsive } from '../../../utils/responsive';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export const CheckInWizard: React.FC = () => {
   const { 
@@ -23,7 +28,62 @@ export const CheckInWizard: React.FC = () => {
   const { getTableColumns } = useResponsive();
   const cols = getTableColumns();
   const itemWidth = `${(100 / cols) - 0.1}%` as any;
-  const [step, setStep] = useState<number>(1);
+  const [stepState, setStepState] = useState<number>(1);
+  const setStep = (nextStep: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setStepState(nextStep);
+  };
+  const step = stepState;
+
+  const [isNfcWriting, setIsNfcWriting] = useState(false);
+
+  // Animated values for Pax stepper buttons
+  const minusScale = useRef(new Animated.Value(1)).current;
+  const plusScale = useRef(new Animated.Value(1)).current;
+
+  // Animated value for NFC writing loop
+  const radarAnim = useRef(new Animated.Value(0)).current;
+
+  const animateButton = (scale: Animated.Value) => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.9, duration: 40, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true })
+    ]).start();
+  };
+
+  useEffect(() => {
+    if (isNfcWriting) {
+      radarAnim.setValue(0);
+      Animated.loop(
+        Animated.timing(radarAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true
+        })
+      ).start();
+    } else {
+      radarAnim.stopAnimation();
+    }
+  }, [isNfcWriting]);
+
+  const pulseScale1 = radarAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.4]
+  });
+  const pulseOpacity1 = radarAnim.interpolate({
+    inputRange: [0, 0.8, 1],
+    outputRange: [0.5, 0.25, 0]
+  });
+
+  const pulseScale2 = radarAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.25]
+  });
+  const pulseOpacity2 = radarAnim.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [0.6, 0.3, 0]
+  });
+
   const [permission, requestPermission] = useCameraPermissions();
   
   const initialMode = nfcEnabled ? 'NFC_CARD' : 'EMAIL_QR';
@@ -94,7 +154,6 @@ export const CheckInWizard: React.FC = () => {
   
   // Simulated outputs
   const [createdSession, setCreatedSession] = useState<SessionToken | null>(null);
-  const [isNfcWriting, setIsNfcWriting] = useState(false);
   const [nfcWriteState, setNfcWriteState] = useState<'idle' | 'success' | 'error'>('idle');
   const [activationError, setActivationError] = useState<string | null>(null);
 
@@ -346,7 +405,7 @@ export const CheckInWizard: React.FC = () => {
             <View 
               key={s} 
               className="flex-grow h-1.5 rounded-full"
-              style={{ backgroundColor: isDone ? colors.teal : isActive ? colors.gold : colors.input }}
+              style={{ backgroundColor: isDone ? colors.teal : isActive ? colors.gold : (isDark ? colors.border : '#E2E8F0') }}
             />
           );
         })}
@@ -567,8 +626,8 @@ export const CheckInWizard: React.FC = () => {
               className="rounded-2xl p-4 mb-4 border"
               style={{ 
                 backgroundColor: colors.surface, 
-                borderColor: focusedField === 'name' ? colors.gold : colors.inputBorder,
-                borderWidth: 1 
+                borderColor: focusedField === 'name' ? colors.gold : (isDark ? colors.inputBorder : '#94A3B8'),
+                borderWidth: 1.5
               }}
             >
               <View className="flex-row items-center mb-1">
@@ -603,8 +662,8 @@ export const CheckInWizard: React.FC = () => {
               className="rounded-2xl p-4 mb-4 border"
               style={{ 
                 backgroundColor: colors.surface, 
-                borderColor: focusedField === 'phone' ? colors.gold : colors.inputBorder,
-                borderWidth: 1 
+                borderColor: focusedField === 'phone' ? colors.gold : (isDark ? colors.inputBorder : '#94A3B8'),
+                borderWidth: 1.5
               }}
             >
               <View className="flex-row items-center mb-1">
@@ -646,8 +705,8 @@ export const CheckInWizard: React.FC = () => {
               className="rounded-2xl p-4 mb-4 border"
               style={{ 
                 backgroundColor: colors.surface, 
-                borderColor: focusedField === 'email' ? colors.gold : colors.inputBorder,
-                borderWidth: 1 
+                borderColor: focusedField === 'email' ? colors.gold : (isDark ? colors.inputBorder : '#94A3B8'),
+                borderWidth: 1.5
               }}
             >
               <View className="flex-row justify-between items-center mb-1">
@@ -703,9 +762,9 @@ export const CheckInWizard: React.FC = () => {
                   <TouchableOpacity 
                     className="flex-1 flex-row items-center justify-center py-3 rounded-xl border min-h-[44px]"
                     style={{
-                      backgroundColor: selectedDeliveryMode === 'NFC_CARD' ? (isDark ? 'rgba(245,166,35,0.1)' : 'rgba(200,155,60,0.1)') : colors.input,
+                      backgroundColor: selectedDeliveryMode === 'NFC_CARD' ? (isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7') : colors.input,
                       borderColor: selectedDeliveryMode === 'NFC_CARD' ? colors.gold : colors.border,
-                      borderWidth: 1
+                      borderWidth: 1.5
                     }}
                     onPress={() => setSelectedDeliveryMode('NFC_CARD')}
                   >
@@ -715,9 +774,9 @@ export const CheckInWizard: React.FC = () => {
                   <TouchableOpacity 
                     className="flex-1 flex-row items-center justify-center py-3 rounded-xl border min-h-[44px]"
                     style={{
-                      backgroundColor: selectedDeliveryMode === 'EMAIL_QR' ? (isDark ? 'rgba(245,166,35,0.1)' : 'rgba(200,155,60,0.1)') : colors.input,
+                      backgroundColor: selectedDeliveryMode === 'EMAIL_QR' ? (isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7') : colors.input,
                       borderColor: selectedDeliveryMode === 'EMAIL_QR' ? colors.gold : colors.border,
-                      borderWidth: 1
+                      borderWidth: 1.5
                     }}
                     onPress={() => setSelectedDeliveryMode('EMAIL_QR')}
                   >
@@ -738,49 +797,57 @@ export const CheckInWizard: React.FC = () => {
                 <Text className="text-xs font-bold" style={{ color: colors.gold }}>Number of Persons *</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
-                <TouchableOpacity 
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: colors.input,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: guestCount <= 1 ? 0.3 : 1
-                  }}
-                  onPress={() => setGuestCount(c => Math.max(1, c - 1))}
-                  disabled={guestCount <= 1}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: 'bold', lineHeight: 18 }}>−</Text>
-                </TouchableOpacity>
+                <Animated.View style={{ transform: [{ scale: minusScale }] }}>
+                  <TouchableOpacity 
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: colors.input,
+                      borderColor: isDark ? colors.border : '#94A3B8',
+                      borderWidth: 1.5,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: guestCount <= 1 ? 0.3 : 1
+                    }}
+                    onPress={() => {
+                      animateButton(minusScale);
+                      setGuestCount(c => Math.max(1, c - 1));
+                    }}
+                    disabled={guestCount <= 1}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: 'bold', lineHeight: 18 }}>−</Text>
+                  </TouchableOpacity>
+                </Animated.View>
                 <Text style={{ color: colors.text, fontSize: 14, fontWeight: 'bold', width: 24, textAlign: 'center' }}>{guestCount}</Text>
-                <TouchableOpacity 
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: colors.input,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: guestCount >= 20 ? 0.3 : 1
-                  }}
-                  onPress={() => {
-                    if (selectedTableNum !== null && guestCount >= maxAllowedSeats) {
-                      setShowCapacityAlert(true);
-                    } else {
-                      setGuestCount(c => Math.min(20, c + 1));
-                    }
-                  }}
-                  disabled={guestCount >= 20}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: 'bold', lineHeight: 18 }}>+</Text>
-                </TouchableOpacity>
+                <Animated.View style={{ transform: [{ scale: plusScale }] }}>
+                  <TouchableOpacity 
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: colors.input,
+                      borderColor: isDark ? colors.border : '#94A3B8',
+                      borderWidth: 1.5,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: guestCount >= 20 ? 0.3 : 1
+                    }}
+                    onPress={() => {
+                      animateButton(plusScale);
+                      if (selectedTableNum !== null && guestCount >= maxAllowedSeats) {
+                        setShowCapacityAlert(true);
+                      } else {
+                        setGuestCount(c => Math.min(20, c + 1));
+                      }
+                    }}
+                    disabled={guestCount >= 20}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: 'bold', lineHeight: 18 }}>+</Text>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
               {selectedTableNum !== null && guestCount === maxAllowedSeats && (
                 <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-2">
@@ -829,9 +896,9 @@ export const CheckInWizard: React.FC = () => {
                     <TouchableOpacity 
                       style={{ 
                         minHeight: 92,
-                        backgroundColor: isSelected ? (isPremium ? 'rgba(245,166,35,0.05)' : 'rgba(78,205,196,0.05)') : colors.themeInput,
-                        borderColor: isSelected ? (isPremium ? colors.gold : colors.teal) : colors.border,
-                        borderWidth: 1,
+                        backgroundColor: isSelected ? (isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7') : colors.themeInput,
+                        borderColor: isSelected ? colors.gold : colors.border,
+                        borderWidth: 1.5,
                         borderRadius: 12,
                         padding: 12,
                         opacity: (pendingToken && !isSelected) ? 0.4 : 1
@@ -870,14 +937,14 @@ export const CheckInWizard: React.FC = () => {
                   let labelTag = `${table.seats} Seats`;
 
                   if (isSelected) {
-                    bgCol = isDark ? 'rgba(245,166,35,0.1)' : 'rgba(200,155,60,0.1)';
+                    bgCol = isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7';
                     borderCol = colors.gold;
-                    textCol = colors.gold;
+                    textCol = isDark ? colors.gold : '#B45309';
                   } else if (isOccupied) {
-                    bgCol = isDark ? 'rgba(230,57,70,0.1)' : 'rgba(230,57,70,0.05)';
-                    borderCol = '#e63946';
-                    textCol = '#e63946';
-                    labelTag = 'OCC';
+                    bgCol = isDark ? 'rgba(239,68,68,0.15)' : '#FEE2E2';
+                    borderCol = '#EF4444';
+                    textCol = '#EF4444';
+                    labelTag = 'OCCUPIED';
                   } else if (isMaintenance) {
                     bgCol = colors.themeInput;
                     borderCol = colors.border;
@@ -890,7 +957,7 @@ export const CheckInWizard: React.FC = () => {
                     labelTag = `${table.seats} PAX`;
                   } else {
                     bgCol = colors.themeInput;
-                    borderCol = isDark ? 'rgba(78,205,196,0.3)' : 'rgba(28,46,74,0.3)';
+                    borderCol = isDark ? 'rgba(34,197,94,0.3)' : '#BBF7D0';
                     textCol = colors.teal;
                   }
 
@@ -903,7 +970,7 @@ export const CheckInWizard: React.FC = () => {
                           borderRadius: 12,
                           justifyContent: 'center',
                           alignItems: 'center',
-                          borderWidth: 1,
+                          borderWidth: 1.5,
                           backgroundColor: bgCol,
                           borderColor: borderCol
                         }}
@@ -965,15 +1032,15 @@ export const CheckInWizard: React.FC = () => {
               {/* Guest Card */}
               <View style={{ width: '50%', padding: 8 }}>
                 <View style={{
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                  backgroundColor: isDark ? 'rgba(245,166,35,0.08)' : '#FEF3C7',
+                  borderWidth: 1.5,
+                  borderColor: colors.gold,
                   borderRadius: 12,
                   padding: 10,
                   minHeight: 56,
                   justifyContent: 'center'
                 }}>
-                  <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 2 }}>Guest</Text>
+                  <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.gold, textTransform: 'uppercase', marginBottom: 2 }}>Guest</Text>
                   <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.text }} numberOfLines={1}>{fullName}</Text>
                 </View>
               </View>
@@ -981,9 +1048,9 @@ export const CheckInWizard: React.FC = () => {
               {/* Phone Card */}
               <View style={{ width: '50%', padding: 8 }}>
                 <View style={{
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                  backgroundColor: colors.secondarySurface,
+                  borderWidth: 1.25,
+                  borderColor: isDark ? colors.border : '#E2E8F0',
                   borderRadius: 12,
                   padding: 10,
                   minHeight: 56,
@@ -997,9 +1064,9 @@ export const CheckInWizard: React.FC = () => {
               {/* Area Card */}
               <View style={{ width: '50%', padding: 8 }}>
                 <View style={{
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                  backgroundColor: colors.secondarySurface,
+                  borderWidth: 1.25,
+                  borderColor: isDark ? colors.border : '#E2E8F0',
                   borderRadius: 12,
                   padding: 10,
                   minHeight: 56,
@@ -1015,9 +1082,9 @@ export const CheckInWizard: React.FC = () => {
               {/* Table Card */}
               <View style={{ width: '50%', padding: 8 }}>
                 <View style={{
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                  backgroundColor: colors.secondarySurface,
+                  borderWidth: 1.25,
+                  borderColor: isDark ? colors.border : '#E2E8F0',
                   borderRadius: 12,
                   padding: 10,
                   minHeight: 56,
@@ -1031,9 +1098,9 @@ export const CheckInWizard: React.FC = () => {
               {/* Persons Card */}
               <View style={{ width: '50%', padding: 8 }}>
                 <View style={{
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                  backgroundColor: colors.secondarySurface,
+                  borderWidth: 1.25,
+                  borderColor: isDark ? colors.border : '#E2E8F0',
                   borderRadius: 12,
                   padding: 10,
                   minHeight: 56,
@@ -1047,9 +1114,9 @@ export const CheckInWizard: React.FC = () => {
               {/* Duration Card */}
               <View style={{ width: '50%', padding: 8 }}>
                 <View style={{
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                  backgroundColor: colors.secondarySurface,
+                  borderWidth: 1.25,
+                  borderColor: isDark ? colors.border : '#E2E8F0',
                   borderRadius: 12,
                   padding: 10,
                   minHeight: 56,
@@ -1063,9 +1130,9 @@ export const CheckInWizard: React.FC = () => {
 
             {/* Total Amount Box */}
             <View style={{
-              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.04)' : 'rgba(200, 155, 60, 0.05)',
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(245, 166, 35, 0.25)' : 'rgba(200, 155, 60, 0.3)',
+              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#FEF3C7',
+              borderWidth: 1.5,
+              borderColor: colors.gold,
               borderRadius: 16,
               padding: 14,
               flexDirection: 'row',
@@ -1075,9 +1142,9 @@ export const CheckInWizard: React.FC = () => {
             }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontSize: 13, fontWeight: 'bold' }}>Total Bill</Text>
-                <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>₹{basePrice} × {guestCount} guests</Text>
+                <Text style={{ color: isDark ? colors.muted : '#4B5563', fontSize: 10, marginTop: 2 }}>₹{basePrice} × {guestCount} guests</Text>
               </View>
-              <Text style={{ color: colors.gold, fontSize: 22, fontWeight: '900' }}>₹{totalPrice.toLocaleString('en-IN')}</Text>
+              <Text style={{ color: isDark ? colors.gold : '#B45309', fontSize: 22, fontWeight: '900' }}>₹{totalPrice.toLocaleString('en-IN')}</Text>
             </View>
 
             {/* Payment Mode Selector */}
@@ -1090,15 +1157,15 @@ export const CheckInWizard: React.FC = () => {
                     flex: 1,
                     paddingVertical: 12,
                     borderRadius: 12,
-                    borderWidth: 1,
+                    borderWidth: 1.5,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: checkinPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)') : colors.themeInput,
+                    backgroundColor: checkinPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.12)' : '#FEF3C7') : colors.themeInput,
                     borderColor: checkinPaymentMode === mode ? colors.gold : colors.border
                   }}
                   onPress={() => setCheckinPaymentMode(mode)}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: checkinPaymentMode === mode ? colors.gold : colors.muted }}>
+                  <Text style={{ fontSize: 12, fontWeight: 'bold', color: checkinPaymentMode === mode ? (isDark ? colors.gold : '#B45309') : colors.muted }}>
                     {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
                   </Text>
                 </TouchableOpacity>
@@ -1110,27 +1177,34 @@ export const CheckInWizard: React.FC = () => {
               <View style={{
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: colors.themeInput,
-                borderWidth: 1,
+                backgroundColor: colors.secondarySurface,
+                borderWidth: 1.5,
                 borderColor: colors.border,
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 16
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 4
               }}>
                 <Text style={{ fontSize: 11, fontWeight: 'bold', color: colors.gold, marginBottom: 8 }}>Scan dummy QR to pay</Text>
-                <Image
-                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${totalPrice}` }}
-                  style={{ width: 150, height: 150, borderRadius: 8 }}
-                />
+                <View style={{ padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12 }}>
+                  <Image
+                    source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${totalPrice}` }}
+                    style={{ width: 150, height: 150, borderRadius: 8 }}
+                  />
+                </View>
                 <Text style={{ fontSize: 9, color: colors.muted, marginTop: 8, fontWeight: '600' }}>Demo purposes only • No actual verification</Text>
               </View>
             )}
 
             {/* Prompt Box */}
             <View style={{
-              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : 'rgba(200, 155, 60, 0.08)',
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(245, 166, 35, 0.4)' : 'rgba(200, 155, 60, 0.4)',
+              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#FEF3C7',
+              borderWidth: 1.5,
+              borderColor: colors.gold,
               borderRadius: 16,
               padding: 14,
               flexDirection: 'row',
@@ -1139,7 +1213,7 @@ export const CheckInWizard: React.FC = () => {
               marginBottom: 20
             }}>
               <Text style={{ fontSize: 18 }}>{checkinPaymentMode === 'CASH' ? '💵' : '📱'}</Text>
-              <Text style={{ color: colors.gold, fontSize: 12, fontWeight: 'bold', flex: 1 }}>
+              <Text style={{ color: isDark ? colors.gold : '#B45309', fontSize: 12, fontWeight: 'bold', flex: 1 }}>
                 {checkinPaymentMode === 'CASH' 
                   ? `Collect Cash ₹${totalPrice.toLocaleString('en-IN')} — then confirm payment below`
                   : `Verify UPI transfer of ₹${totalPrice.toLocaleString('en-IN')} — then confirm payment below`}
@@ -1396,9 +1470,9 @@ export const CheckInWizard: React.FC = () => {
                     >
                       {isNfcWriting ? (
                         <>
-                          <View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1, borderColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', alignItems: 'center', justifyContent: 'center' }} />
-                          <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: isDark ? 'rgba(245, 166, 35, 0.35)' : 'rgba(200, 155, 60, 0.35)', alignItems: 'center', justifyContent: 'center' }} />
-                          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center' }}>
+                          <Animated.View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1.5, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center', opacity: pulseOpacity1, transform: [{ scale: pulseScale1 }] }} />
+                          <Animated.View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, borderWidth: 2.5, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center', opacity: pulseOpacity2, transform: [{ scale: pulseScale2 }] }} />
+                          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : '#FEF3C7', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center' }}>
                             <ActivityIndicator size="small" color={colors.gold} style={{ transform: [{ scale: 1.1 }] }} />
                           </View>
                         </>
@@ -1406,7 +1480,7 @@ export const CheckInWizard: React.FC = () => {
                         <>
                           <View style={{ position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 1, borderColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', alignItems: 'center', justifyContent: 'center' }} />
                           <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: isDark ? 'rgba(245, 166, 35, 0.25)' : 'rgba(200, 155, 60, 0.25)', alignItems: 'center', justifyContent: 'center' }} />
-                          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(200, 155, 60, 0.15)', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center', shadowColor: colors.gold, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}>
+                          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: isDark ? 'rgba(245, 166, 35, 0.15)' : '#FEF3C7', borderWidth: 2, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center', shadowColor: colors.gold, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}>
                             <Text className="text-2xl" style={{ color: colors.gold }}>🛜</Text>
                           </View>
                         </>
@@ -1517,7 +1591,7 @@ export const CheckInWizard: React.FC = () => {
       >
         <View style={{
           flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
           justifyContent: 'center',
           alignItems: 'center',
           padding: 20
@@ -1610,7 +1684,7 @@ export const CheckInWizard: React.FC = () => {
       >
         <View style={{
           flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
           justifyContent: 'center',
           alignItems: 'center',
           padding: 20
@@ -1724,7 +1798,7 @@ export const CheckInWizard: React.FC = () => {
       >
         <View style={{
           flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
           justifyContent: 'center',
           alignItems: 'center',
           padding: 20
@@ -1817,7 +1891,7 @@ export const CheckInWizard: React.FC = () => {
       >
         <View style={{
           flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
           justifyContent: 'center',
           alignItems: 'center',
           padding: 20
