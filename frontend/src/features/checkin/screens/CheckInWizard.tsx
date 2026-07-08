@@ -159,6 +159,9 @@ export const CheckInWizard: React.FC = () => {
 
   // Business check: Phone active session warning
   const isPhoneActive = sessions.some(s => s.phoneNumber === phone && s.status === TokenStatus.ACTIVE);
+  const isEmailActive = email.trim() !== '' && sessions.some(
+    s => s.email && s.email.trim().toLowerCase() === email.trim().toLowerCase() && s.status === TokenStatus.ACTIVE
+  );
   const activeRate = rates.find(r => r.placeType === placeType);
 
   const isValidPhoneNumber = (num: string) => {
@@ -190,9 +193,9 @@ export const CheckInWizard: React.FC = () => {
   const [checkinPaymentMode, setCheckinPaymentMode] = useState<'CASH' | 'UPI'>('CASH');
 
   const isPhoneOk = isValidPhoneNumber(phone) && !isPhoneActive;
-  const isEmailOk = selectedDeliveryMode === 'EMAIL_QR'
+  const isEmailOk = (selectedDeliveryMode === 'EMAIL_QR'
     ? (email.trim().length > 0 && isValidEmail(email))
-    : isValidEmail(email);
+    : isValidEmail(email)) && !isEmailActive;
   const isCapacityOk = guestCount <= maxAllowedSeats;
   const isStep1Valid = isNameOk && isPhoneOk && isEmailOk && isCapacityOk;
   const isStep2Valid = selectedTableNum !== null;
@@ -695,7 +698,7 @@ export const CheckInWizard: React.FC = () => {
               )}
               {isPhoneActive && (
                 <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Customer already has an active session.</Text>
+                  <Text className="text-red text-[10px] leading-3.5">⚠️ Guest already checked in with this email or phone number. Please use another email ID or phone number.</Text>
                 </View>
               )}
             </View>
@@ -744,9 +747,14 @@ export const CheckInWizard: React.FC = () => {
                   <Text className="text-red text-[10px] leading-3.5">⚠️ Email address is required for Email QR Code delivery.</Text>
                 </View>
               )}
-              {email.trim().length > 0 && !isEmailOk && (
+              {email.trim().length > 0 && !isValidEmail(email) && (
                 <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
                   <Text className="text-red text-[10px] leading-3.5">⚠️ Please enter a valid Gmail address (lowercase letters, numbers, and dots only).</Text>
+                </View>
+              )}
+              {isEmailActive && (
+                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
+                  <Text className="text-red text-[10px] leading-3.5">⚠️ Guest already checked in with this email or phone number. Please use another email ID or phone number.</Text>
                 </View>
               )}
             </View>
