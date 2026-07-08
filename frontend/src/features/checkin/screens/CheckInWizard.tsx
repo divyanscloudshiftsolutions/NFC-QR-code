@@ -157,11 +157,15 @@ export const CheckInWizard: React.FC = () => {
   const [nfcWriteState, setNfcWriteState] = useState<'idle' | 'success' | 'error'>('idle');
   const [activationError, setActivationError] = useState<string | null>(null);
 
-  // Business check: Phone active session warning
-  const isPhoneActive = sessions.some(s => s.phoneNumber === phone && s.status === TokenStatus.ACTIVE);
-  const isEmailActive = email.trim() !== '' && sessions.some(
-    s => s.email && s.email.trim().toLowerCase() === email.trim().toLowerCase() && s.status === TokenStatus.ACTIVE
+  // Business check: Phone and Email active session warning
+  const isPhoneActive = sessions.some(s => 
+    s.phoneNumber === phone && 
+    (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED || s.status === TokenStatus.EXPIRED)
   );
+  const isEmailActive = (email && email.trim()) ? sessions.some(s => 
+    s.email && s.email.trim().toLowerCase() === email.trim().toLowerCase() && 
+    (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED || s.status === TokenStatus.EXPIRED)
+  ) : false;
   const activeRate = rates.find(r => r.placeType === placeType);
 
   const isValidPhoneNumber = (num: string) => {
@@ -193,9 +197,9 @@ export const CheckInWizard: React.FC = () => {
   const [checkinPaymentMode, setCheckinPaymentMode] = useState<'CASH' | 'UPI'>('CASH');
 
   const isPhoneOk = isValidPhoneNumber(phone) && !isPhoneActive;
-  const isEmailOk = (selectedDeliveryMode === 'EMAIL_QR'
-    ? (email.trim().length > 0 && isValidEmail(email))
-    : isValidEmail(email)) && !isEmailActive;
+  const isEmailOk = selectedDeliveryMode === 'EMAIL_QR'
+    ? (email.trim().length > 0 && isValidEmail(email) && !isEmailActive)
+    : (isValidEmail(email) && !isEmailActive);
   const isCapacityOk = guestCount <= maxAllowedSeats;
   const isStep1Valid = isNameOk && isPhoneOk && isEmailOk && isCapacityOk;
   const isStep2Valid = selectedTableNum !== null;
@@ -698,7 +702,7 @@ export const CheckInWizard: React.FC = () => {
               )}
               {isPhoneActive && (
                 <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Guest already checked in with this email or phone number. Please use another email ID or phone number.</Text>
+                  <Text className="text-red text-[10px] leading-3.5">⚠️ Email ID or phone number already has an active check-in. Please use another one.</Text>
                 </View>
               )}
             </View>
@@ -754,7 +758,7 @@ export const CheckInWizard: React.FC = () => {
               )}
               {isEmailActive && (
                 <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Guest already checked in with this email or phone number. Please use another email ID or phone number.</Text>
+                  <Text className="text-red text-[10px] leading-3.5">⚠️ Email ID or phone number already has an active check-in. Please use another one.</Text>
                 </View>
               )}
             </View>
