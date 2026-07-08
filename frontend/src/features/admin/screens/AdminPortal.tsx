@@ -6,9 +6,11 @@ import { useNfcBar } from '../../../context/NfcBarContext';
 import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard, SessionToken } from '../../../types/nfc_bar';
 import { AppIcon } from '../../../components/common/AppIcon';
 import { useTheme } from '../../../context/ThemeContext';
+import { useActionProgress } from '../../../utils/actionProgress';
 
 export const AdminPortal: React.FC = () => {
   const { colors, isDark } = useTheme();
+  const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { 
     sessions, adminSessions, tables, users, cards, rates, user: loggedUser, addTable, editTable, updateTableStatus, deleteTable,
     registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard,
@@ -213,6 +215,7 @@ export const AdminPortal: React.FC = () => {
 
   const handleAdminExtend = async () => {
     if (!selectedAdminSession) return;
+    if (!startAction('admin_extend')) return;
     
     const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
     const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
@@ -220,14 +223,20 @@ export const AdminPortal: React.FC = () => {
     const amount = rate * selectedAdminSession.persons * (1 / duration);
 
     setIsAdminExtendingLoading(true);
-    const success = await extendSessionTime(selectedAdminSession.tokenNumber, 1, amount);
-    setIsAdminExtendingLoading(false);
-    if (success) {
-      setIsAdminExtendModalOpen(false);
-      setSelectedAdminSession(null);
-      setAdminExtendRefId('');
-      setAdminExtendPaymentMode('CASH');
-      await fetchAdminSessions();
+    try {
+      const success = await extendSessionTime(selectedAdminSession.tokenNumber, 1, amount);
+      stopAction();
+      setIsAdminExtendingLoading(false);
+      if (success) {
+        setIsAdminExtendModalOpen(false);
+        setSelectedAdminSession(null);
+        setAdminExtendRefId('');
+        setAdminExtendPaymentMode('CASH');
+        await fetchAdminSessions();
+      }
+    } catch (e) {
+      stopAction();
+      setIsAdminExtendingLoading(false);
     }
   };
 
@@ -1058,18 +1067,27 @@ export const AdminPortal: React.FC = () => {
                 <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl bg-gold ${!isAddTableFormValid ? 'opacity-50' : 'active:opacity-90'}`}
-                disabled={!isAddTableFormValid}
+                className={`py-2.5 px-4 rounded-xl ${(!isAddTableFormValid || isProcessing) ? 'opacity-50' : 'active:opacity-90'}`}
+                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+                disabled={!isAddTableFormValid || isProcessing}
                 onPress={async () => {
                   if (!isAddTableFormValid) return;
-                  const capNum = parseInt(newCapacity, 10);
-                  const success = await addTable(newTableNumber.toUpperCase().trim(), newPlaceType, capNum);
-                  if (success) {
-                    setIsAddModalOpen(false);
+                  if (!startAction('add_table')) return;
+                  try {
+                    const capNum = parseInt(newCapacity, 10);
+                    const success = await addTable(newTableNumber.toUpperCase().trim(), newPlaceType, capNum);
+                    stopAction();
+                    if (success) {
+                      setIsAddModalOpen(false);
+                    }
+                  } catch (e) {
+                    stopAction();
                   }
                 }}
               >
-                <Text className="text-xs font-extrabold" style={{ color: colors.primaryButtonText }}>Save Table</Text>
+                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                  {loadingAction === 'add_table' ? `Saving... (${secondsLeft}s)` : 'Save Table'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1106,18 +1124,27 @@ export const AdminPortal: React.FC = () => {
                 <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl bg-gold ${!isEditCapacityValid ? 'opacity-50' : 'active:opacity-90'}`}
-                disabled={!isEditCapacityValid}
+                className={`py-2.5 px-4 rounded-xl ${(!isEditCapacityValid || isProcessing) ? 'opacity-50' : 'active:opacity-90'}`}
+                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+                disabled={!isEditCapacityValid || isProcessing}
                 onPress={async () => {
                   if (!selectedTable || !isEditCapacityValid) return;
-                  const capNum = parseInt(editCapacity, 10);
-                  const success = await editTable(selectedTable.id, selectedTable.number, selectedTable.placeType, capNum);
-                  if (success) {
-                    setIsEditModalOpen(false);
+                  if (!startAction('edit_table')) return;
+                  try {
+                    const capNum = parseInt(editCapacity, 10);
+                    const success = await editTable(selectedTable.id, selectedTable.number, selectedTable.placeType, capNum);
+                    stopAction();
+                    if (success) {
+                      setIsEditModalOpen(false);
+                    }
+                  } catch (e) {
+                    stopAction();
                   }
                 }}
               >
-                <Text className="text-xs font-extrabold" style={{ color: colors.primaryButtonText }}>Save Changes</Text>
+                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                  {loadingAction === 'edit_table' ? `Saving... (${secondsLeft}s)` : 'Save Changes'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1279,17 +1306,25 @@ export const AdminPortal: React.FC = () => {
 
           {/* Save Button */}
           <TouchableOpacity
-            className={`w-full bg-gold py-4 rounded-xl items-center justify-center min-h-[50px]
-              ${isSavingSettings ? 'opacity-65' : 'active:opacity-90'}`}
-            disabled={isSavingSettings}
+            className={`w-full py-4 rounded-xl items-center justify-center min-h-[50px]
+              ${(isSavingSettings || isProcessing) ? 'opacity-65' : 'active:opacity-90'}`}
+            style={{ backgroundColor: (isSavingSettings || isProcessing) ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+            disabled={isSavingSettings || isProcessing}
             onPress={async () => {
+              if (!startAction('save_settings')) return;
               setIsSavingSettings(true);
-              const success = await updateDeliveryAvailability(localNfcEnabled, localEmailQrEnabled);
-              setIsSavingSettings(false);
+              try {
+                const success = await updateDeliveryAvailability(localNfcEnabled, localEmailQrEnabled);
+                stopAction();
+                setIsSavingSettings(false);
+              } catch (e) {
+                stopAction();
+                setIsSavingSettings(false);
+              }
             }}
           >
-            <Text className="font-extrabold text-sm" style={{ color: colors.primaryButtonText }}>
-              {isSavingSettings ? 'Saving Settings...' : 'Save Configurations'}
+            <Text className="font-extrabold text-sm" style={{ color: (isSavingSettings || isProcessing) ? colors.muted : colors.primaryButtonText }}>
+              {loadingAction === 'save_settings' ? `Saving Settings... (${secondsLeft}s)` : 'Save Configurations'}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -1576,22 +1611,31 @@ export const AdminPortal: React.FC = () => {
                 <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl bg-gold ${!isAddStaffFormValid ? 'opacity-50' : 'active:opacity-90'}`}
-                disabled={!isAddStaffFormValid}
+                className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isAddStaffFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
+                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+                disabled={!isAddStaffFormValid || isProcessing}
                 onPress={async () => {
                   if (!isAddStaffFormValid) return;
-                  const success = await registerStaff(
-                    newStaffUsername.toUpperCase().trim(),
-                    newStaffPassword,
-                    newStaffFullName.trim(),
-                    newStaffRole
-                  );
-                  if (success) {
-                    setIsAddStaffOpen(false);
+                  if (!startAction('register_staff')) return;
+                  try {
+                    const success = await registerStaff(
+                      newStaffUsername.toUpperCase().trim(),
+                      newStaffPassword,
+                      newStaffFullName.trim(),
+                      newStaffRole
+                    );
+                    stopAction();
+                    if (success) {
+                      setIsAddStaffOpen(false);
+                    }
+                  } catch (e) {
+                    stopAction();
                   }
                 }}
               >
-                <Text className="text-xs font-extrabold" style={{ color: colors.primaryButtonText }}>Save Staff</Text>
+                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                  {loadingAction === 'register_staff' ? `Saving... (${secondsLeft}s)` : 'Save Staff'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1730,24 +1774,33 @@ export const AdminPortal: React.FC = () => {
                 <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl bg-gold ${!isEditStaffFormValid ? 'opacity-50' : 'active:opacity-90'}`}
-                disabled={!isEditStaffFormValid}
+                className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isEditStaffFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
+                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+                disabled={!isEditStaffFormValid || isProcessing}
                 onPress={async () => {
                   if (!selectedStaff || !isEditStaffFormValid) return;
-                  const success = await updateStaff(
-                    selectedStaff.id,
-                    editStaffUsername.toUpperCase().trim(),
-                    editStaffFullName.trim(),
-                    editStaffRole,
-                    editStaffIsActive,
-                    editStaffPassword ? editStaffPassword : undefined
-                  );
-                  if (success) {
-                    setIsEditStaffOpen(false);
+                  if (!startAction('update_staff')) return;
+                  try {
+                    const success = await updateStaff(
+                      selectedStaff.id,
+                      editStaffUsername.toUpperCase().trim(),
+                      editStaffFullName.trim(),
+                      editStaffRole,
+                      editStaffIsActive,
+                      editStaffPassword ? editStaffPassword : undefined
+                    );
+                    stopAction();
+                    if (success) {
+                      setIsEditStaffOpen(false);
+                    }
+                  } catch (e) {
+                    stopAction();
                   }
                 }}
               >
-                <Text className="text-xs font-extrabold" style={{ color: colors.primaryButtonText }}>Save Changes</Text>
+                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                  {loadingAction === 'update_staff' ? `Saving... (${secondsLeft}s)` : 'Save Changes'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1840,27 +1893,36 @@ export const AdminPortal: React.FC = () => {
                 <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl bg-gold ${!isEditRateFormValid ? 'opacity-50' : 'active:opacity-90'}`}
-                disabled={!isEditRateFormValid}
+                className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isEditRateFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
+                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+                disabled={!isEditRateFormValid || isProcessing}
                 onPress={async () => {
                   if (!selectedRate || !selectedRate.id || !isEditRateFormValid) return;
-                  const priceNum = parseFloat(editRatePrice);
-                  const durNum = parseFloat(editRateDuration);
-                  const drinksNum = parseInt(editRateAllowance, 10);
+                  if (!startAction('update_rates')) return;
+                  try {
+                    const priceNum = parseFloat(editRatePrice);
+                    const durNum = parseFloat(editRateDuration);
+                    const drinksNum = parseInt(editRateAllowance, 10);
 
-                  const success = await updateRateCard(
-                    selectedRate.id,
-                    priceNum,
-                    durNum,
-                    drinksNum,
-                    editRateName.trim()
-                  );
-                  if (success) {
-                    setIsEditRateOpen(false);
+                    const success = await updateRateCard(
+                      selectedRate.id,
+                      priceNum,
+                      durNum,
+                      drinksNum,
+                      editRateName.trim()
+                    );
+                    stopAction();
+                    if (success) {
+                      setIsEditRateOpen(false);
+                    }
+                  } catch (e) {
+                    stopAction();
                   }
                 }}
               >
-                <Text className="text-xs font-extrabold" style={{ color: colors.primaryButtonText }}>Save Rates</Text>
+                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                  {loadingAction === 'update_rates' ? `Saving... (${secondsLeft}s)` : 'Save Rates'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1925,27 +1987,33 @@ export const AdminPortal: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl bg-red items-center justify-center min-h-[44px]"
+                style={{ opacity: isProcessing ? 0.6 : 1 }}
                 onPress={async () => {
                   if (!deactivateTargetSession) return;
+                  if (!startAction('deactivate_session')) return;
                   setIsDeactivating(true);
-                  const success = await adminDeactivateSession(
-                    deactivateTargetSession.tokenNumber,
-                    deactivateTargetSession.status,
-                    forceRelease
-                  );
-                  setIsDeactivating(false);
-                  if (success) {
-                    setDeactivateConfirmModalOpen(false);
-                    setDeactivateTargetSession(null);
+                  try {
+                    const success = await adminDeactivateSession(
+                      deactivateTargetSession.tokenNumber,
+                      deactivateTargetSession.status,
+                      forceRelease
+                    );
+                    stopAction();
+                    setIsDeactivating(false);
+                    if (success) {
+                      setDeactivateConfirmModalOpen(false);
+                      setDeactivateTargetSession(null);
+                    }
+                  } catch (e) {
+                    stopAction();
+                    setIsDeactivating(false);
                   }
                 }}
-                disabled={isDeactivating}
+                disabled={isProcessing}
               >
-                {isDeactivating ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text className="text-xs font-bold text-white">End Session</Text>
-                )}
+                <Text className="text-xs font-bold text-white">
+                  {loadingAction === 'deactivate_session' ? `Ending... (${secondsLeft}s)` : 'End Session'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2035,30 +2103,29 @@ export const AdminPortal: React.FC = () => {
               <View className="flex-row gap-3">
                 <TouchableOpacity
                   className="flex-1 py-3 rounded-xl border items-center justify-center"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                  style={{ backgroundColor: colors.input, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
                   onPress={() => {
                     setIsAdminExtendModalOpen(false);
                     setAdminExtendRefId('');
                   }}
-                  disabled={isAdminExtendingLoading}
+                  disabled={isProcessing}
                 >
                   <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 py-3 rounded-xl items-center justify-center border"
                   style={{
-                    backgroundColor: colors.gold,
-                    borderColor: colors.gold,
-                    borderWidth: 1
+                    backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                    borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                    borderWidth: 1,
+                    opacity: isProcessing ? 0.6 : 1
                   }}
                   onPress={handleAdminExtend}
-                  disabled={isAdminExtendingLoading}
+                  disabled={isProcessing}
                 >
-                  {isAdminExtendingLoading ? (
-                    <ActivityIndicator size="small" color={colors.goldButtonText} />
-                  ) : (
-                    <Text className="text-sm font-bold" style={{ color: colors.goldButtonText }}>Confirm & Extend</Text>
-                  )}
+                  <Text className="text-sm font-bold" style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}>
+                    {loadingAction === 'admin_extend' ? `Extending... (${secondsLeft}s)` : 'Confirm & Extend'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>

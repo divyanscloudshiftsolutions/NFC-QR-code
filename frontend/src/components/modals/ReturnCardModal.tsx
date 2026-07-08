@@ -8,6 +8,7 @@ import { SessionToken, TokenStatus } from '../../types/nfc_bar';
 import { AppIcon } from '../common/AppIcon';
 import nfcService from '../../services/nfc/nfcManager';
 import { useResponsive } from '../../utils/responsive';
+import { useActionProgress } from '../../utils/actionProgress';
 
 const formatRedemptionTime = (timestampStr: string) => {
   const date = new Date(timestampStr);
@@ -29,6 +30,7 @@ interface ReturnCardModalProps {
 
 export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => {
   const { sessions, closeGuestSession, showToast, tokenType, nfcEnabled, emailQrEnabled } = useNfcBar();
+  const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { isTablet, isLargeScreen } = useResponsive();
@@ -128,31 +130,39 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
 
   const handleConfirmClosure = async () => {
     if (!sessionDetails) return;
+    if (!startAction('close_session')) return;
     
-    if (sessionDetails.deliveryMode === 'EMAIL_QR') {
+    try {
+      if (sessionDetails.deliveryMode === 'EMAIL_QR') {
+        const success = await closeGuestSession(sessionDetails.tokenNumber);
+        stopAction();
+        if (success) {
+          setReturnStep(3);
+        }
+        return;
+      }
+
+      setIsSanitizing(true);
+      try {
+        await nfcService.initialize();
+        const eraseSuccess = await nfcService.eraseCard();
+        if (!eraseSuccess) {
+          showToast('Card erase failed, closing session anyway', 'warning');
+        }
+      } catch (err) {
+        console.error('NFC erase error on checkout:', err);
+      } finally {
+        setIsSanitizing(false);
+      }
+
       const success = await closeGuestSession(sessionDetails.tokenNumber);
+      stopAction();
       if (success) {
         setReturnStep(3);
       }
-      return;
-    }
-
-    setIsSanitizing(true);
-    try {
-      await nfcService.initialize();
-      const eraseSuccess = await nfcService.eraseCard();
-      if (!eraseSuccess) {
-        showToast('Card erase failed, closing session anyway', 'warning');
-      }
-    } catch (err) {
-      console.error('NFC erase error on checkout:', err);
-    } finally {
-      setIsSanitizing(false);
-    }
-
-    const success = await closeGuestSession(sessionDetails.tokenNumber);
-    if (success) {
-      setReturnStep(3);
+    } catch (e) {
+      stopAction();
+      showToast('An error occurred during checkout', 'danger');
     }
   };
 
@@ -346,13 +356,21 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                 <View className="flex-row gap-3">
                   <TouchableOpacity 
                     className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
-                    style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+                    style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
                     onPress={() => setReturnStep(1)}
+                    disabled={isProcessing}
                   >
                     <Text className="font-bold text-sm" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity className="flex-1 bg-red/10 border border-red py-3.5 rounded-xl items-center justify-center min-h-[48px] active:opacity-90" style={{ borderColor: colors.red }} onPress={handleConfirmClosure}>
-                    <Text className="font-bold text-sm" style={{ color: colors.red }}>Close Session</Text>
+                  <TouchableOpacity 
+                    className="flex-1 bg-red/10 border border-red py-3.5 rounded-xl items-center justify-center min-h-[48px] active:opacity-90" 
+                    style={{ borderColor: colors.red, opacity: isProcessing ? 0.5 : 1 }} 
+                    onPress={handleConfirmClosure}
+                    disabled={isProcessing}
+                  >
+                    <Text className="font-bold text-sm" style={{ color: colors.red }}>
+                      {loadingAction === 'close_session' ? `Closing... (${secondsLeft}s)` : 'Close Session'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </>

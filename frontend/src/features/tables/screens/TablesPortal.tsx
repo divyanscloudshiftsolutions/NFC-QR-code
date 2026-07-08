@@ -10,9 +10,11 @@ import { Table, SessionToken, PlaceType, TableStatus, TokenStatus, UserRole } fr
 import { isTableExpiring } from '../../../context/nfc_bar_utils';
 import { AppIcon } from '../../../components/common/AppIcon';
 import { useResponsive } from '../../../utils/responsive';
+import { useActionProgress } from '../../../utils/actionProgress';
 
 export const TablesPortal: React.FC = () => {
   const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab, rates } = useNfcBar();
+  const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedPlace, setSelectedPlace] = useState<PlaceType>('STANDING_BAR');
@@ -76,6 +78,7 @@ export const TablesPortal: React.FC = () => {
 
   const handleExtend = async () => {
     if (!selectedSession) return;
+    if (!startAction('extend_session')) return;
     
     // Calculate extension amount
     const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
@@ -84,23 +87,35 @@ export const TablesPortal: React.FC = () => {
     const amount = rate * selectedSession.persons * (1 / duration);
 
     setIsExtendingLoading(true);
-    const success = await extendSessionTime(selectedSession.tokenNumber, 1, amount);
-    setIsExtendingLoading(false);
-    if (success) {
-      const updated = sessions.find(s => s.tokenNumber === selectedSession.tokenNumber);
-      if (updated) setSelectedSession(updated);
-      setIsExtendModalOpen(false);
-      setIsBottomSheetOpen(false);
-      setExtendRefId('');
-      setExtendPaymentMode('CASH');
+    try {
+      const success = await extendSessionTime(selectedSession.tokenNumber, 1, amount);
+      stopAction();
+      setIsExtendingLoading(false);
+      if (success) {
+        const updated = sessions.find(s => s.tokenNumber === selectedSession.tokenNumber);
+        if (updated) setSelectedSession(updated);
+        setIsExtendModalOpen(false);
+        setIsBottomSheetOpen(false);
+        setExtendRefId('');
+        setExtendPaymentMode('CASH');
+      }
+    } catch (e) {
+      stopAction();
+      setIsExtendingLoading(false);
     }
   };
 
   const handleCloseSession = async () => {
     if (!selectedSession) return;
-    const success = await closeGuestSession(selectedSession.tokenNumber);
-    if (success) {
-      setIsBottomSheetOpen(false);
+    if (!startAction('close_session')) return;
+    try {
+      const success = await closeGuestSession(selectedSession.tokenNumber);
+      stopAction();
+      if (success) {
+        setIsBottomSheetOpen(false);
+      }
+    } catch (e) {
+      stopAction();
     }
   };
 
@@ -677,10 +692,22 @@ export const TablesPortal: React.FC = () => {
  
                 {selectedSession && user?.role !== UserRole.MANAGER && (
                   <View className="flex-row gap-2.5 mb-1.5">
-                    <TouchableOpacity className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" style={{ borderColor: colors.red }} onPress={handleCloseSession}>
-                      <Text className="font-bold text-sm" style={{ color: colors.red }}>Close Session</Text>
+                    <TouchableOpacity 
+                      className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" 
+                      style={{ borderColor: colors.red, opacity: isProcessing ? 0.5 : 1 }} 
+                      onPress={handleCloseSession}
+                      disabled={isProcessing}
+                    >
+                      <Text className="font-bold text-sm" style={{ color: colors.red }}>
+                        {loadingAction === 'close_session' ? `Closing... (${secondsLeft}s)` : 'Close Session'}
+                      </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" style={{ borderColor: colors.gold }} onPress={() => setIsExtendModalOpen(true)}>
+                    <TouchableOpacity 
+                      className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" 
+                      style={{ borderColor: colors.gold, opacity: isProcessing ? 0.5 : 1 }} 
+                      onPress={() => setIsExtendModalOpen(true)}
+                      disabled={isProcessing}
+                    >
                       <Text className="font-bold text-[13px]" style={{ color: colors.goldButtonText }}>Extend Time</Text>
                     </TouchableOpacity>
                   </View>
@@ -791,30 +818,29 @@ export const TablesPortal: React.FC = () => {
               <View className="flex-row gap-3">
                 <TouchableOpacity
                   className="flex-1 py-3 rounded-xl border items-center justify-center"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                  style={{ backgroundColor: colors.input, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
                   onPress={() => {
                     setIsExtendModalOpen(false);
                     setExtendRefId('');
                   }}
-                  disabled={isExtendingLoading}
+                  disabled={isProcessing}
                 >
                   <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 py-3 rounded-xl items-center justify-center border"
                   style={{
-                    backgroundColor: colors.gold,
-                    borderColor: colors.gold,
-                    borderWidth: 1
+                    backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                    borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                    borderWidth: 1,
+                    opacity: isProcessing ? 0.6 : 1
                   }}
                   onPress={handleExtend}
-                  disabled={isExtendingLoading}
+                  disabled={isProcessing}
                 >
-                  {isExtendingLoading ? (
-                    <ActivityIndicator size="small" color={colors.goldButtonText} />
-                  ) : (
-                    <Text className="text-sm font-bold" style={{ color: colors.goldButtonText }}>Confirm & Extend</Text>
-                  )}
+                  <Text className="text-sm font-bold" style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}>
+                    {loadingAction === 'extend_session' ? `Extending... (${secondsLeft}s)` : 'Confirm & Extend'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>

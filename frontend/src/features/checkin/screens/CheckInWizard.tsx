@@ -12,6 +12,7 @@ import { isTableExpiring } from '../../../context/nfc_bar_utils';
 import { AppIcon } from '../../../components/common/AppIcon';
 import nfcService from '../../../services/nfc/nfcManager';
 import { useResponsive } from '../../../utils/responsive';
+import { useActionProgress } from '../../../utils/actionProgress';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -24,6 +25,7 @@ export const CheckInWizard: React.FC = () => {
     nfcEnabled, emailQrEnabled,
     createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, setTab
   } = useNfcBar();
+  const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
   const { getTableColumns } = useResponsive();
   const cols = getTableColumns();
@@ -220,6 +222,7 @@ export const CheckInWizard: React.FC = () => {
 
   const handleStep2Submit = async () => {
     if (selectedDeliveryMode === 'EMAIL_QR') {
+      if (!startAction('create_pending')) return;
       setIsActivating(true);
       try {
         const pendingSession = await createPendingSession({
@@ -231,6 +234,7 @@ export const CheckInWizard: React.FC = () => {
           placeTypeId: rates.find(r => r.placeType === placeType)?.id,
           tableNumber: selectedTableNum || undefined
         });
+        stopAction();
         setIsActivating(false);
         if (pendingSession) {
           setPendingToken(pendingSession.tokenNumber);
@@ -244,6 +248,7 @@ export const CheckInWizard: React.FC = () => {
           }
         }
       } catch (err: any) {
+        stopAction();
         setIsActivating(false);
         if (err.code === 'PENDING_SESSION_EXISTS') {
           setPendingExistsTokenNumber(err.tokenNumber);
@@ -269,10 +274,12 @@ export const CheckInWizard: React.FC = () => {
         showToast('Session token or table selection is missing.', 'danger');
         return;
       }
+      if (!startAction('activate_pending')) return;
       setIsNfcWriting(true);
       setActivationError(null);
       try {
         const token = await activatePendingSession(pendingToken, selectedTableNum, totalPrice);
+        stopAction();
         setIsNfcWriting(false);
         if (token) {
           setCreatedSession(token);
@@ -284,6 +291,7 @@ export const CheckInWizard: React.FC = () => {
           setStep(4);
         }
       } catch (error: any) {
+        stopAction();
         setIsNfcWriting(false);
         console.error('Activation error:', error);
         setNfcWriteState('error');
@@ -298,6 +306,7 @@ export const CheckInWizard: React.FC = () => {
   };
 
   const handleWriteNfc = async () => {
+    if (!startAction('write_card')) return;
     setIsNfcWriting(true);
     setNfcWriteState('idle');
     
@@ -339,10 +348,12 @@ export const CheckInWizard: React.FC = () => {
         throw new Error('Failed to write NDEF token number onto tag.');
       }
 
+      stopAction();
       setCreatedSession(token);
       setNfcWriteState('success');
       showToast('NFC card programmed successfully!', 'success');
     } catch (error: any) {
+      stopAction();
       console.error('NFC Write process error:', error);
       setNfcWriteState('error');
       showToast(error.message || 'NFC program failed.', 'danger');
@@ -586,34 +597,52 @@ export const CheckInWizard: React.FC = () => {
               </TouchableOpacity>
 
               <TouchableOpacity 
-                className="flex-grow flex-1 bg-gold py-3.5 rounded-xl items-center justify-center min-h-[48px] border"
-                style={{ borderColor: colors.gold }}
+                className="flex-grow flex-1 py-3.5 rounded-xl items-center justify-center min-h-[48px] border"
+                style={{ 
+                  borderColor: colors.gold,
+                  backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                  opacity: isProcessing ? 0.5 : 1
+                }}
+                disabled={isProcessing}
                 onPress={async () => {
                   if (!scannedToken.trim()) {
                     setQrVerificationError('Please enter the scanned QR token.');
                     return;
                   }
+                  if (!startAction('verify_qr')) return;
                   setIsVerifyingQr(true);
-                  const verifiedToken = await verifyQrCode(scannedToken.trim());
-                  setIsVerifyingQr(false);
-                  if (verifiedToken) {
-                    if (verifiedToken.placeType) {
-                      setPlaceType(verifiedToken.placeType);
+                  try {
+                    const verifiedToken = await verifyQrCode(scannedToken.trim());
+                    stopAction();
+                    setIsVerifyingQr(false);
+                    if (verifiedToken) {
+                      if (verifiedToken.placeType) {
+                        setPlaceType(verifiedToken.placeType);
+                      }
+                      if (verifiedToken.persons) {
+                        setGuestCount(verifiedToken.persons);
+                      }
+                      if (verifiedToken.tableNumber) {
+                        setSelectedTableNum(verifiedToken.tableNumber);
+                      }
+                      setQrVerificationSuccess(true);
+                      setStep(3); // Proceed to Payment Confirmation
+                    } else {
+                      setQrVerificationError('Invalid or expired QR token.');
                     }
-                    if (verifiedToken.persons) {
-                      setGuestCount(verifiedToken.persons);
-                    }
-                    if (verifiedToken.tableNumber) {
-                      setSelectedTableNum(verifiedToken.tableNumber);
-                    }
-                    setQrVerificationSuccess(true);
-                    setStep(3); // Proceed to Payment Confirmation
-                  } else {
-                    setQrVerificationError('Invalid or expired QR token.');
+                  } catch (e: any) {
+                    stopAction();
+                    setIsVerifyingQr(false);
+                    setQrVerificationError(e.message || 'Verification failed.');
                   }
                 }}
               >
-                <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Verify QR</Text>
+                <Text 
+                  className="font-bold text-sm" 
+                  style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}
+                >
+                  {loadingAction === 'verify_qr' ? `Verifying... (${secondsLeft}s)` : 'Verify QR'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -1034,21 +1063,23 @@ export const CheckInWizard: React.FC = () => {
               <TouchableOpacity 
                 className="flex-[2] py-3.5 rounded-xl items-center justify-center min-h-[48px] border"
                 style={{ 
-                  backgroundColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : (isDark ? '#27272A' : '#E4E4E7'),
-                  borderColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : (isDark ? '#3F3F46' : '#D4D4D8'),
+                  backgroundColor: (isProcessing) ? (isDark ? '#27272A' : '#E4E4E7') : ((selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : (isDark ? '#27272A' : '#E4E4E7')),
+                  borderColor: (isProcessing) ? (isDark ? '#3F3F46' : '#D4D4D8') : ((selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : (isDark ? '#3F3F46' : '#D4D4D8')),
                   borderWidth: 1.5,
-                  opacity: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? 1 : 0.6
+                  opacity: (isProcessing) ? 0.6 : ((selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? 1 : 0.6)
                 }}
-                disabled={selectedDeliveryMode !== 'EMAIL_QR' && !isStep2Valid}
+                disabled={isProcessing || (selectedDeliveryMode !== 'EMAIL_QR' && !isStep2Valid)}
                 onPress={handleStep2Submit}
               >
                 <Text 
                   className="font-bold text-sm" 
-                  style={{ color: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.goldButtonText : colors.muted }}
+                  style={{ color: (isProcessing) ? colors.muted : ((selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.goldButtonText : colors.muted) }}
                 >
-                  {selectedDeliveryMode === 'EMAIL_QR' 
-                    ? (selectedTableNum ? 'Assign & Send QR' : 'Join Waiting List')
-                    : 'Check Bill'}
+                  {loadingAction === 'create_pending' 
+                    ? `Processing... (${secondsLeft}s)`
+                    : (selectedDeliveryMode === 'EMAIL_QR' 
+                        ? (selectedTableNum ? 'Assign & Send QR' : 'Join Waiting List')
+                        : 'Check Bill')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1260,7 +1291,12 @@ export const CheckInWizard: React.FC = () => {
             <View className="flex-col gap-3">
               <TouchableOpacity 
                 className="w-full bg-gold py-4 rounded-2xl items-center justify-center min-h-[52px] flex-row gap-2 border"
-                style={{ borderColor: colors.gold }}
+                style={{ 
+                  backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                  borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                  opacity: isProcessing ? 0.6 : 1
+                }}
+                disabled={isProcessing}
                 onPress={() => {
                   if (selectedDeliveryMode === 'EMAIL_QR') {
                     setShowPaymentConfirmModal(true);
@@ -1269,10 +1305,18 @@ export const CheckInWizard: React.FC = () => {
                   }
                 }}
               >
-                <Text className="text-base">✓</Text>
-                <Text className="font-extrabold text-base tracking-wide" style={{ color: colors.goldButtonText }}>
-                  Payment Collected
-                </Text>
+                {loadingAction === 'activate_pending' ? (
+                  <Text className="font-extrabold text-base tracking-wide" style={{ color: colors.muted }}>
+                    Processing... ({secondsLeft}s)
+                  </Text>
+                ) : (
+                  <>
+                    <Text className="text-base">✓</Text>
+                    <Text className="font-extrabold text-base tracking-wide" style={{ color: colors.goldButtonText }}>
+                      Payment Collected
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
               <TouchableOpacity 
                 className="w-full py-4 rounded-2xl border items-center justify-center min-h-[52px]" 
@@ -1546,12 +1590,17 @@ export const CheckInWizard: React.FC = () => {
                       <TouchableOpacity 
                         className="w-full bg-gold py-4 rounded-2xl items-center justify-center min-h-[52px] flex-row gap-2 border"
                         onPress={handleWriteNfc}
-                        disabled={isNfcWriting}
-                        style={{ marginBottom: 12, opacity: isNfcWriting ? 0.5 : 1, borderColor: colors.gold }}
+                        disabled={isNfcWriting || isProcessing}
+                        style={{ 
+                          marginBottom: 12, 
+                          opacity: (isNfcWriting || isProcessing) ? 0.5 : 1, 
+                          borderColor: colors.gold,
+                          backgroundColor: (isNfcWriting || isProcessing) ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold
+                        }}
                       >
                         <Text className="text-base">🛜</Text>
-                        <Text className="font-extrabold text-base tracking-wide" style={{ color: colors.goldButtonText }}>
-                          {isNfcWriting ? 'Writing to Card...' : 'Write to Card'}
+                        <Text className="font-extrabold text-base tracking-wide" style={{ color: (isNfcWriting || isProcessing) ? colors.muted : colors.goldButtonText }}>
+                          {loadingAction === 'write_card' ? `Writing... (${secondsLeft}s)` : (isNfcWriting ? 'Writing to Card...' : 'Write to Card')}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity 

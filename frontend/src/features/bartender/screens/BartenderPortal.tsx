@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SessionToken, TokenStatus } from '../../../types/nfc_bar';
 import { AppIcon } from '../../../components/common/AppIcon';
 import nfcService from '../../../services/nfc/nfcManager';
+import { useActionProgress } from '../../../utils/actionProgress';
 
 const formatRedemptionTime = (timestampStr: string) => {
   const date = new Date(timestampStr);
@@ -28,6 +29,7 @@ const formatRedemptionTime = (timestampStr: string) => {
 
 export const BartenderPortal: React.FC = () => {
   const { sessions, redeemDrinkForCard, undoDrinkRedemption, tokenType, nfcEnabled, emailQrEnabled, fetchLatestState, showToast } = useNfcBar();
+  const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
   const [bartenderState, setBartenderState] = useState<'idle' | 'scanning' | 'scanned' | 'depleted' | 'error'>('idle');
   const [scannedCardUid, setScannedCardUid] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export const BartenderPortal: React.FC = () => {
 
   const executeCloseSession = async () => {
     if (!tokenToClose) return;
+    if (!startAction('close_session')) return;
     setIsClosingSession(true);
     try {
       const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
@@ -60,6 +63,7 @@ export const BartenderPortal: React.FC = () => {
         body: JSON.stringify({ eraseCard: true })
       });
       const data = await res.json();
+      stopAction();
       if (res.ok) {
         showToast('Section successfully closed', 'success');
         setShowCloseConfirm(false);
@@ -71,6 +75,7 @@ export const BartenderPortal: React.FC = () => {
         showToast(data.error || 'Failed to close section', 'danger');
       }
     } catch (err: any) {
+      stopAction();
       showToast(err.message || 'Error occurred', 'danger');
     } finally {
       setIsClosingSession(false);
@@ -83,6 +88,7 @@ export const BartenderPortal: React.FC = () => {
 
   const handleQrCodeScannedForClose = async (qrData: string) => {
     if (!qrData) return;
+    if (!startAction('close_session_qr')) return;
     setScanningForClose(false);
     setIsClosingSession(true);
     try {
@@ -96,6 +102,7 @@ export const BartenderPortal: React.FC = () => {
         body: JSON.stringify({ qrData, eraseCard: true })
       });
       const data = await res.json();
+      stopAction();
       if (res.ok) {
         showToast('Section successfully closed via QR scan', 'success');
         setBartenderState('idle');
@@ -105,6 +112,7 @@ export const BartenderPortal: React.FC = () => {
         showToast(data.error || 'Failed to close section via QR', 'danger');
       }
     } catch (err: any) {
+      stopAction();
       showToast(err.message || 'Error occurred', 'danger');
     } finally {
       setIsClosingSession(false);
@@ -303,42 +311,58 @@ export const BartenderPortal: React.FC = () => {
 
   const handleServeDrink = async () => {
     if (!scannedCardUid || !activeSession) return;
+    if (!startAction('serve_drink')) return;
     
-    const res = await redeemDrinkForCard(scannedCardUid);
-    if (res.success) {
-      // Refresh current details locally
-      setActiveSession(prev => prev ? {
-        ...prev,
-        redemptionCount: prev.redemptionCount + 1
-      } : null);
-      fetchRedemptionsHistory(activeSession.tokenNumber);
+    try {
+      const res = await redeemDrinkForCard(scannedCardUid);
+      stopAction();
+      if (res.success) {
+        // Refresh current details locally
+        setActiveSession(prev => prev ? {
+          ...prev,
+          redemptionCount: prev.redemptionCount + 1
+        } : null);
+        fetchRedemptionsHistory(activeSession.tokenNumber);
 
-      // Transition to depleted if limit is hit
-      if (activeSession.redemptionCount + 1 >= activeSession.redemptionLimit) {
-        setBartenderState('depleted');
+        // Transition to depleted if limit is hit
+        if (activeSession.redemptionCount + 1 >= activeSession.redemptionLimit) {
+          setBartenderState('depleted');
+        }
+      } else {
+        setBartenderState('error');
+        setErrorMessage(res.error || 'Redemption blocked');
       }
-    } else {
+    } catch (e) {
+      stopAction();
       setBartenderState('error');
-      setErrorMessage(res.error || 'Redemption blocked');
+      setErrorMessage('Redemption request failed.');
     }
   };
 
   const handleUndoServe = async () => {
     if (!scannedCardUid || !activeSession) return;
+    if (!startAction('undo_serve')) return;
     
-    const res = await undoDrinkRedemption(scannedCardUid);
-    if (res.success) {
-      // Refresh current details locally
-      setActiveSession(prev => prev ? {
-        ...prev,
-        redemptionCount: Math.max(0, prev.redemptionCount - 1)
-      } : null);
+    try {
+      const res = await undoDrinkRedemption(scannedCardUid);
+      stopAction();
+      if (res.success) {
+        // Refresh current details locally
+        setActiveSession(prev => prev ? {
+          ...prev,
+          redemptionCount: Math.max(0, prev.redemptionCount - 1)
+        } : null);
 
-      // Transition back to scanned state (since we are not depleted anymore)
-      setBartenderState('scanned');
-    } else {
+        // Transition back to scanned state (since we are not depleted anymore)
+        setBartenderState('scanned');
+      } else {
+        setBartenderState('error');
+        setErrorMessage(res.error || 'Undo blocked');
+      }
+    } catch (e) {
+      stopAction();
       setBartenderState('error');
-      setErrorMessage(res.error || 'Undo blocked');
+      setErrorMessage('Undo request failed.');
     }
   };
 
@@ -803,9 +827,13 @@ export const BartenderPortal: React.FC = () => {
               <TouchableOpacity 
                 className="bg-red/10 border border-red/20 py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px]" 
                 onPress={handleUndoServe}
+                disabled={isProcessing}
+                style={{ opacity: isProcessing ? 0.5 : 1 }}
                 activeOpacity={0.8}
               >
-                <Text className="text-red font-extrabold text-xs">↩ Undo Last Drink Redemption</Text>
+                <Text className="text-red font-extrabold text-xs">
+                  {loadingAction === 'undo_serve' ? `Undoing... (${secondsLeft}s)` : '↩ Undo Last Drink Redemption'}
+                </Text>
               </TouchableOpacity>
             )}
 
@@ -814,15 +842,17 @@ export const BartenderPortal: React.FC = () => {
             <View className="flex-row gap-3 mb-4">
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px] bg-red/10" 
-                style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                style={{ borderColor: 'rgba(239, 68, 68, 0.2)', opacity: isProcessing ? 0.5 : 1 }}
                 onPress={() => handleConfirmCloseSession(activeSession.tokenNumber)}
+                disabled={isProcessing}
               >
                 <Text className="font-bold text-xs text-red">Close Section</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
-                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
                 onPress={handleQrScanForClose}
+                disabled={isProcessing}
               >
                 <Text className="font-bold text-xs" style={{ color: colors.text }}>Scan QR</Text>
               </TouchableOpacity>
@@ -832,17 +862,25 @@ export const BartenderPortal: React.FC = () => {
             <View className="flex-row gap-3 mt-2">
               <TouchableOpacity 
                 className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
-                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
                 onPress={() => setBartenderState('idle')}
+                disabled={isProcessing}
               >
                 <Text className="font-bold text-sm" style={{ color: colors.secondaryButtonText }}>Next Card</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className="flex-[2] bg-teal py-3.5 rounded-xl items-center justify-center min-h-[48px] border" 
-                style={{ borderColor: colors.teal }}
+                className="flex-[2] py-3.5 rounded-xl items-center justify-center min-h-[48px] border" 
+                style={{ 
+                  borderColor: colors.teal,
+                  backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.teal,
+                  opacity: isProcessing ? 0.5 : 1
+                }}
+                disabled={isProcessing}
                 onPress={handleServeDrink}
               >
-                <Text className="font-black text-sm" style={{ color: isDark ? colors.goldButtonText : '#FFFFFF' }}>Serve Drink</Text>
+                <Text className="font-black text-sm" style={{ color: isProcessing ? colors.muted : (isDark ? colors.goldButtonText : '#FFFFFF') }}>
+                  {loadingAction === 'serve_drink' ? `Serving... (${secondsLeft}s)` : 'Serve Drink'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -877,9 +915,13 @@ export const BartenderPortal: React.FC = () => {
               <TouchableOpacity 
                 className="bg-red/10 border border-red/20 py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px]" 
                 onPress={handleUndoServe}
+                disabled={isProcessing}
+                style={{ opacity: isProcessing ? 0.5 : 1 }}
                 activeOpacity={0.8}
               >
-                <Text className="text-red font-extrabold text-xs">↩ Undo Last Drink Redemption</Text>
+                <Text className="text-red font-extrabold text-xs">
+                  {loadingAction === 'undo_serve' ? `Undoing... (${secondsLeft}s)` : '↩ Undo Last Drink Redemption'}
+                </Text>
               </TouchableOpacity>
             )}
 
@@ -888,15 +930,17 @@ export const BartenderPortal: React.FC = () => {
             <View className="flex-row gap-3 mb-4">
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px] bg-red/10" 
-                style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                style={{ borderColor: 'rgba(239, 68, 68, 0.2)', opacity: isProcessing ? 0.5 : 1 }}
                 onPress={() => handleConfirmCloseSession(activeSession.tokenNumber)}
+                disabled={isProcessing}
               >
                 <Text className="font-bold text-xs text-red">Close Section</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
-                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
                 onPress={handleQrScanForClose}
+                disabled={isProcessing}
               >
                 <Text className="font-bold text-xs" style={{ color: colors.text }}>Scan QR</Text>
               </TouchableOpacity>
@@ -904,8 +948,9 @@ export const BartenderPortal: React.FC = () => {
 
             <TouchableOpacity 
               className="bg-gold py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
-              style={{ borderColor: colors.gold }}
+              style={{ borderColor: colors.gold, opacity: isProcessing ? 0.5 : 1 }}
               onPress={() => setBartenderState('idle')}
+              disabled={isProcessing}
             >
               <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Tap Next Card</Text>
             </TouchableOpacity>
@@ -957,15 +1002,16 @@ export const BartenderPortal: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity 
                 className="flex-1 bg-red py-3 rounded-xl items-center justify-center min-h-[44px] border" 
-                style={{ borderColor: '#ef4444' }}
+                style={{ 
+                  borderColor: '#ef4444',
+                  opacity: isProcessing ? 0.6 : 1
+                }}
                 onPress={executeCloseSession}
-                disabled={isClosingSession}
+                disabled={isProcessing}
               >
-                {isClosingSession ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text className="font-bold text-xs text-white">Yes, Close Section</Text>
-                )}
+                <Text className="font-bold text-xs text-white">
+                  {loadingAction === 'close_session' ? `Closing... (${secondsLeft}s)` : 'Yes, Close Section'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
