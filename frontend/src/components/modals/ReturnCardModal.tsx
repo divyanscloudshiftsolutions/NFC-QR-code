@@ -100,11 +100,11 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
         setSessionDetails(activeSession);
         setReturnStep(2);
       } else {
-        showToast('This smart card has no active session!', 'danger');
+        showToast('No active session found', 'danger');
       }
     } catch (error: any) {
       console.error('Return Card NFC Scan error:', error);
-      showToast(error.message || 'NFC Scan failed.', 'danger');
+      showToast('NFC scan failed', 'danger');
     } finally {
       setIsScanning(false);
     }
@@ -114,24 +114,23 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
     setIsScanning(true);
     setSelectedCardId(cardId);
     
-    setTimeout(() => {
-      setIsScanning(false);
-      const activeSession = sessions.find(s => s.cardUid === cardId && s.status === TokenStatus.ACTIVE);
-      if (activeSession) {
-        setSessionDetails(activeSession);
-        setReturnStep(2);
-      } else {
-        showToast('This smart card has no active session!', 'danger');
-        setSelectedCardId(null);
-      }
-    }, 1500); // 1.5s chip validation
+    // Immediate simulation transition
+    setIsScanning(false);
+    const activeSession = sessions.find(s => s.cardUid === cardId && s.status === TokenStatus.ACTIVE);
+    if (activeSession) {
+      setSessionDetails(activeSession);
+      setReturnStep(2);
+    } else {
+      showToast('No active session found', 'danger');
+      setSelectedCardId(null);
+    }
   };
 
   const handleConfirmClosure = async () => {
     if (!sessionDetails) return;
     
     if (sessionDetails.deliveryMode === 'EMAIL_QR') {
-      const success = closeGuestSession(sessionDetails.tokenNumber);
+      const success = await closeGuestSession(sessionDetails.tokenNumber);
       if (success) {
         setReturnStep(3);
       }
@@ -141,14 +140,9 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
     setIsSanitizing(true);
     try {
       await nfcService.initialize();
-      showToast('Wiping card blocks...', 'info');
-      
       const eraseSuccess = await nfcService.eraseCard();
-      // Add a small artificial delay so the user experiences the sanitization animation
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       if (!eraseSuccess) {
-        showToast('NFC card erase failed, continuing closure...', 'warning');
+        showToast('Card erase failed, closing session anyway', 'warning');
       }
     } catch (err) {
       console.error('NFC erase error on checkout:', err);
@@ -156,7 +150,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
       setIsSanitizing(false);
     }
 
-    const success = closeGuestSession(sessionDetails.tokenNumber);
+    const success = await closeGuestSession(sessionDetails.tokenNumber);
     if (success) {
       setReturnStep(3);
     }

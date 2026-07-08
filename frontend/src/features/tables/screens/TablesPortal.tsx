@@ -96,9 +96,9 @@ export const TablesPortal: React.FC = () => {
     }
   };
 
-  const handleCloseSession = () => {
+  const handleCloseSession = async () => {
     if (!selectedSession) return;
-    const success = closeGuestSession(selectedSession.tokenNumber);
+    const success = await closeGuestSession(selectedSession.tokenNumber);
     if (success) {
       setIsBottomSheetOpen(false);
     }
@@ -256,23 +256,23 @@ export const TablesPortal: React.FC = () => {
     const isSessionExpired = activeToken ? (new Date(activeToken.endTime).getTime() <= Date.now()) : false;
     
     let statusText = 'Available';
-    let statusTextColor = 'text-[#22c55e]';
+    let statusTextColor = colors.success;
     
     if (table.status === TableStatus.MAINTENANCE) {
       statusText = 'Maintenance';
-      statusTextColor = 'text-muted';
+      statusTextColor = colors.muted;
     } else if (table.status === TableStatus.RESERVED) {
       statusText = 'Reserved';
-      statusTextColor = 'text-[#3b82f6]';
+      statusTextColor = '#3b82f6';
     } else if (isSessionExpired) {
       statusText = 'Expired';
-      statusTextColor = 'text-red';
+      statusTextColor = colors.red;
     } else if (isExpiring) {
       statusText = 'Expiring Soon';
-      statusTextColor = 'text-red';
+      statusTextColor = colors.red;
     } else if (isOccupied) {
       statusText = 'Occupied';
-      statusTextColor = 'text-gold';
+      statusTextColor = colors.gold;
     }
 
     const itemLabelColor = colors.muted;
@@ -305,7 +305,7 @@ export const TablesPortal: React.FC = () => {
         </View>
         <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Status</Text>
-          <Text className={`text-[11px] font-bold ${statusTextColor}`} style={statusTextColor === 'text-red' ? { color: colors.red } : statusTextColor === 'text-gold' ? { color: colors.gold } : statusTextColor === 'text-muted' ? { color: colors.muted } : statusTextColor === 'text-[#3b82f6]' ? { color: '#3b82f6' } : { color: '#22c55e' }}>{statusText}</Text>
+          <Text className="text-[11px] font-bold" style={{ color: statusTextColor }}>{statusText}</Text>
         </View>
 
         {activeToken ? (
@@ -495,24 +495,24 @@ export const TablesPortal: React.FC = () => {
             const activeToken = sessions.find(s => s.tableNumber === table.number && s.status === TokenStatus.ACTIVE);
             const isOccupied = table.status === TableStatus.OCCUPIED;
             const isExp = isTableExpiring(table.number, sessions);
-            let statusColor = 'bg-[#22c55e]'; // Green
-            let statusTextColor = '#22c55e';
+            let statusColor = colors.success; // Green
+            let statusTextColor = colors.success;
             let statusText = 'Available';
             
             if (table.status === TableStatus.MAINTENANCE) {
-              statusColor = 'bg-[#7a7d8a]'; // Gray
+              statusColor = colors.muted; // Gray
               statusTextColor = colors.muted;
               statusText = 'Maintenance';
             } else if (table.status === TableStatus.RESERVED) {
-              statusColor = 'bg-[#3b82f6]'; // Blue
+              statusColor = '#3b82f6'; // Blue
               statusTextColor = '#3b82f6';
               statusText = 'Reserved';
             } else if (isExp) {
-              statusColor = 'bg-[#ef4444]'; // Red
+              statusColor = colors.red; // Red
               statusTextColor = colors.red;
               statusText = 'Expiring Soon';
             } else if (isOccupied) {
-              statusColor = 'bg-[#f5a623]'; // Amber
+              statusColor = colors.gold; // Amber
               statusTextColor = colors.gold;
               statusText = 'Occupied';
             }
@@ -538,7 +538,7 @@ export const TablesPortal: React.FC = () => {
                       <Text className="text-[8px] font-bold uppercase" style={{ color: statusTextColor }}>
                         {statusText}
                       </Text>
-                      <View className={`w-1.5 h-1.5 rounded-full ${statusColor}`} />
+                      <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
                     </View>
                   </View>
 

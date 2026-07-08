@@ -270,44 +270,41 @@ export const BartenderPortal: React.FC = () => {
   };
 
   const handleSimulateScan = (cardId: string) => {
-    setBartenderState('scanning');
     setScannedCardUid(cardId);
     setErrorMessage('');
     
-    setTimeout(() => {
-      // Find active session
-      const found = sessions.find(s => s.cardUid === cardId && s.status === TokenStatus.ACTIVE && s.paymentVerified === true);
-      if (!found) {
-        setBartenderState('error');
-        setErrorMessage('Unknown card or token session closed.');
-        return;
-      }
-      
-      // Check expiration
-      const now = new Date();
-      if (now > new Date(found.endTime)) {
-        setActiveSession(found);
-        setBartenderState('error');
-        setErrorMessage('Expired session! Entitlements locked.');
-        return;
-      }
-
-      // Check drinks depletion
-      if (found.redemptionCount >= found.redemptionLimit) {
-        setActiveSession(found);
-        setBartenderState('depleted');
-        return;
-      }
-
+    // Find active session
+    const found = sessions.find(s => s.cardUid === cardId && s.status === TokenStatus.ACTIVE && s.paymentVerified === true);
+    if (!found) {
+      setBartenderState('error');
+      setErrorMessage('Unknown card or token session closed.');
+      return;
+    }
+    
+    // Check expiration
+    const now = new Date();
+    if (now > new Date(found.endTime)) {
       setActiveSession(found);
-      setBartenderState('scanned');
-    }, 1600); // 1.6s scan animation
+      setBartenderState('error');
+      setErrorMessage('Expired session! Entitlements locked.');
+      return;
+    }
+
+    // Check drinks depletion
+    if (found.redemptionCount >= found.redemptionLimit) {
+      setActiveSession(found);
+      setBartenderState('depleted');
+      return;
+    }
+
+    setActiveSession(found);
+    setBartenderState('scanned');
   };
 
-  const handleServeDrink = () => {
+  const handleServeDrink = async () => {
     if (!scannedCardUid || !activeSession) return;
     
-    const res = redeemDrinkForCard(scannedCardUid);
+    const res = await redeemDrinkForCard(scannedCardUid);
     if (res.success) {
       // Refresh current details locally
       setActiveSession(prev => prev ? {
@@ -326,10 +323,10 @@ export const BartenderPortal: React.FC = () => {
     }
   };
 
-  const handleUndoServe = () => {
+  const handleUndoServe = async () => {
     if (!scannedCardUid || !activeSession) return;
     
-    const res = undoDrinkRedemption(scannedCardUid);
+    const res = await undoDrinkRedemption(scannedCardUid);
     if (res.success) {
       // Refresh current details locally
       setActiveSession(prev => prev ? {
@@ -469,6 +466,12 @@ export const BartenderPortal: React.FC = () => {
                         <View style={{ flex: 1 }}>
                           <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
                           <Text className="text-[10px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
+                          <View className="flex-row items-center gap-2 mt-1 flex-wrap">
+                            <Text className="text-[9px]" style={{ color: colors.muted }}>📞 {s.phoneNumber}</Text>
+                            {s.email ? (
+                              <Text className="text-[9px]" style={{ color: colors.muted }}>✉️ {s.email}</Text>
+                            ) : null}
+                          </View>
                         </View>
                         <View className="items-center px-2">
                           <Text className="text-[10px] font-bold" style={{ color: isExpired ? '#ff6b6b' : colors.gold }}>
@@ -596,6 +599,12 @@ export const BartenderPortal: React.FC = () => {
                       <View style={{ flex: 1 }}>
                         <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
                         <Text className="text-[9px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
+                        <View className="flex-row items-center gap-2 mt-1 flex-wrap">
+                          <Text className="text-[9px]" style={{ color: colors.muted }}>📞 {s.phoneNumber}</Text>
+                          {s.email ? (
+                            <Text className="text-[9px]" style={{ color: colors.muted }}>✉️ {s.email}</Text>
+                          ) : null}
+                        </View>
                       </View>
                       <View className="items-center px-2">
                         <Text className="text-[9px] font-bold" style={{ color: isExpired ? '#ff6b6b' : colors.gold }}>

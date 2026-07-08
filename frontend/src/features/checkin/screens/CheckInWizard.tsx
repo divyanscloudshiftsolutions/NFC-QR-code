@@ -249,7 +249,7 @@ export const CheckInWizard: React.FC = () => {
       setCardUid(physicalCardUid);
       
       // 2. Call checkInGuest to register token in DB / offline queue
-      const token = checkInGuest({
+      const token = await checkInGuest({
         customerName: fullName,
         phoneNumber: phone,
         email: email.trim() ? email.trim().toLowerCase() : undefined,

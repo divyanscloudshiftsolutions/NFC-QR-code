@@ -260,7 +260,7 @@ export const AdminPortal: React.FC = () => {
               <Text className="text-muted text-[9px] font-bold uppercase tracking-wider">Revenue</Text>
             </View>
             <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>₹{((salesSummary?.todaySales || 0) / 1000).toFixed(1)}K</Text>
-            <Text className="text-[colors.success] text-[8px] font-semibold mt-0.5">+12.4% today</Text>
+            <Text className="text-[8px] font-semibold mt-0.5" style={{ color: colors.success }}>+12.4% today</Text>
           </View>
 
           {/* Card 2: Guests */}
@@ -270,7 +270,7 @@ export const AdminPortal: React.FC = () => {
               <Text className="text-muted text-[9px] font-bold uppercase tracking-wider">Guests</Text>
             </View>
             <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>{salesSummary?.totalCustomers || 0}</Text>
-            <Text className="text-[colors.success] text-[8px] font-semibold mt-0.5">{activeCount} active groups</Text>
+            <Text className="text-[8px] font-semibold mt-0.5" style={{ color: colors.success }}>{activeCount} active groups</Text>
           </View>
 
           {/* Card 3: Served */}
@@ -280,7 +280,7 @@ export const AdminPortal: React.FC = () => {
               <Text className="text-muted text-[9px] font-bold uppercase tracking-wider">Served</Text>
             </View>
             <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>{salesSummary?.todayRedemptions || 0}</Text>
-            <Text className="text-[colors.success] text-[8px] font-semibold mt-0.5">coupons redeemed</Text>
+            <Text className="text-[8px] font-semibold mt-0.5" style={{ color: colors.success }}>coupons redeemed</Text>
           </View>
 
           {/* Card 4: Peak Hour */}
@@ -290,7 +290,7 @@ export const AdminPortal: React.FC = () => {
               <Text className="text-muted text-[9px] font-bold uppercase tracking-wider">Peak Hour</Text>
             </View>
             <Text className="font-mono text-themeText text-base font-extrabold" style={{ color: colors.text }}>10 PM</Text>
-            <Text className="text-[colors.red] text-[8px] font-semibold mt-0.5">94.8K Busiest shift</Text>
+            <Text className="text-[8px] font-semibold mt-0.5" style={{ color: colors.red }}>94.8K Busiest shift</Text>
           </View>
         </ScrollView>
 
@@ -572,7 +572,7 @@ export const AdminPortal: React.FC = () => {
                                     style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(34,197,94,0.1)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.2)' }}
                                     onPress={() => updateCardStatus(card.cardUid, 'available')}
                                   >
-                                    <Text className="text-[colors.success] text-[8px] font-bold">Activ</Text>
+                                    <Text className="text-[8px] font-bold" style={{ color: colors.success }}>Activ</Text>
                                   </TouchableOpacity>
                                   <TouchableOpacity
                                     style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(230,57,70,0.1)', borderWidth: 1, borderColor: 'rgba(230,57,70,0.2)' }}
@@ -587,7 +587,7 @@ export const AdminPortal: React.FC = () => {
                                   style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(34,197,94,0.1)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.2)' }}
                                   onPress={() => updateCardStatus(card.cardUid, 'available')}
                                 >
-                                  <Text className="text-[colors.success] text-[8px] font-bold">Available</Text>
+                                  <Text className="text-[8px] font-bold" style={{ color: colors.success }}>Available</Text>
                                 </TouchableOpacity>
                               )}
                             </View>
@@ -642,7 +642,7 @@ export const AdminPortal: React.FC = () => {
                   </View>
                   <View>
                     <Text className="text-muted text-[8px] uppercase tracking-wider font-bold">Drink Allowance</Text>
-                    <Text className="text-[colors.success] text-xs font-bold mt-0.5">{rate.maxDrinks} Drinks</Text>
+                    <Text className="text-xs font-bold mt-0.5" style={{ color: colors.success }}>{rate.maxDrinks} Drinks</Text>
                   </View>
                 </View>
 
@@ -879,7 +879,7 @@ export const AdminPortal: React.FC = () => {
             <View style={{ width: '33.33%', padding: 4 }}>
               <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                 <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Redemptions</Text>
-                <Text className="font-mono text-[colors.success] text-xs font-bold mt-1">{salesSummary?.todayRedemptions || 0} drinks</Text>
+                <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.success }}>{salesSummary?.todayRedemptions || 0} drinks</Text>
               </View>
             </View>
 
@@ -887,7 +887,7 @@ export const AdminPortal: React.FC = () => {
             <View style={{ width: '33.33%', padding: 4 }}>
               <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                 <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Peak hour</Text>
-                <Text className="font-mono text-[#4ecdc4] text-xs font-bold mt-1">
+                <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.teal }}>
                   {(() => {
                     const pkH = hourlyBreakdown?.peakHour;
                     if (pkH === undefined) return 'N/A';
@@ -925,8 +925,8 @@ export const AdminPortal: React.FC = () => {
                       <View key={d.hour} className="items-center w-8">
                         <View className="w-3.5 h-full bg-themeInput rounded-full justify-end overflow-hidden">
                           <View 
-                            className={`w-full rounded-full ${isPeak ? 'bg-[colors.gold]' : 'bg-[colors.gold]/45'}`}
-                            style={{ height: `${heightPct}%` }}
+                            className="w-full rounded-full"
+                            style={{ height: `${heightPct}%`, backgroundColor: colors.gold, opacity: isPeak ? 1 : 0.45 }}
                           />
                         </View>
                         <Text className="font-mono text-muted text-[8px] mt-1.5" numberOfLines={1}>
@@ -981,7 +981,7 @@ export const AdminPortal: React.FC = () => {
                     <Text className="flex-1 text-themeText font-mono text-xs font-bold" style={{ color: colors.text }}>{t.tableNumber}</Text>
                     <Text className="flex-1.5 text-muted text-[10px] truncate">{t.placeType === 'STANDING_BAR' ? 'Standing Bar' : (t.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : t.placeType)}</Text>
                     <Text className="flex-1.5 text-themeText text-xs font-semibold text-right" style={{ color: colors.text }}>{t.averageOccupancyPerDay}h</Text>
-                    <Text className="flex-1 text-[#4ecdc4] text-xs font-bold text-right">{t.turnoverCount}</Text>
+                    <Text className="flex-1 text-xs font-bold text-right" style={{ color: colors.teal }}>{t.turnoverCount}</Text>
                     <Text className="flex-1 text-themeText text-xs font-semibold text-right" style={{ color: colors.text }}>{Math.round(t.averageSessionDurationMinutes)}m</Text>
                   </View>
                 ))}
@@ -1713,7 +1713,7 @@ export const AdminPortal: React.FC = () => {
                     className="px-3 py-1.5 rounded-lg border" style={{ borderColor: editStaffIsActive ? 'colors.success' : colors.border, backgroundColor: editStaffIsActive ? 'rgba(34, 197, 94, 0.05)' : colors.input }}
                     onPress={() => setEditStaffIsActive(true)}
                   >
-                    <Text className={`text-[10px] font-bold ${editStaffIsActive ? 'text-[colors.success]' : 'text-muted'}`}>Active</Text>
+                    <Text className="text-[10px] font-bold" style={{ color: editStaffIsActive ? colors.success : colors.muted }}>Active</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     className="px-3 py-1.5 rounded-lg border" style={{ borderColor: !editStaffIsActive ? colors.red : colors.border, backgroundColor: !editStaffIsActive ? 'rgba(239, 68, 68, 0.05)' : colors.input }}

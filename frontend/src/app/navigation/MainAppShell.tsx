@@ -154,18 +154,50 @@ export const MainAppShell: React.FC = () => {
         className="absolute top-20 z-[9999] gap-2 self-center"
         style={isCentered ? { width: '90%', maxWidth: 380 } : { left: 16, right: 16 }}
       >
-        {toasts.map(toast => (
-          <View 
-            key={toast.id} 
-            className={`py-3 px-4 rounded-xl shadow-lg border ${getToastBg(toast.type)}`}
-            style={{ 
-              borderColor: colors.border, 
-              backgroundColor: toast.type ? undefined : colors.surface 
-            }}
-          >
-            <Text className="text-[12px] font-bold text-center leading-4" style={{ color: toast.type ? '#ffffff' : colors.text }}>{toast.message}</Text>
-          </View>
-        ))}
+        {toasts.map(toast => {
+          let bg = colors.card;
+          let border = colors.border;
+          let textCol = colors.text;
+          
+          if (toast.type === 'success') {
+            bg = isDark ? '#064e3b' : '#ecfdf5';
+            border = isDark ? '#059669' : '#10b981';
+            textCol = isDark ? '#34d399' : '#047857';
+          } else if (toast.type === 'warning') {
+            bg = isDark ? '#78350f' : '#fffbeb';
+            border = isDark ? '#d97706' : '#f59e0b';
+            textCol = isDark ? '#fbbf24' : '#b45309';
+          } else if (toast.type === 'danger') {
+            bg = isDark ? '#7f1d1d' : '#fef2f2';
+            border = isDark ? '#dc2626' : '#ef4444';
+            textCol = isDark ? '#f87171' : '#b91c1c';
+          } else if (toast.type === 'info') {
+            bg = isDark ? '#1e3a8a' : '#eff6ff';
+            border = isDark ? '#3b82f6' : '#60a5fa';
+            textCol = isDark ? '#93c5fd' : '#1d4ed8';
+          }
+
+          return (
+            <View 
+              key={toast.id} 
+              className="py-3.5 px-5 rounded-2xl border"
+              style={{ 
+                backgroundColor: bg,
+                borderColor: border,
+                borderWidth: 1.5,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 10,
+                elevation: 8,
+              }}
+            >
+              <Text className="text-[13px] font-bold text-center leading-5" style={{ color: textCol }}>
+                {toast.message}
+              </Text>
+            </View>
+          );
+        })}
       </View>
 
       {/* NOTIFICATIONS MODAL PANEL */}
