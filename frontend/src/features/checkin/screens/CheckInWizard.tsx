@@ -575,7 +575,11 @@ export const CheckInWizard: React.FC = () => {
             <View className="flex-row gap-3 mt-4">
               <TouchableOpacity 
                 className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]"
-                style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                style={{ 
+                  backgroundColor: isDark ? colors.secondarySurface : '#F1F5F9', 
+                  borderColor: isDark ? colors.border : '#CBD5E1',
+                  borderWidth: 1.5
+                }}
                 onPress={() => setShowCancelConfirmModal(true)}
               >
                 <Text className="font-bold text-sm" style={{ color: colors.muted }}>Back</Text>
@@ -616,24 +620,32 @@ export const CheckInWizard: React.FC = () => {
             {/* Quick Testing Simulator helper */}
             {pendingToken && (
               <TouchableOpacity 
-                className="mt-3 bg-teal/10 border border-teal/20 py-2.5 rounded-xl items-center justify-center"
+                className="mt-3 py-2.5 rounded-xl items-center justify-center border"
+                style={{
+                  backgroundColor: isDark ? 'rgba(78, 205, 196, 0.1)' : '#E0F2FE',
+                  borderColor: isDark ? 'rgba(78, 205, 196, 0.2)' : '#BAE6FD',
+                  borderWidth: 1
+                }}
                 onPress={() => setScannedToken(pendingToken)}
               >
-                <Text className="text-teal text-xs font-bold">🧪 Simulate scanning generated QR: {pendingToken}</Text>
+                <Text style={{ color: colors.teal, fontSize: 11, fontWeight: 'bold' }}>🧪 Simulate scanning generated QR: {pendingToken}</Text>
               </TouchableOpacity>
             )}
           </View>
-        )}
-        
-        {/* STEP 1: CUSTOMER DETAILS */}
+        )}        {/* STEP 1: CUSTOMER DETAILS */}
         {step === 1 && (
-          <View>
+          <View 
+            className="rounded-[20px] p-5 shadow-xl border mb-4"
+            style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1.5 }}
+          >
+            <Text className="text-[11px] font-bold uppercase tracking-wider mb-4" style={{ color: colors.gold }}>Step 1 — Guest Details</Text>
+            
             {/* Customer Name Input */}
             <View 
               className="rounded-2xl p-4 mb-4 border"
               style={{ 
-                backgroundColor: colors.surface, 
-                borderColor: focusedField === 'name' ? colors.gold : (isDark ? colors.inputBorder : '#94A3B8'),
+                backgroundColor: colors.secondarySurface, 
+                borderColor: focusedField === 'name' ? colors.gold : (isDark ? colors.inputBorder : '#CBD5E1'),
                 borderWidth: 1.5
               }}
             >
@@ -668,8 +680,8 @@ export const CheckInWizard: React.FC = () => {
             <View 
               className="rounded-2xl p-4 mb-4 border"
               style={{ 
-                backgroundColor: colors.surface, 
-                borderColor: focusedField === 'phone' ? colors.gold : (isDark ? colors.inputBorder : '#94A3B8'),
+                backgroundColor: colors.secondarySurface, 
+                borderColor: focusedField === 'phone' ? colors.gold : (isDark ? colors.inputBorder : '#CBD5E1'),
                 borderWidth: 1.5
               }}
             >
@@ -711,8 +723,8 @@ export const CheckInWizard: React.FC = () => {
             <View 
               className="rounded-2xl p-4 mb-4 border"
               style={{ 
-                backgroundColor: colors.surface, 
-                borderColor: focusedField === 'email' ? colors.gold : (isDark ? colors.inputBorder : '#94A3B8'),
+                backgroundColor: colors.secondarySurface, 
+                borderColor: focusedField === 'email' ? colors.gold : (isDark ? colors.inputBorder : '#CBD5E1'),
                 borderWidth: 1.5
               }}
             >
@@ -767,15 +779,15 @@ export const CheckInWizard: React.FC = () => {
             {nfcEnabled && emailQrEnabled && (
               <View 
                 className="rounded-2xl p-4 mb-5 border"
-                style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+                style={{ backgroundColor: colors.secondarySurface, borderColor: isDark ? colors.border : '#CBD5E1', borderWidth: 1.5 }}
               >
                 <Text className="text-xs font-bold mb-3" style={{ color: colors.gold }}>📦 Delivery Method *</Text>
                 <View className="flex-row gap-3">
                   <TouchableOpacity 
                     className="flex-1 flex-row items-center justify-center py-3 rounded-xl border min-h-[44px]"
                     style={{
-                      backgroundColor: selectedDeliveryMode === 'NFC_CARD' ? (isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7') : colors.input,
-                      borderColor: selectedDeliveryMode === 'NFC_CARD' ? colors.gold : colors.border,
+                      backgroundColor: selectedDeliveryMode === 'NFC_CARD' ? (isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7') : colors.surface,
+                      borderColor: selectedDeliveryMode === 'NFC_CARD' ? colors.gold : (isDark ? colors.border : '#CBD5E1'),
                       borderWidth: 1.5
                     }}
                     onPress={() => setSelectedDeliveryMode('NFC_CARD')}
@@ -786,8 +798,8 @@ export const CheckInWizard: React.FC = () => {
                   <TouchableOpacity 
                     className="flex-1 flex-row items-center justify-center py-3 rounded-xl border min-h-[44px]"
                     style={{
-                      backgroundColor: selectedDeliveryMode === 'EMAIL_QR' ? (isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7') : colors.input,
-                      borderColor: selectedDeliveryMode === 'EMAIL_QR' ? colors.gold : colors.border,
+                      backgroundColor: selectedDeliveryMode === 'EMAIL_QR' ? (isDark ? 'rgba(245,166,35,0.12)' : '#FEF3C7') : colors.surface,
+                      borderColor: selectedDeliveryMode === 'EMAIL_QR' ? colors.gold : (isDark ? colors.border : '#CBD5E1'),
                       borderWidth: 1.5
                     }}
                     onPress={() => setSelectedDeliveryMode('EMAIL_QR')}
@@ -802,7 +814,7 @@ export const CheckInWizard: React.FC = () => {
             {/* Guest Pax Count Stepper */}
             <View 
               className="rounded-2xl p-4 mb-5 border"
-              style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+              style={{ backgroundColor: colors.secondarySurface, borderColor: isDark ? colors.border : '#CBD5E1', borderWidth: 1.5 }}
             >
               <View className="flex-row items-center mb-3">
                 <Text className="text-xs font-bold mr-1.5" style={{ color: colors.gold }}>👥</Text>
@@ -815,12 +827,12 @@ export const CheckInWizard: React.FC = () => {
                       width: 36,
                       height: 36,
                       borderRadius: 18,
-                      backgroundColor: colors.input,
-                      borderColor: isDark ? colors.border : '#94A3B8',
+                      backgroundColor: colors.surface,
+                      borderColor: isDark ? colors.border : '#CBD5E1',
                       borderWidth: 1.5,
                       alignItems: 'center',
                       justifyContent: 'center',
-                      opacity: guestCount <= 1 ? 0.3 : 1
+                      opacity: guestCount <= 1 ? 0.35 : 1
                     }}
                     onPress={() => {
                       animateButton(minusScale);
@@ -839,12 +851,12 @@ export const CheckInWizard: React.FC = () => {
                       width: 36,
                       height: 36,
                       borderRadius: 18,
-                      backgroundColor: colors.input,
-                      borderColor: isDark ? colors.border : '#94A3B8',
+                      backgroundColor: colors.surface,
+                      borderColor: isDark ? colors.border : '#CBD5E1',
                       borderWidth: 1.5,
                       alignItems: 'center',
                       justifyContent: 'center',
-                      opacity: guestCount >= 20 ? 0.3 : 1
+                      opacity: guestCount >= 20 ? 0.35 : 1
                     }}
                     onPress={() => {
                       animateButton(plusScale);
@@ -872,8 +884,10 @@ export const CheckInWizard: React.FC = () => {
             <TouchableOpacity 
               className="py-4 rounded-2xl items-center justify-center min-h-[52px] border"
               style={{
-                backgroundColor: !isStep1Valid ? colors.input : colors.gold,
-                borderColor: !isStep1Valid ? colors.border : colors.gold
+                backgroundColor: !isStep1Valid ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                borderColor: !isStep1Valid ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                borderWidth: 1.5,
+                opacity: !isStep1Valid ? 0.6 : 1
               }}
               disabled={!isStep1Valid}
               onPress={handleStep1Submit}
@@ -958,19 +972,19 @@ export const CheckInWizard: React.FC = () => {
                     textCol = '#EF4444';
                     labelTag = 'OCCUPIED';
                   } else if (isMaintenance) {
-                    bgCol = colors.themeInput;
-                    borderCol = colors.border;
+                    bgCol = isDark ? '#27272A' : '#F4F4F5';
+                    borderCol = isDark ? '#3F3F46' : '#D4D4D8';
                     textCol = colors.muted;
                     labelTag = 'MNT';
                   } else if (isTooSmall) {
-                    bgCol = colors.themeInput;
-                    borderCol = colors.border;
+                    bgCol = isDark ? '#27272A' : '#F4F4F5';
+                    borderCol = isDark ? '#3F3F46' : '#D4D4D8';
                     textCol = colors.muted;
                     labelTag = `${table.seats} PAX`;
                   } else {
-                    bgCol = colors.themeInput;
-                    borderCol = isDark ? 'rgba(34,197,94,0.3)' : '#BBF7D0';
-                    textCol = colors.teal;
+                    bgCol = isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4';
+                    borderCol = isDark ? 'rgba(34,197,94,0.4)' : '#22C55E';
+                    textCol = isDark ? colors.teal : '#16A34A';
                   }
 
                   return (
@@ -1006,14 +1020,24 @@ export const CheckInWizard: React.FC = () => {
 
             {/* Navigation keys */}
             <View className="flex-row gap-3">
-              <TouchableOpacity className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => setStep(1)}>
+              <TouchableOpacity 
+                className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
+                style={{ 
+                  backgroundColor: isDark ? colors.secondarySurface : '#F1F5F9', 
+                  borderColor: isDark ? colors.border : '#CBD5E1',
+                  borderWidth: 1.5
+                }} 
+                onPress={() => setStep(1)}
+              >
                 <Text className="font-bold text-sm" style={{ color: colors.muted }}>Back</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 className="flex-[2] py-3.5 rounded-xl items-center justify-center min-h-[48px] border"
                 style={{ 
-                  backgroundColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : colors.input,
-                  borderColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : colors.border
+                  backgroundColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : (isDark ? '#27272A' : '#E4E4E7'),
+                  borderColor: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? colors.gold : (isDark ? '#3F3F46' : '#D4D4D8'),
+                  borderWidth: 1.5,
+                  opacity: (selectedDeliveryMode === 'EMAIL_QR' || isStep2Valid) ? 1 : 0.6
                 }}
                 disabled={selectedDeliveryMode !== 'EMAIL_QR' && !isStep2Valid}
                 onPress={handleStep2Submit}
@@ -1172,8 +1196,8 @@ export const CheckInWizard: React.FC = () => {
                     borderWidth: 1.5,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: checkinPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.12)' : '#FEF3C7') : colors.themeInput,
-                    borderColor: checkinPaymentMode === mode ? colors.gold : colors.border
+                    backgroundColor: checkinPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.12)' : '#FEF3C7') : colors.secondarySurface,
+                    borderColor: checkinPaymentMode === mode ? colors.gold : (isDark ? colors.border : '#CBD5E1')
                   }}
                   onPress={() => setCheckinPaymentMode(mode)}
                 >
@@ -1191,7 +1215,7 @@ export const CheckInWizard: React.FC = () => {
                 justifyContent: 'center',
                 backgroundColor: colors.secondarySurface,
                 borderWidth: 1.5,
-                borderColor: colors.border,
+                borderColor: isDark ? colors.border : '#CBD5E1',
                 borderRadius: 20,
                 padding: 20,
                 marginBottom: 16,
@@ -1252,7 +1276,11 @@ export const CheckInWizard: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity 
                 className="w-full py-4 rounded-2xl border items-center justify-center min-h-[52px]" 
-                style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                style={{ 
+                  backgroundColor: isDark ? colors.secondarySurface : '#F1F5F9', 
+                  borderColor: isDark ? colors.border : '#CBD5E1',
+                  borderWidth: 1.5
+                }}
                 onPress={() => setStep(isTablePreselected ? 1 : 2)}
               >
                 <Text className="font-bold text-sm" style={{ color: colors.muted }}>Back</Text>
@@ -1282,7 +1310,7 @@ export const CheckInWizard: React.FC = () => {
                     All tables in this seating zone are currently occupied or too small. No email has been sent. Once a table is assigned, the QR code will be generated and dispatched.
                   </Text>
                   
-                  <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
+                  <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.secondarySurface, borderColor: isDark ? colors.border : '#E2E8F0', borderWidth: 1.5 }}>
                     <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
                       <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
                       <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
@@ -1315,7 +1343,7 @@ export const CheckInWizard: React.FC = () => {
                     New guest has arrived successfully.
                   </Text>
                   
-                  <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
+                  <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.secondarySurface, borderColor: isDark ? colors.border : '#E2E8F0', borderWidth: 1.5 }}>
                     <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
                       <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
                       <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
@@ -1343,7 +1371,11 @@ export const CheckInWizard: React.FC = () => {
 
                   <TouchableOpacity 
                     className="py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
-                    style={{ backgroundColor: colors.input, borderColor: colors.border }} 
+                    style={{ 
+                      backgroundColor: isDark ? colors.secondarySurface : '#F1F5F9', 
+                      borderColor: isDark ? colors.border : '#CBD5E1',
+                      borderWidth: 1.5
+                    }} 
                     onPress={resetWizard}
                   >
                     <Text className="font-bold text-sm" style={{ color: colors.muted }}>Check in Another Guest</Text>
@@ -1359,7 +1391,11 @@ export const CheckInWizard: React.FC = () => {
                   <View className="flex-row gap-3 w-full">
                     <TouchableOpacity 
                       className="flex-grow flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
-                      style={{ backgroundColor: colors.input, borderColor: colors.border }} 
+                      style={{ 
+                        backgroundColor: isDark ? colors.secondarySurface : '#F1F5F9', 
+                        borderColor: isDark ? colors.border : '#CBD5E1',
+                        borderWidth: 1.5
+                      }} 
                       onPress={handlePaymentCollected}
                     >
                       <Text className="font-bold text-sm" style={{ color: colors.muted }}>Retry Activation</Text>
@@ -1384,16 +1420,16 @@ export const CheckInWizard: React.FC = () => {
                       {/* Token ID Card - Full Width */}
                       <View style={{ width: '100%', padding: 8 }}>
                         <View style={{
-                          backgroundColor: colors.input,
-                          borderWidth: 1,
-                          borderColor: colors.border,
+                          backgroundColor: isDark ? 'rgba(245,166,35,0.08)' : '#FEF3C7',
+                          borderWidth: 1.5,
+                          borderColor: colors.gold,
                           borderRadius: 12,
                           padding: 12,
                           alignItems: 'center',
                           justifyContent: 'center'
                         }}>
-                          <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 3 }}>Assigned Token Code</Text>
-                          <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.gold, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 2 }}>
+                          <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.gold, textTransform: 'uppercase', marginBottom: 3 }}>Assigned Token Code</Text>
+                          <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.text, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 2 }}>
                             BAR - {new Date().toISOString().slice(0,10).replace(/-/g,'')} - {cardUid ? (cardUid.includes('-') ? cardUid.split('-')[1] : cardUid.slice(-5).toUpperCase()) : 'AX7K2'}
                           </Text>
                         </View>
@@ -1402,9 +1438,9 @@ export const CheckInWizard: React.FC = () => {
                       {/* Area Zone Card */}
                       <View style={{ width: '50%', padding: 8 }}>
                         <View style={{
-                          backgroundColor: colors.input,
-                          borderWidth: 1,
-                          borderColor: colors.border,
+                          backgroundColor: colors.secondarySurface,
+                          borderWidth: 1.5,
+                          borderColor: isDark ? colors.border : '#E2E8F0',
                           borderRadius: 12,
                           padding: 10,
                           minHeight: 52,
@@ -1420,9 +1456,9 @@ export const CheckInWizard: React.FC = () => {
                       {/* Table Card */}
                       <View style={{ width: '50%', padding: 8 }}>
                         <View style={{
-                          backgroundColor: colors.input,
-                          borderWidth: 1,
-                          borderColor: colors.border,
+                          backgroundColor: colors.secondarySurface,
+                          borderWidth: 1.5,
+                          borderColor: isDark ? colors.border : '#E2E8F0',
                           borderRadius: 12,
                           padding: 10,
                           minHeight: 52,
@@ -1436,9 +1472,9 @@ export const CheckInWizard: React.FC = () => {
                       {/* Guests Card */}
                       <View style={{ width: '50%', padding: 8 }}>
                         <View style={{
-                          backgroundColor: colors.input,
-                          borderWidth: 1,
-                          borderColor: colors.border,
+                          backgroundColor: colors.secondarySurface,
+                          borderWidth: 1.5,
+                          borderColor: isDark ? colors.border : '#E2E8F0',
                           borderRadius: 12,
                           padding: 10,
                           minHeight: 52,
@@ -1449,12 +1485,12 @@ export const CheckInWizard: React.FC = () => {
                         </View>
                       </View>
 
-                      {/* Coupons Card */}
+                      {/* Drink Coupons Card */}
                       <View style={{ width: '50%', padding: 8 }}>
                         <View style={{
-                          backgroundColor: colors.input,
-                          borderWidth: 1,
-                          borderColor: colors.border,
+                          backgroundColor: colors.secondarySurface,
+                          borderWidth: 1.5,
+                          borderColor: isDark ? colors.border : '#E2E8F0',
                           borderRadius: 12,
                           padding: 10,
                           minHeight: 52,
@@ -1520,7 +1556,11 @@ export const CheckInWizard: React.FC = () => {
                       </TouchableOpacity>
                       <TouchableOpacity 
                         className="w-full py-4 rounded-2xl border items-center justify-center min-h-[52px]" 
-                        style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                        style={{ 
+                          backgroundColor: isDark ? colors.secondarySurface : '#F1F5F9', 
+                          borderColor: isDark ? colors.border : '#CBD5E1',
+                          borderWidth: 1.5
+                        }}
                         onPress={() => setStep(3)}
                         disabled={isNfcWriting}
                       >
@@ -1541,7 +1581,7 @@ export const CheckInWizard: React.FC = () => {
                       Card Programmed Successfully!
                     </Text>
                     
-                    <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
+                    <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.secondarySurface, borderColor: isDark ? colors.border : '#E2E8F0', borderWidth: 1.5 }}>
                       <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
                         <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
                         <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
@@ -1579,7 +1619,15 @@ export const CheckInWizard: React.FC = () => {
                       Failed to write details to the card. Make sure the card is placed correctly near the phone.
                     </Text>
                     <View className="flex-row gap-3 w-full">
-                      <TouchableOpacity className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => setNfcWriteState('idle')}>
+                      <TouchableOpacity 
+                        className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
+                        style={{ 
+                          backgroundColor: isDark ? colors.secondarySurface : '#F1F5F9', 
+                          borderColor: isDark ? colors.border : '#CBD5E1',
+                          borderWidth: 1.5
+                        }} 
+                        onPress={() => setNfcWriteState('idle')}
+                      >
                         <Text className="font-bold text-sm" style={{ color: colors.muted }}>Retry Scan</Text>
                       </TouchableOpacity>
                       <TouchableOpacity className="flex-1 bg-gold py-3.5 rounded-xl items-center justify-center min-h-[48px] border" style={{ borderColor: colors.gold }} onPress={resetWizard}>
