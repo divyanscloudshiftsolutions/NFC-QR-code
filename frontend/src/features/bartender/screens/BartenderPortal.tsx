@@ -443,13 +443,13 @@ export const BartenderPortal: React.FC = () => {
               {/* Email / Token manual input block */}
               <View 
                 className="rounded-[20px] p-5 shadow-xl mb-4 border"
-                style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
               >
                 <Text className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: colors.gold }}>Lookup Guest Session</Text>
                 <View className="flex-row gap-2 items-center">
                   <TextInput
                     className="flex-1 border rounded-xl px-4 py-3 text-sm font-semibold min-h-[48px]"
-                    style={{ backgroundColor: colors.input, borderColor: colors.inputBorder, borderWidth: 1, color: colors.text }}
+                    style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5, color: colors.text }}
                     placeholder="Enter Token (e.g. BAR-2026...)"
                     placeholderTextColor={colors.placeholder}
                     value={enteredToken}
@@ -458,8 +458,8 @@ export const BartenderPortal: React.FC = () => {
                     autoCorrect={false}
                   />
                   <TouchableOpacity 
-                    className="bg-gold px-5 py-3 rounded-xl min-h-[48px] justify-center items-center border"
-                    style={{ borderColor: colors.gold }}
+                    className="px-5 py-3 rounded-xl min-h-[48px] justify-center items-center border"
+                    style={{ backgroundColor: colors.gold, borderColor: colors.gold }}
                     onPress={() => handleTokenLookup(enteredToken)}
                   >
                     <Text className="font-extrabold text-xs" style={{ color: colors.goldButtonText }}>VALIDATE</Text>
@@ -481,7 +481,7 @@ export const BartenderPortal: React.FC = () => {
                       <TouchableOpacity
                         key={s.id}
                         className="rounded-xl p-4 mb-2 flex-row justify-between items-center border"
-                        style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                        style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
                         onPress={() => {
                           setEnteredToken(s.tokenNumber);
                           handleTokenLookup(s.tokenNumber);
@@ -498,7 +498,7 @@ export const BartenderPortal: React.FC = () => {
                           </View>
                         </View>
                         <View className="items-center px-2">
-                          <Text className="text-[10px] font-bold" style={{ color: isExpired ? '#ff6b6b' : colors.gold }}>
+                          <Text className="text-[10px] font-bold" style={{ color: isExpired ? colors.red : colors.gold }}>
                             ⏰ {calculateTimeRemaining(s.endTime)}
                           </Text>
                         </View>
@@ -531,8 +531,8 @@ export const BartenderPortal: React.FC = () => {
               {/* Lower Third scan CTA and quick simulators */}
               <View className="flex-col gap-4">
                 <TouchableOpacity 
-                  className="w-full bg-gold rounded-[20px] py-5 items-center justify-center shadow-xl border"
-                  style={{ borderColor: colors.gold }}
+                  className="w-full rounded-[20px] py-5 items-center justify-center shadow-xl border"
+                  style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }}
                   onPress={handlePhysicalScan}
                   activeOpacity={0.85}
                 >
@@ -548,13 +548,13 @@ export const BartenderPortal: React.FC = () => {
               {/* Lookup Guest Session */}
               <View 
                 className="rounded-[20px] p-5 shadow-xl mb-4 border"
-                style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
               >
                 <Text className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: colors.gold }}>Lookup Guest Session</Text>
                 <View className="flex-row gap-2 items-center">
                   <TextInput
                     className="flex-1 border rounded-xl px-4 py-3 text-sm font-semibold min-h-[48px]"
-                    style={{ backgroundColor: colors.input, borderColor: colors.inputBorder, borderWidth: 1, color: colors.text }}
+                    style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5, color: colors.text }}
                     placeholder="Enter Token (e.g. BAR-2026...)"
                     placeholderTextColor={colors.placeholder}
                     value={enteredToken}
@@ -563,8 +563,8 @@ export const BartenderPortal: React.FC = () => {
                     autoCorrect={false}
                   />
                   <TouchableOpacity 
-                    className="bg-gold px-5 py-3 rounded-xl min-h-[48px] justify-center items-center border"
-                    style={{ borderColor: colors.gold }}
+                    className="px-5 py-3 rounded-xl min-h-[48px] justify-center items-center border"
+                    style={{ backgroundColor: colors.gold, borderColor: colors.gold }}
                     onPress={() => handleTokenLookup(enteredToken)}
                   >
                     <Text className="font-extrabold text-xs" style={{ color: colors.goldButtonText }}>VALIDATE</Text>
@@ -574,8 +574,8 @@ export const BartenderPortal: React.FC = () => {
 
               {/* Start QR Scan Target */}
               <TouchableOpacity 
-                className="w-full bg-gold rounded-[20px] py-4 items-center justify-center shadow-xl border mb-3"
-                style={{ borderColor: colors.gold }}
+                className="w-full rounded-[20px] py-4 items-center justify-center shadow-xl border mb-3"
+                style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }}
                 onPress={handleQrScan}
                 activeOpacity={0.85}
               >
@@ -587,8 +587,8 @@ export const BartenderPortal: React.FC = () => {
 
               {/* Start NFC Scan Target */}
               <TouchableOpacity 
-                className="w-full bg-gold rounded-[20px] py-4 items-center justify-center shadow-xl border mb-4"
-                style={{ borderColor: colors.gold }}
+                className="w-full rounded-[20px] py-4 items-center justify-center shadow-xl border mb-4"
+                style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }}
                 onPress={handlePhysicalScan}
                 activeOpacity={0.85}
               >
@@ -603,7 +603,7 @@ export const BartenderPortal: React.FC = () => {
               {sessions.filter(s => s.status === TokenStatus.ACTIVE && s.paymentVerified === true).length === 0 ? (
                 <View 
                   className="py-6 items-center border rounded-xl"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+                  style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
                 >
                   <Text style={{ color: colors.muted, fontSize: 12 }}>No active guest sessions found.</Text>
                 </View>
@@ -614,7 +614,7 @@ export const BartenderPortal: React.FC = () => {
                     <TouchableOpacity
                       key={s.id}
                       className="rounded-xl p-3.5 mb-2 flex-row justify-between items-center border"
-                      style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                      style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
                       onPress={() => {
                         setEnteredToken(s.tokenNumber);
                         handleTokenLookup(s.tokenNumber);
@@ -631,7 +631,7 @@ export const BartenderPortal: React.FC = () => {
                         </View>
                       </View>
                       <View className="items-center px-2">
-                        <Text className="text-[9px] font-bold" style={{ color: isExpired ? '#ff6b6b' : colors.gold }}>
+                        <Text className="text-[9px] font-bold" style={{ color: isExpired ? colors.red : colors.gold }}>
                           ⏰ {calculateTimeRemaining(s.endTime)}
                         </Text>
                       </View>
@@ -732,8 +732,8 @@ export const BartenderPortal: React.FC = () => {
                 
                 {/* Cancel button placed identically to Check-in/Bartender's */}
                 <TouchableOpacity 
-                  className="absolute bottom-6 bg-red px-6 py-3 rounded-xl border border-red"
-                  style={{ zIndex: 12 }}
+                  className="absolute bottom-6 px-6 py-3 rounded-xl border"
+                  style={{ zIndex: 12, backgroundColor: colors.red, borderColor: colors.red }}
                   onPress={() => setBartenderState('idle')}
                 >
                   <Text className="text-white font-bold text-xs uppercase tracking-wider">Cancel Scan</Text>
@@ -750,8 +750,9 @@ export const BartenderPortal: React.FC = () => {
           <View 
             className="border rounded-xl p-3 mb-4 flex-row items-center justify-between"
             style={{ 
-              backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(34, 197, 94, 0.05)',
-              borderColor: isDark ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)'
+              backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4',
+              borderColor: isDark ? 'rgba(34, 197, 94, 0.4)' : '#BBF7D0',
+              borderWidth: 1.5
             }}
           >
             <Text className="text-xs font-bold" style={{ color: colors.teal }}>✓ Active Session: {activeSession.tokenNumber}</Text>
@@ -763,12 +764,12 @@ export const BartenderPortal: React.FC = () => {
           {/* Customer info card */}
           <View 
             className="rounded-[20px] p-5 shadow-xl border"
-            style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+            style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
           >
             <View className="flex-row items-center mb-4">
               <View 
                 className="w-12 h-12 rounded-full border items-center justify-center mr-4"
-                style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+                style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
               >
                 <Text className="text-xl">👤</Text>
               </View>
@@ -780,7 +781,7 @@ export const BartenderPortal: React.FC = () => {
 
             <View 
               className="flex-row justify-between rounded-xl p-3 mb-5 border"
-              style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+              style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
             >
               <View className="flex-1 items-center border-r" style={{ borderRightColor: colors.border }}>
                 <Text className="text-[9px] uppercase tracking-wider mb-1" style={{ color: colors.muted }}>Guests Size</Text>
@@ -796,7 +797,7 @@ export const BartenderPortal: React.FC = () => {
             <Text className="text-[11px] font-bold uppercase tracking-wider mb-2 text-center" style={{ color: colors.muted }}>Remaining Beverage Balance</Text>
             <View 
               className="rounded-xl p-4 mb-4 border"
-              style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+              style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
             >
               <Text className="text-xs text-center mb-3" style={{ color: colors.muted }}>
                 Redeemed <Text className="font-bold" style={{ color: colors.gold }}>{activeSession.redemptionCount}</Text> of {activeSession.redemptionLimit} coupons
@@ -809,9 +810,9 @@ export const BartenderPortal: React.FC = () => {
             {redemptionsHistory && redemptionsHistory.length > 0 && (
               <View className="mb-4">
                 <Text className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Redemption Log (with seconds)</Text>
-                <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
+                <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
                   {redemptionsHistory.map((item, index) => (
-                    <View key={item.id || index} className="flex-row justify-between py-1 border-b" style={{ borderBottomColor: colors.border }}>
+                    <View key={item.id || index} className="flex-row justify-between py-1 border-b" style={{ borderBottomColor: colors.divider }}>
                       <Text className="text-[10px]" style={{ color: colors.text }}>Drink #{index + 1}</Text>
                       <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>
                         {formatRedemptionTime(item.timestamp)}
@@ -825,13 +826,18 @@ export const BartenderPortal: React.FC = () => {
             {/* Safety Countermeasure: Undo Last Action Banner Button */}
             {activeSession.redemptionCount > 0 && (
               <TouchableOpacity 
-                className="bg-red/10 border border-red/20 py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px]" 
+                className="py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px] border" 
                 onPress={handleUndoServe}
                 disabled={isProcessing}
-                style={{ opacity: isProcessing ? 0.5 : 1 }}
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.5 : 1 
+                }}
                 activeOpacity={0.8}
               >
-                <Text className="text-red font-extrabold text-xs">
+                <Text className="font-extrabold text-xs" style={{ color: colors.red }}>
                   {loadingAction === 'undo_serve' ? `Undoing... (${secondsLeft}s)` : '↩ Undo Last Drink Redemption'}
                 </Text>
               </TouchableOpacity>
@@ -841,16 +847,26 @@ export const BartenderPortal: React.FC = () => {
             <Text className="text-[10px] font-bold uppercase tracking-wider mt-4 mb-2" style={{ color: colors.muted }}>Session Controls</Text>
             <View className="flex-row gap-3 mb-4">
               <TouchableOpacity 
-                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px] bg-red/10" 
-                style={{ borderColor: 'rgba(239, 68, 68, 0.2)', opacity: isProcessing ? 0.5 : 1 }}
+                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.5 : 1 
+                }}
                 onPress={() => handleConfirmCloseSession(activeSession.tokenNumber)}
                 disabled={isProcessing}
               >
-                <Text className="font-bold text-xs text-red">Close Section</Text>
+                <Text className="font-bold text-xs" style={{ color: colors.red }}>Close Section</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
-                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
+                style={{ 
+                  backgroundColor: colors.secondaryButtonBg, 
+                  borderColor: colors.border, 
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.5 : 1 
+                }}
                 onPress={handleQrScanForClose}
                 disabled={isProcessing}
               >
@@ -862,7 +878,12 @@ export const BartenderPortal: React.FC = () => {
             <View className="flex-row gap-3 mt-2">
               <TouchableOpacity 
                 className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
-                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
+                style={{ 
+                  backgroundColor: colors.secondaryButtonBg, 
+                  borderColor: colors.border, 
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.5 : 1 
+                }}
                 onPress={() => setBartenderState('idle')}
                 disabled={isProcessing}
               >
@@ -873,6 +894,7 @@ export const BartenderPortal: React.FC = () => {
                 style={{ 
                   borderColor: colors.teal,
                   backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.teal,
+                  borderWidth: 1.5,
                   opacity: isProcessing ? 0.5 : 1
                 }}
                 disabled={isProcessing}
@@ -890,20 +912,27 @@ export const BartenderPortal: React.FC = () => {
       {/* DRINK COUPONS DEPLETED WARNING STATE */}
       {bartenderState === 'depleted' && activeSession && (
         <ScrollView className="flex-1 mt-2" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
-          <View className="bg-red/10 border border-red/20 rounded-xl p-3 mb-4">
-            <Text className="text-red text-xs font-bold">🛑 Drink limit fully reached!</Text>
+          <View 
+            className="rounded-xl p-3 mb-4 border"
+            style={{
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
+              borderWidth: 1.5
+            }}
+          >
+            <Text className="text-xs font-bold" style={{ color: colors.red }}>🛑 Drink limit fully reached!</Text>
           </View>
 
           <View 
             className="rounded-[20px] p-5 shadow-xl border"
-            style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+            style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
           >
             <Text className="font-bold text-base text-center mb-1" style={{ color: colors.text }}>{activeSession.customerName}</Text>
             <Text className="text-[11px] text-center mb-4" style={{ color: colors.muted }}>Table {activeSession.tableNumber} • {activeSession.placeType.replace('_',' ')}</Text>
             
             <View 
               className="rounded-xl p-4 mb-5 border"
-              style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+              style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
             >
               <Text className="text-xs leading-5 text-center" style={{ color: colors.muted }}>
                 This smart card has 0 available drink tokens. Customer has already redeemed all {activeSession.redemptionLimit} cover coupon(s). Request receptionist to add extensions.
@@ -913,13 +942,18 @@ export const BartenderPortal: React.FC = () => {
             {/* Undo last serve safety trigger */}
             {activeSession.redemptionCount > 0 && (
               <TouchableOpacity 
-                className="bg-red/10 border border-red/20 py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px]" 
+                className="py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px] border" 
                 onPress={handleUndoServe}
                 disabled={isProcessing}
-                style={{ opacity: isProcessing ? 0.5 : 1 }}
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.5 : 1 
+                }}
                 activeOpacity={0.8}
               >
-                <Text className="text-red font-extrabold text-xs">
+                <Text className="font-extrabold text-xs" style={{ color: colors.red }}>
                   {loadingAction === 'undo_serve' ? `Undoing... (${secondsLeft}s)` : '↩ Undo Last Drink Redemption'}
                 </Text>
               </TouchableOpacity>
@@ -929,16 +963,26 @@ export const BartenderPortal: React.FC = () => {
             <Text className="text-[10px] font-bold uppercase tracking-wider mt-4 mb-2" style={{ color: colors.muted }}>Session Controls</Text>
             <View className="flex-row gap-3 mb-4">
               <TouchableOpacity 
-                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px] bg-red/10" 
-                style={{ borderColor: 'rgba(239, 68, 68, 0.2)', opacity: isProcessing ? 0.5 : 1 }}
+                className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.5 : 1 
+                }}
                 onPress={() => handleConfirmCloseSession(activeSession.tokenNumber)}
                 disabled={isProcessing}
               >
-                <Text className="font-bold text-xs text-red">Close Section</Text>
+                <Text className="font-bold text-xs" style={{ color: colors.red }}>Close Section</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
-                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
+                style={{ 
+                  backgroundColor: colors.secondaryButtonBg, 
+                  borderColor: colors.border, 
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.5 : 1 
+                }}
                 onPress={handleQrScanForClose}
                 disabled={isProcessing}
               >
@@ -947,12 +991,17 @@ export const BartenderPortal: React.FC = () => {
             </View>
 
             <TouchableOpacity 
-              className="bg-gold py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
-              style={{ borderColor: colors.gold, opacity: isProcessing ? 0.5 : 1 }}
+              className="py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
+              style={{ 
+                backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                borderWidth: 1.5,
+                opacity: isProcessing ? 0.5 : 1 
+              }}
               onPress={() => setBartenderState('idle')}
               disabled={isProcessing}
             >
-              <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Tap Next Card</Text>
+              <Text className="font-bold text-sm" style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}>Tap Next Card</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -963,15 +1012,15 @@ export const BartenderPortal: React.FC = () => {
         <View className="flex-1 justify-center">
           <View 
             className="rounded-[20px] p-5 items-center py-8 shadow-xl border"
-            style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+            style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
           >
             <Text className="text-5xl mb-3">🛑</Text>
             <Text className="text-lg font-bold mb-2" style={{ color: colors.text }}>Scan Error</Text>
             <Text className="text-xs text-center leading-5 max-w-[80%] mb-6" style={{ color: colors.muted }}>{errorMessage}</Text>
             
             <TouchableOpacity 
-              className="bg-gold py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
-              style={{ borderColor: colors.gold }}
+              className="py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
+              style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }}
               onPress={() => setBartenderState('idle')}
             >
               <Text className="font-bold text-sm" style={{ color: colors.goldButtonText }}>Tap Next Card</Text>
@@ -982,8 +1031,8 @@ export const BartenderPortal: React.FC = () => {
 
       {/* Confirmation Modal */}
       {showCloseConfirm && (
-        <View style={StyleSheet.absoluteFill} className="bg-black/60 items-center justify-center z-50 p-6">
-          <View className="rounded-[20px] p-6 w-full max-w-[340px] border shadow-2xl" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.65)', justifyContent: 'center', zIndex: 100, padding: 24, flexDirection: 'row', alignItems: 'center' }]}>
+          <View className="rounded-[20px] p-6 w-full max-w-[340px] border shadow-2xl" style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}>
             <Text className="font-extrabold text-base mb-2" style={{ color: colors.text }}>Close Section</Text>
             <Text className="text-xs leading-5 mb-6" style={{ color: colors.muted }}>
               Are you sure you want to close this section? This will end the customer's active session and temporarily place the section under maintenance.
@@ -991,7 +1040,12 @@ export const BartenderPortal: React.FC = () => {
             <View className="flex-row gap-3">
               <TouchableOpacity 
                 className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
-                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+                style={{ 
+                  backgroundColor: colors.secondaryButtonBg, 
+                  borderColor: colors.border, 
+                  borderWidth: 1.5,
+                  opacity: isClosingSession ? 0.5 : 1 
+                }}
                 onPress={() => {
                   setShowCloseConfirm(false);
                   setTokenToClose(null);
@@ -1001,15 +1055,17 @@ export const BartenderPortal: React.FC = () => {
                 <Text className="font-bold text-xs" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className="flex-1 bg-red py-3 rounded-xl items-center justify-center min-h-[44px] border" 
+                className="flex-1 py-3 rounded-xl items-center justify-center min-h-[44px] border" 
                 style={{ 
-                  borderColor: '#ef4444',
+                  backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.red,
+                  borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.red,
+                  borderWidth: 1.5,
                   opacity: isProcessing ? 0.6 : 1
                 }}
                 onPress={executeCloseSession}
                 disabled={isProcessing}
               >
-                <Text className="font-bold text-xs text-white">
+                <Text className="font-bold text-xs text-white" style={{ color: isProcessing ? colors.muted : '#FFFFFF' }}>
                   {loadingAction === 'close_session' ? `Closing... (${secondsLeft}s)` : 'Yes, Close Section'}
                 </Text>
               </TouchableOpacity>
@@ -1035,7 +1091,8 @@ export const BartenderPortal: React.FC = () => {
             <ActivityIndicator size="large" color={colors.teal} />
           )}
           <TouchableOpacity 
-            className="absolute bottom-10 bg-red px-6 py-3 rounded-xl border border-red"
+            className="absolute bottom-10 px-6 py-3 rounded-xl border"
+            style={{ backgroundColor: colors.red, borderColor: colors.red, borderWidth: 1.5 }}
             onPress={() => setScanningForClose(false)}
           >
             <Text className="text-white font-extrabold text-xs uppercase tracking-wider">Cancel QR Scan</Text>

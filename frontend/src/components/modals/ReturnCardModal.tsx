@@ -181,7 +181,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
             paddingBottom: insets.bottom + 16,
             backgroundColor: colors.modal,
             borderColor: colors.border,
-            borderWidth: 1
+            borderWidth: 1.5
           },
           isCentered 
             ? { width: '90%', maxWidth: 420, height: 500 }
@@ -194,7 +194,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
           <TouchableOpacity 
             onPress={onClose} 
             className="w-10 h-10 rounded-full justify-center items-center border"
-            style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border }}
+            style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5 }}
           >
             <AppIcon name="x" label="Dismiss" color={colors.muted} size={16} />
           </TouchableOpacity>
@@ -216,7 +216,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                       <TouchableOpacity
                         key={s.id}
                         className="rounded-xl p-4 mb-2 flex-row justify-between items-center border"
-                        style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                        style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
                         onPress={() => {
                           setSessionDetails(s);
                           setReturnStep(2);
@@ -244,7 +244,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
               <ScrollView className="flex-1" showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
                 <TouchableOpacity 
                   className="items-center justify-center mb-4 border rounded-2xl w-full py-6"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+                  style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
                   onPress={handlePhysicalScan}
                   activeOpacity={0.8}
                 >
@@ -260,7 +260,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                 {sessions.filter(s => s.status === TokenStatus.ACTIVE).length === 0 ? (
                   <View 
                     className="py-4 items-center rounded-xl border"
-                    style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+                    style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
                   >
                     <Text className="text-[11px]" style={{ color: colors.muted }}>No active guest sessions found.</Text>
                   </View>
@@ -269,7 +269,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                     <TouchableOpacity
                       key={s.id}
                       className="rounded-xl p-3 mb-2 flex-row justify-between items-center border"
-                      style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}
+                      style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
                       onPress={() => {
                         setSessionDetails(s);
                         setReturnStep(2);
@@ -311,17 +311,17 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                 {/* Itemized Scannable Invoice Grid */}
                 <View 
                   className="rounded-xl p-4 border mb-4"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+                  style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
                 >
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
                     <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name</Text>
                     <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.customerName}</Text>
                   </View>
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
                     <Text className="text-[11px]" style={{ color: colors.muted }}>Table Occupied</Text>
                     <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.tableNumber} ({sessionDetails.placeType.replace('_', ' ')})</Text>
                   </View>
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
+                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
                     <Text className="text-[11px]" style={{ color: colors.muted }}>Time Duration</Text>
                     <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{formatMinutesUsed(sessionDetails.startTime)} Min</Text>
                   </View>
@@ -335,9 +335,9 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                   <View className="mb-4" style={{ maxHeight: 150 }}>
                     <Text className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Drinks Redemption Timeline (with seconds)</Text>
                     <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
-                      <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
+                      <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
                         {redemptionsHistory.map((item, index) => (
-                          <View key={item.id || index} className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+                          <View key={item.id || index} className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider }}>
                             <Text className="text-[10px]" style={{ color: colors.text }}>Drink #{index + 1}</Text>
                             <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>
                               {formatRedemptionTime(item.timestamp)}
@@ -349,26 +349,31 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                   </View>
                 )}
 
-                <Text className="text-red text-center text-[10px] leading-4 mb-4 font-semibold">
+                <Text className="text-red text-center text-[10px] leading-4 mb-4 font-semibold" style={{ color: colors.red }}>
                   Confirm closure: This will mark table {sessionDetails.tableNumber} as available, clear all card data, and return card ID {selectedCardId} back to available stock.
                 </Text>
 
                 <View className="flex-row gap-3">
                   <TouchableOpacity 
                     className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
-                    style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
+                    style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5, opacity: isProcessing ? 0.5 : 1 }}
                     onPress={() => setReturnStep(1)}
                     disabled={isProcessing}
                   >
                     <Text className="font-bold text-sm" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    className="flex-1 bg-red/10 border border-red py-3.5 rounded-xl items-center justify-center min-h-[48px] active:opacity-90" 
-                    style={{ borderColor: colors.red, opacity: isProcessing ? 0.5 : 1 }} 
+                    className="flex-1 py-3.5 rounded-xl items-center justify-center min-h-[48px] border" 
+                    style={{ 
+                      backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : (isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2'),
+                      borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : (isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5'),
+                      borderWidth: 1.5,
+                      opacity: isProcessing ? 0.5 : 1 
+                    }} 
                     onPress={handleConfirmClosure}
                     disabled={isProcessing}
                   >
-                    <Text className="font-bold text-sm" style={{ color: colors.red }}>
+                    <Text className="font-bold text-sm" style={{ color: isProcessing ? colors.muted : colors.red }}>
                       {loadingAction === 'close_session' ? `Closing... (${secondsLeft}s)` : 'Close Session'}
                     </Text>
                   </TouchableOpacity>
@@ -381,14 +386,25 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
         {/* STEP 3: SUCCESS WRAP */}
         {returnStep === 3 && (
           <View className="items-center justify-center py-4 flex-1">
-            <View className="w-16 h-16 rounded-full bg-teal/10 border justify-center items-center mb-4" style={{ borderColor: colors.teal }}>
+            <View 
+              className="w-16 h-16 rounded-full border justify-center items-center mb-4" 
+              style={{ 
+                backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', 
+                borderColor: isDark ? 'rgba(34, 197, 94, 0.4)' : '#BBF7D0', 
+                borderWidth: 1.5 
+              }}
+            >
               <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>
             </View>
             <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>Session Closed Successfully</Text>
             <Text className="text-[11px] text-center leading-4 max-w-[85%] mb-6" style={{ color: colors.muted }}>
               Table seating freed. Card formatted and returned back to the active stock.
             </Text>
-            <TouchableOpacity className="bg-gold py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" style={{ borderColor: colors.gold }} onPress={onClose}>
+            <TouchableOpacity 
+              className="py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
+              style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }} 
+              onPress={onClose}
+            >
               <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>Dismiss</Text>
             </TouchableOpacity>
           </View>
