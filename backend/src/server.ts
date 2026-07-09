@@ -5,6 +5,7 @@ import router from './routes';
 import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import Redis from 'ioredis';
+import { tokenService } from './services/TokenService';
 
 dotenv.config();
 
@@ -111,3 +112,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 app.listen(Number(port), '0.0.0.0', () => {
   console.log(`Backend server listening on port ${port}`);
 });
+
+// Periodic background system state reconciler (B3 background check)
+setInterval(async () => {
+  try {
+    await tokenService.reconcileSystemState();
+  } catch (err) {
+    console.error('Background System Reconciler error:', err);
+  }
+}, 15000);

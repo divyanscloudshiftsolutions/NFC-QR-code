@@ -13,6 +13,7 @@
       }
     },
     "android": {
+      "package": "com.nfcbar.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -21,7 +22,12 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -34,6 +40,18 @@
           "cameraPermission": "Allow NFC Bar Management System to access your camera to scan customer QR codes."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c2de48e8-e323-48fc-b907-e2ca7e0aee84"
+      }
+    },
+    "owner": "divyan-ss",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c2de48e8-e323-48fc-b907-e2ca7e0aee84"
+    }
   }
 }

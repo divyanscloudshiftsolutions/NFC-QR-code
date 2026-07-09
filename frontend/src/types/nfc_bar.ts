@@ -94,6 +94,32 @@ export interface SessionToken {
   deliveryMode?: 'NFC_CARD' | 'EMAIL_QR';
   paymentVerified?: boolean;
   createdAt: string;
+
+  // Audit, history and timeline properties
+  createdBy?: string;
+  closedBy?: string;
+  closedAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
+  customerId?: string;
+  customerVisits?: number;
+  lastVisit?: string;
+  extensions?: Array<{
+    id: string;
+    extraMinutes: number;
+    additionalAmount: number;
+    approvedBy: string;
+    extendedAt: string;
+    newEndTime: string;
+  }>;
+  redemptions?: Array<{
+    id: string;
+    redemptionSequence: number;
+    redeemedAt: string;
+    bartenderName: string;
+    notes: string | null;
+  }>;
 }
 
 export interface NotificationItem {

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator, Image
+  View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator, Image, Share, Alert
 } from 'react-native';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard, SessionToken } from '../../../types/nfc_bar';
 import { AppIcon } from '../../../components/common/AppIcon';
 import { useTheme } from '../../../context/ThemeContext';
+import { AlertModal } from '../../../components/common/AlertModal';
+import { SkeletonLoader } from '../../../components/common/SkeletonLoader';
 import { useActionProgress } from '../../../utils/actionProgress';
 
 export const AdminPortal: React.FC = () => {
@@ -13,12 +15,13 @@ export const AdminPortal: React.FC = () => {
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { 
     sessions, adminSessions, tables, users, cards, rates, user: loggedUser, addTable, editTable, updateTableStatus, deleteTable,
-    registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard,
+    registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard, fetchUsers,
     salesSummary, tableUtilization, hourlyBreakdown, fetchReports, showToast,
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
-    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode
+    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('live');
+  const [isTabLoading, setIsTabLoading] = useState(false);
 
   // Card inventory search & filter state
   const [cardSearch, setCardSearch] = useState('');
@@ -27,10 +30,18 @@ export const AdminPortal: React.FC = () => {
   // Customer sessions tab state
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerStatusFilter, setCustomerStatusFilter] = useState<'all' | 'active' | 'extended' | 'expired' | 'pending_payment' | 'closed' | 'cancelled'>('all');
+  const [customerSort, setCustomerSort] = useState<'latest_first' | 'oldest_first' | 'expiring_soon' | 'recently_updated' | 'customer_name' | 'table_number'>('latest_first');
+  const [visibleSessionsCount, setVisibleSessionsCount] = useState(10);
+  const [selectedDetailsSession, setSelectedDetailsSession] = useState<SessionToken | null>(null);
+  
   const [deactivateConfirmModalOpen, setDeactivateConfirmModalOpen] = useState(false);
   const [deactivateTargetSession, setDeactivateTargetSession] = useState<{ tokenNumber: string; status: TokenStatus; customerName: string } | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [forceRelease, setForceRelease] = useState(false);
+
+  useEffect(() => {
+    setVisibleSessionsCount(10);
+  }, [customerStatusFilter, customerSearch, customerSort]);
 
   // Extend Session modal states (Admin)
   const [isAdminExtendModalOpen, setIsAdminExtendModalOpen] = useState(false);
@@ -56,6 +67,24 @@ export const AdminPortal: React.FC = () => {
 
   const [timeTick, setTimeTick] = useState(0);
 
+  const handleExportCSV = async () => {
+    try {
+      showToast('Preparing CSV export...', 'info');
+      const csvContent = await exportSessionsCSV(customerStatusFilter);
+      if (!csvContent) {
+        showToast('Export failed or returned empty', 'danger');
+        return;
+      }
+      await Share.share({
+        message: csvContent,
+        title: `Sessions Export (${customerStatusFilter})`
+      });
+      showToast('CSV export shared!', 'success');
+    } catch (error: any) {
+      showToast(`Export error: ${error.message}`, 'danger');
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeTick(t => t + 1);
@@ -64,17 +93,33 @@ export const AdminPortal: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (adminSubTab === 'cards') {
-      fetchCards();
-    } else if (adminSubTab === 'rates') {
-      fetchRates();
-    } else if (adminSubTab === 'chart') {
-      fetchReports(reportFilter, startDateStr || undefined, endDateStr || undefined);
-    } else if (adminSubTab === 'customers') {
-      fetchAdminSessions();
-    } else if (adminSubTab === 'live') {
-      fetchReports('day');
-    }
+    let active = true;
+    const loadData = async () => {
+      setIsTabLoading(true);
+      try {
+        if (adminSubTab === 'cards') {
+          await fetchCards();
+        } else if (adminSubTab === 'rates') {
+          await fetchRates();
+        } else if (adminSubTab === 'chart') {
+          await fetchReports(reportFilter, startDateStr || undefined, endDateStr || undefined);
+        } else if (adminSubTab === 'customers') {
+          await fetchAdminSessions();
+        } else if (adminSubTab === 'staff') {
+          await fetchUsers();
+        } else if (adminSubTab === 'live') {
+          await fetchReports('day');
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        if (active) setIsTabLoading(false);
+      }
+    };
+    loadData();
+    return () => {
+      active = false;
+    };
   }, [adminSubTab, reportFilter, startDateStr, endDateStr]);
 
   // 5-second periodic background polling for active admin subtabs
@@ -372,20 +417,31 @@ export const AdminPortal: React.FC = () => {
         )}
 
         {adminSubTab === 'customers' && (
-          <View style={{ flexDirection: 'row', backgroundColor: colors.input, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12, marginTop: 4, alignItems: 'center' }}>
-            <AppIcon name="search" label="Search sessions" size={12} color={colors.muted} />
-            <TextInput
-              style={{ flex: 1, marginLeft: 6, color: colors.text, fontSize: 11, padding: 0 }}
-              placeholder="Search by name, phone, table, or token..."
-              placeholderTextColor={colors.placeholder}
-              value={customerSearch}
-              onChangeText={setCustomerSearch}
-            />
-            {customerSearch ? (
-              <TouchableOpacity onPress={() => setCustomerSearch('')}>
-                <AppIcon name="x" label="Clear search" size={12} color={colors.muted} />
-              </TouchableOpacity>
-            ) : null}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+            <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.input, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center' }}>
+              <AppIcon name="search" label="Search sessions" size={12} color={colors.muted} />
+              <TextInput
+                style={{ flex: 1, marginLeft: 6, color: colors.text, fontSize: 11, padding: 0 }}
+                placeholder="Search by name, phone, table, or token..."
+                placeholderTextColor={colors.placeholder}
+                value={customerSearch}
+                onChangeText={setCustomerSearch}
+              />
+              {customerSearch ? (
+                <TouchableOpacity onPress={() => setCustomerSearch('')}>
+                  <AppIcon name="x" label="Clear search" size={12} color={colors.muted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <TouchableOpacity 
+              style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }}
+              onPress={handleExportCSV}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <AppIcon name="download" label="Export CSV" size={12} color={colors.gold} />
+                <Text style={{ color: colors.gold, fontSize: 9.5, fontWeight: 'bold' }}>Export</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -489,6 +545,10 @@ export const AdminPortal: React.FC = () => {
 
           <ScrollView className="flex-grow" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
             {(() => {
+              if (isTabLoading) {
+                return <SkeletonLoader type="list-item" count={4} />;
+              }
+
               const filteredCards = cards.filter(card => {
                 const matchesSearch = card.cardUid.toLowerCase().includes(cardSearch.toLowerCase());
                 const matchesFilter = cardFilter === 'all' || card.status.toLowerCase() === cardFilter.toLowerCase();
@@ -625,52 +685,56 @@ export const AdminPortal: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {rates.map(rate => (
-            <View key={rate.id || rate.placeType} className="bg-transparent border border-transparent rounded-xl p-3.5 mb-2.5">
-              <View className="flex-row justify-between items-center mb-2">
-                <View>
-                  <Text className="text-themeText font-bold text-sm" style={{ color: colors.text }}>
-                    {rate.placeType === 'STANDING_BAR' ? 'Standing Bar' : (rate.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : rate.placeType)}
-                  </Text>
-                  <Text className="text-muted text-[10px] font-mono mt-0.5">
-                    Zone Key: {rate.placeType}
-                  </Text>
-                </View>
-                <View className="items-end">
-                  <Text className="text-gold font-mono font-extrabold text-sm">₹{rate.ratePerPerson}</Text>
-                  <Text className="text-muted text-[9px] mt-0.5">Per Guest</Text>
-                </View>
-              </View>
-
-              {/* Stats & Parameters Grid */}
-              <View className="flex-row justify-between items-center mt-2 border-t pt-2" style={{ borderTopColor: colors.divider }}>
-                <View className="flex-row gap-4">
+          {isTabLoading ? (
+            <SkeletonLoader type="list-item" count={3} />
+          ) : (
+            rates.map(rate => (
+              <View key={rate.id || rate.placeType} className="bg-transparent border border-transparent rounded-xl p-3.5 mb-2.5">
+                <View className="flex-row justify-between items-center mb-2">
                   <View>
-                    <Text className="text-muted text-[8px] uppercase tracking-wider font-bold">Duration</Text>
-                    <Text className="text-themeText text-xs font-bold mt-0.5" style={{ color: colors.text }}>{rate.durationHours} Hours</Text>
+                    <Text className="text-themeText font-bold text-sm" style={{ color: colors.text }}>
+                      {rate.placeType === 'STANDING_BAR' ? 'Standing Bar' : (rate.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : rate.placeType)}
+                    </Text>
+                    <Text className="text-muted text-[10px] font-mono mt-0.5">
+                      Zone Key: {rate.placeType}
+                    </Text>
                   </View>
-                  <View>
-                    <Text className="text-muted text-[8px] uppercase tracking-wider font-bold">Drink Allowance</Text>
-                    <Text className="text-xs font-bold mt-0.5" style={{ color: colors.success }}>{rate.maxDrinks} Drinks</Text>
+                  <View className="items-end">
+                    <Text className="text-gold font-mono font-extrabold text-sm">₹{rate.ratePerPerson}</Text>
+                    <Text className="text-muted text-[9px] mt-0.5">Per Guest</Text>
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  className="px-3 py-1.5 rounded-lg bg-gold"
-                  onPress={() => {
-                    setSelectedRate(rate);
-                    setEditRateName(rate.placeType);
-                    setEditRatePrice(rate.ratePerPerson.toString());
-                    setEditRateDuration(rate.durationHours.toString());
-                    setEditRateAllowance(rate.maxDrinks.toString());
-                    setIsEditRateOpen(true);
-                  }}
-                >
-                  <Text className="text-[10px] font-extrabold" style={{ color: colors.primaryButtonText }}>Edit Rate</Text>
-                </TouchableOpacity>
+                {/* Stats & Parameters Grid */}
+                <View className="flex-row justify-between items-center mt-2 border-t pt-2" style={{ borderTopColor: colors.divider }}>
+                  <View className="flex-row gap-4">
+                    <View>
+                      <Text className="text-muted text-[8px] uppercase tracking-wider font-bold">Duration</Text>
+                      <Text className="text-themeText text-xs font-bold mt-0.5" style={{ color: colors.text }}>{rate.durationHours} Hours</Text>
+                    </View>
+                    <View>
+                      <Text className="text-muted text-[8px] uppercase tracking-wider font-bold">Drink Allowance</Text>
+                      <Text className="text-xs font-bold mt-0.5" style={{ color: colors.success }}>{rate.maxDrinks} Drinks</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    className="px-3 py-1.5 rounded-lg bg-gold"
+                    onPress={() => {
+                      setSelectedRate(rate);
+                      setEditRateName(rate.placeType);
+                      setEditRatePrice(rate.ratePerPerson.toString());
+                      setEditRateDuration(rate.durationHours.toString());
+                      setEditRateAllowance(rate.maxDrinks.toString());
+                      setIsEditRateOpen(true);
+                    }}
+                  >
+                    <Text className="text-[10px] font-extrabold" style={{ color: colors.primaryButtonText }}>Edit Rate</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </ScrollView>
       )}
 
@@ -692,81 +756,85 @@ export const AdminPortal: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {tables.map(table => {
-            const isOccupied = table.status === TableStatus.OCCUPIED || table.occupiedSeats > 0;
-            let statusColor = colors.success;
-            if (table.status === TableStatus.MAINTENANCE) statusColor = colors.muted;
-            else if (table.status === TableStatus.RESERVED) statusColor = '#3b82f6';
-            else if (isOccupied) statusColor = colors.gold;
+          {isTabLoading ? (
+            <SkeletonLoader type="list-item" count={3} />
+          ) : (
+            tables.map(table => {
+              const isOccupied = table.status === TableStatus.OCCUPIED || table.occupiedSeats > 0;
+              let statusColor = colors.success;
+              if (table.status === TableStatus.MAINTENANCE) statusColor = colors.muted;
+              else if (table.status === TableStatus.RESERVED) statusColor = '#3b82f6';
+              else if (isOccupied) statusColor = colors.gold;
 
-            return (
-              <View key={table.id} className="bg-transparent border border-transparent rounded-xl p-3.5 mb-2.5">
-                <View className="flex-row justify-between items-center mb-2">
-                  <View>
-                    <Text className="text-themeText font-mono font-bold text-sm" style={{ color: colors.text }}>Table {table.number}</Text>
-                    <Text className="text-muted text-[10px] uppercase font-bold mt-0.5">
-                      {table.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : 'Standing Bar'} • Capacity: {table.seats} Pax
-                    </Text>
+              return (
+                <View key={table.id} className="bg-transparent border border-transparent rounded-xl p-3.5 mb-2.5">
+                  <View className="flex-row justify-between items-center mb-2">
+                    <View>
+                      <Text className="text-themeText font-mono font-bold text-sm" style={{ color: colors.text }}>Table {table.number}</Text>
+                      <Text className="text-muted text-[10px] uppercase font-bold mt-0.5">
+                        {table.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : 'Standing Bar'} • Capacity: {table.seats} Pax
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="font-extrabold text-[10px] uppercase" style={{ color: statusColor }}>{isOccupied ? 'occupied' : table.status}</Text>
+                    </View>
                   </View>
-                  <View className="items-end">
-                    <Text className="font-extrabold text-[10px] uppercase" style={{ color: statusColor }}>{isOccupied ? 'occupied' : table.status}</Text>
+
+                  {/* Status Toggles & Actions */}
+                  <View className="flex-row justify-between items-center mt-2 border-t border-transparent pt-2">
+                    <View className="flex-row gap-1.5">
+                      {!isOccupied ? (
+                        <>
+                          <TouchableOpacity
+                            className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.AVAILABLE ? colors.success : colors.border, backgroundColor: table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'available')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.AVAILABLE ? colors.success : colors.muted }}>Available</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.RESERVED ? '#3b82f6' : colors.border, backgroundColor: table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'reserved')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.RESERVED ? '#3b82f6' : colors.muted }}>Reserve</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.MAINTENANCE ? colors.muted : colors.border, backgroundColor: table.status === TableStatus.MAINTENANCE ? (isDark ? 'rgba(142,142,147,0.1)' : 'rgba(142,142,147,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'maintenance')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.MAINTENANCE ? colors.red : colors.muted }}>Maint</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <Text className="text-muted text-[9px] font-semibold italic">Locked (Occupied)</Text>
+                      )}
+                    </View>
+
+                    <View className="flex-row gap-2">
+                      <TouchableOpacity
+                        className={`px-2.5 py-1 rounded bg-transparent border border-transparent ${isOccupied ? 'opacity-50' : ''}`}
+                        disabled={isOccupied}
+                        onPress={() => {
+                          if (isOccupied) {
+                            showToast('Cannot edit an occupied table', 'danger');
+                            return;
+                          }
+                          setSelectedTable(table);
+                          setEditCapacity(table.seats.toString());
+                          setIsEditModalOpen(true);
+                        }}
+                      >
+                        <Text className="text-themeText text-[9px] font-bold" style={{ color: colors.text }}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className={`px-2.5 py-1 rounded bg-red/10 border border-red/20 ${isOccupied ? 'opacity-50' : ''}`}
+                        disabled={isOccupied}
+                        onPress={() => {
+                          if (isOccupied) {
+                            showToast('Cannot delete an occupied table', 'danger');
+                            return;
+                          }
+                          deleteTable(table.id);
+                        }}
+                      >
+                        <Text className="text-[9px] font-bold" style={{ color: 'colors.red' }}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-
-                {/* Status Toggles & Actions */}
-                <View className="flex-row justify-between items-center mt-2 border-t border-transparent pt-2">
-                  <View className="flex-row gap-1.5">
-                    {!isOccupied ? (
-                      <>
-                        <TouchableOpacity
-                          className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.AVAILABLE ? colors.success : colors.border, backgroundColor: table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'available')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.AVAILABLE ? colors.success : colors.muted }}>Available</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.RESERVED ? '#3b82f6' : colors.border, backgroundColor: table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'reserved')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.RESERVED ? '#3b82f6' : colors.muted }}>Reserve</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.MAINTENANCE ? colors.muted : colors.border, backgroundColor: table.status === TableStatus.MAINTENANCE ? (isDark ? 'rgba(142,142,147,0.1)' : 'rgba(142,142,147,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'maintenance')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.MAINTENANCE ? colors.red : colors.muted }}>Maint</Text>
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <Text className="text-muted text-[9px] font-semibold italic">Locked (Occupied)</Text>
-                    )}
-                  </View>
-
-                  <View className="flex-row gap-2">
-                    <TouchableOpacity
-                      className={`px-2.5 py-1 rounded bg-transparent border border-transparent ${isOccupied ? 'opacity-50' : ''}`}
-                      disabled={isOccupied}
-                      onPress={() => {
-                        if (isOccupied) {
-                          showToast('Cannot edit an occupied table', 'danger');
-                          return;
-                        }
-                        setSelectedTable(table);
-                        setEditCapacity(table.seats.toString());
-                        setIsEditModalOpen(true);
-                      }}
-                    >
-                      <Text className="text-themeText text-[9px] font-bold" style={{ color: colors.text }}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      className={`px-2.5 py-1 rounded bg-red/10 border border-red/20 ${isOccupied ? 'opacity-50' : ''}`}
-                      disabled={isOccupied}
-                      onPress={() => {
-                        if (isOccupied) {
-                          showToast('Cannot delete an occupied table', 'danger');
-                          return;
-                        }
-                        deleteTable(table.id);
-                      }}
-                    >
-                      <Text className="text-[9px] font-bold" style={{ color: 'colors.red' }}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
+              );
+            })
+          )}
         </ScrollView>
       )}
 
@@ -840,316 +908,322 @@ export const AdminPortal: React.FC = () => {
             </View>
           )}
 
-          {/* Metrics summary KPI sub-grid */}
-          <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Period Performance Summary</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 16 }}>
-            {/* Revenue */}
-            <View style={{ width: '33.33%', padding: 4 }}>
-              <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
-                <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Revenue</Text>
-                <Text className="font-mono text-gold text-xs font-bold mt-1">₹{(salesSummary?.todaySales || 0).toLocaleString()}</Text>
-              </View>
+           {isTabLoading ? (
+            <View className="mt-4">
+              <SkeletonLoader type="card" count={3} />
             </View>
+          ) : (
+            <>
+              {/* Metrics summary KPI sub-grid */}
+              <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Period Performance Summary</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 16 }}>
+                {/* Revenue */}
+                <View style={{ width: '33.33%', padding: 4 }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                    <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Revenue</Text>
+                    <Text className="font-mono text-gold text-xs font-bold mt-1">₹{(salesSummary?.todaySales || 0).toLocaleString()}</Text>
+                  </View>
+                </View>
 
-            {/* Turnover */}
-            <View style={{ width: '33.33%', padding: 4 }}>
-              <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
-                <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Turnover</Text>
-                <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>{salesSummary?.checkoutCount || 0} groups</Text>
+                {/* Turnover */}
+                <View style={{ width: '33.33%', padding: 4 }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                    <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Turnover</Text>
+                    <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>{salesSummary?.checkoutCount || 0} groups</Text>
+                  </View>
+                </View>
+
+                {/* Avg Stay */}
+                <View style={{ width: '33.33%', padding: 4 }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                    <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Avg Stay</Text>
+                    <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>
+                      {(() => {
+                        const tablesList = tableUtilization?.tables || [];
+                        const totalStay = tablesList.reduce((sum: number, t: any) => sum + t.averageSessionDurationMinutes * t.turnoverCount, 0);
+                        const totalTurnovers = tablesList.reduce((sum: number, t: any) => sum + t.turnoverCount, 0);
+                        return totalTurnovers > 0 ? `${Math.round(totalStay / totalTurnovers)}m` : '0m';
+                      })()}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Occupancy Rate */}
+                <View style={{ width: '33.33%', padding: 4 }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                    <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Occupancy Rate</Text>
+                    <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>
+                      {Math.round((tableUtilization?.summary?.averageOccupancyRate || 0) * 100)}%
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Redemptions */}
+                <View style={{ width: '33.33%', padding: 4 }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                    <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Redemptions</Text>
+                    <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.success }}>{salesSummary?.todayRedemptions || 0} drinks</Text>
+                  </View>
+                </View>
+
+                {/* Peak hour */}
+                <View style={{ width: '33.33%', padding: 4 }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                    <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Peak hour</Text>
+                    <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.teal }}>
+                      {(() => {
+                        const pkH = hourlyBreakdown?.peakHour;
+                        if (pkH === undefined) return 'N/A';
+                        return pkH === 0 ? '12 AM' : (pkH < 12 ? `${pkH} AM` : (pkH === 12 ? '12 PM' : `${pkH - 12} PM`));
+                      })()}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            </View>
 
-            {/* Avg Stay */}
-            <View style={{ width: '33.33%', padding: 4 }}>
-              <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
-                <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Avg Stay</Text>
-                <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>
-                  {(() => {
-                    const tablesList = tableUtilization?.tables || [];
-                    const totalStay = tablesList.reduce((sum: number, t: any) => sum + t.averageSessionDurationMinutes * t.turnoverCount, 0);
-                    const totalTurnovers = tablesList.reduce((sum: number, t: any) => sum + t.turnoverCount, 0);
-                    return totalTurnovers > 0 ? `${Math.round(totalStay / totalTurnovers)}m` : '0m';
-                  })()}
-                </Text>
-              </View>
-            </View>
+              {/* SVG Bar Chart section */}
+              <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Hourly Redemption Frequency</Text>
+              <View className="bg-transparent border border-transparent rounded-2xl p-4 mb-4">
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-3">
+                  <View className="flex-row items-end h-40 pb-3 border-b" style={{ gap: 8, paddingHorizontal: 5, borderBottomColor: colors.chartGrid }}>
+                    {(() => {
+                      const displayHours = hourlyBreakdown?.hourlyData || [];
+                      const maxVal = Math.max(...displayHours.map((d: any) => d.redemptions || 0), 5);
+                      const peakH = hourlyBreakdown?.peakHour;
 
-            {/* Occupancy Rate */}
-            <View style={{ width: '33.33%', padding: 4 }}>
-              <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
-                <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Occupancy Rate</Text>
-                <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>
-                  {Math.round((tableUtilization?.summary?.averageOccupancyRate || 0) * 100)}%
-                </Text>
-              </View>
-            </View>
+                      return displayHours.map((hourData: any) => {
+                        const isPeak = hourData.hour === peakH;
+                        const barHeight = Math.round((hourData.redemptions / maxVal) * 110) + 10;
+                        const formattedHour = hourData.hour === 0 ? '12a' : (hourData.hour < 12 ? `${hourData.hour}a` : (hourData.hour === 12 ? '12p' : `${hourData.hour - 12}p`));
 
-            {/* Redemptions */}
-            <View style={{ width: '33.33%', padding: 4 }}>
-              <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
-                <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Redemptions</Text>
-                <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.success }}>{salesSummary?.todayRedemptions || 0} drinks</Text>
-              </View>
-            </View>
+                        return (
+                          <View key={hourData.hour} className="items-center" style={{ width: 24 }}>
+                            <View 
+                              style={{ 
+                                height: barHeight, 
+                                width: 14, 
+                                backgroundColor: isPeak ? colors.gold : (isDark ? '#27272A' : '#E4E4E7'),
+                                borderTopLeftRadius: 4, 
+                                borderTopRightRadius: 4,
+                                borderBottomLeftRadius: 0,
+                                borderBottomRightRadius: 0
+                              }} 
+                            />
+                            <Text className="text-[8px] text-muted font-bold mt-1.5">{formattedHour}</Text>
+                          </View>
+                        );
+                      });
+                    })()}
+                  </View>
+                </ScrollView>
 
-            {/* Peak hour */}
-            <View style={{ width: '33.33%', padding: 4 }}>
-              <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
-                <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Peak hour</Text>
-                <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.teal }}>
+                {/* Busiest hour description */}
+                <View className="border-t border-transparent pt-3">
                   {(() => {
                     const pkH = hourlyBreakdown?.peakHour;
-                    if (pkH === undefined) return 'N/A';
-                    return pkH === 0 ? '12 AM' : (pkH < 12 ? `${pkH} AM` : (pkH === 12 ? '12 PM' : `${pkH - 12} PM`));
-                  })()}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* SVG Bar Chart section */}
-          <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Hourly Redemption Frequency</Text>
-          <View className="bg-transparent border border-transparent rounded-2xl p-4 mb-4">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-3">
-              <View className="flex-row items-end h-40 pb-3 border-b" style={{ gap: 8, paddingHorizontal: 5, borderBottomColor: colors.chartGrid }}>
-                {(() => {
-                  const displayHours = hourlyBreakdown?.hourlyData || [];
-                  const maxVal = Math.max(...displayHours.map((d: any) => d.redemptions || 0), 5);
-                  const peakH = hourlyBreakdown?.peakHour;
-
-                  if (displayHours.length === 0) {
-                    return (
-                      <View className="w-80 h-full justify-center items-center">
-                        <Text className="text-muted text-xs">No redemption data available for this range</Text>
-                      </View>
-                    );
-                  }
-
-                  return displayHours.map((d: any) => {
-                    const heightPct = ((d.redemptions || 0) / maxVal) * 100;
-                    const isPeak = d.hour === peakH;
-                    const displayHr = d.hour === 0 ? '12 AM' : (d.hour < 12 ? `${d.hour} AM` : (d.hour === 12 ? '12 PM' : `${d.hour - 12} PM`));
+                    const pkR = hourlyBreakdown?.peakRedemptions || 0;
+                    const pkHStr = pkH !== undefined ? (pkH === 0 ? '12:00 AM' : (pkH < 12 ? `${pkH}:00 AM` : (pkH === 12 ? '12:00 PM' : `${pkH - 12}:00 PM`))) : 'N/A';
+                    const pkData = (hourlyBreakdown?.hourlyData || []).find((h: any) => h.hour === pkH);
 
                     return (
-                      <View key={d.hour} className="items-center w-8">
-                        <View className="w-3.5 h-full bg-themeInput rounded-full justify-end overflow-hidden">
-                          <View 
-                            className="w-full rounded-full"
-                            style={{ height: `${heightPct}%`, backgroundColor: colors.gold, opacity: isPeak ? 1 : 0.45 }}
-                          />
-                        </View>
-                        <Text className="font-mono text-muted text-[8px] mt-1.5" numberOfLines={1}>
-                          {displayHr.split(' ')[0]}
+                      <>
+                        <Text className="text-gold text-xs font-bold mb-1">{pkHStr} ({pkR > 0 ? 'Busiest Peak Hour' : 'Standard Hour'})</Text>
+                        <Text className="text-themeText text-[11px] font-semibold mb-0.5" style={{ color: colors.text }}>
+                          Redemptions Served: {pkR} drinks
                         </Text>
-                      </View>
+                        <Text className="text-muted text-[9px] leading-3.5">
+                          New Check-Ins: {pkData?.newTokens || 0} groups • Active Groups: {pkData?.activeTokens || 0}
+                        </Text>
+                      </>
                     );
-                  });
-                })()}
-              </View>
-            </ScrollView>
-            
-            {/* Dynamic Tooltip Info box */}
-            <View className="bg-themeInput border border-transparent rounded-xl p-3">
-              {(() => {
-                const pkH = hourlyBreakdown?.peakHour;
-                const pkR = hourlyBreakdown?.peakRedemptions || 0;
-                const pkHStr = pkH !== undefined ? (pkH === 0 ? '12:00 AM' : (pkH < 12 ? `${pkH}:00 AM` : (pkH === 12 ? '12:00 PM' : `${pkH - 12}:00 PM`))) : 'N/A';
-                const pkData = (hourlyBreakdown?.hourlyData || []).find((h: any) => h.hour === pkH);
-                
-                return (
-                  <>
-                    <Text className="text-gold text-xs font-bold mb-1">{pkHStr} ({pkR > 0 ? 'Busiest Peak Hour' : 'Standard Hour'})</Text>
-                    <Text className="text-themeText text-[11px] font-semibold mb-0.5" style={{ color: colors.text }}>
-                      Redemptions Served: {pkR} drinks
-                    </Text>
-                    <Text className="text-muted text-[9px] leading-3.5">
-                      New Check-Ins: {pkData?.newTokens || 0} groups • Active Groups: {pkData?.activeTokens || 0}
-                    </Text>
-                  </>
-                );
-              })()}
-            </View>
-          </View>
-
-          {/* Table Utilization Report */}
-          <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Table Utilization Report</Text>
-          <View className="bg-transparent border border-transparent rounded-xl p-3.5">
-            {(!tableUtilization || !tableUtilization.tables || tableUtilization.tables.length === 0) ? (
-              <Text className="text-muted text-xs text-center py-4">No table utilization data found</Text>
-            ) : (
-              <View style={{ gap: 8 }}>
-                <View className="flex-row border-b border-transparent pb-1.5">
-                  <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted">Table</Text>
-                  <Text className="flex-1.5 text-[8px] uppercase tracking-wider font-bold text-muted">Zone</Text>
-                  <Text className="flex-1.5 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Occ Hrs/Day</Text>
-                  <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Turnover</Text>
-                  <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Avg Stay</Text>
+                  })()}
                 </View>
-                {tableUtilization.tables.map((t: any) => (
-                  <View key={t.tableNumber} className="flex-row items-center border-b border-transparent py-1">
-                    <Text className="flex-1 text-themeText font-mono text-xs font-bold" style={{ color: colors.text }}>{t.tableNumber}</Text>
-                    <Text className="flex-1.5 text-muted text-[10px] truncate">{t.placeType === 'STANDING_BAR' ? 'Standing Bar' : (t.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : t.placeType)}</Text>
-                    <Text className="flex-1.5 text-themeText text-xs font-semibold text-right" style={{ color: colors.text }}>{t.averageOccupancyPerDay}h</Text>
-                    <Text className="flex-1 text-xs font-bold text-right" style={{ color: colors.teal }}>{t.turnoverCount}</Text>
-                    <Text className="flex-1 text-themeText text-xs font-semibold text-right" style={{ color: colors.text }}>{Math.round(t.averageSessionDurationMinutes)}m</Text>
-                  </View>
-                ))}
               </View>
-            )}
-          </View>
+
+              {/* Table Utilization Report */}
+              <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Table Utilization Report</Text>
+              <View className="bg-transparent border border-transparent rounded-xl p-3.5">
+                {(!tableUtilization || !tableUtilization.tables || tableUtilization.tables.length === 0) ? (
+                  <Text className="text-muted text-xs text-center py-4">No table utilization data found</Text>
+                ) : (
+                  <View style={{ gap: 8 }}>
+                    <View className="flex-row border-b border-transparent pb-1.5">
+                      <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted">Table</Text>
+                      <Text className="flex-1.5 text-[8px] uppercase tracking-wider font-bold text-muted">Zone</Text>
+                      <Text className="flex-1.5 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Occ Hrs/Day</Text>
+                      <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Turnover</Text>
+                      <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Avg Stay</Text>
+                    </View>
+                    {tableUtilization.tables.map((t: any) => (
+                      <View key={t.tableNumber} className="flex-row items-center border-b border-transparent py-1">
+                        <Text className="flex-1 text-themeText font-mono text-xs font-bold" style={{ color: colors.text }}>{t.tableNumber}</Text>
+                        <Text className="flex-1.5 text-muted text-[10px] truncate">{t.placeType === 'STANDING_BAR' ? 'Standing Bar' : (t.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : t.placeType)}</Text>
+                        <Text className="flex-1.5 text-themeText text-xs font-semibold text-right" style={{ color: colors.text }}>{t.averageOccupancyPerDay}h</Text>
+                        <Text className="flex-1 text-xs font-bold text-right" style={{ color: colors.teal }}>{t.turnoverCount}</Text>
+                        <Text className="flex-1 text-themeText text-xs font-semibold text-right" style={{ color: colors.text }}>{Math.round(t.averageSessionDurationMinutes)}m</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </>
+          )}
         </ScrollView>
       )}
 
       {/* Add Table Modal */}
-      <Modal visible={isAddModalOpen} transparent animationType="slide">
-        <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="border border-gold/20 rounded-2xl p-5 shadow-2xl" style={{ backgroundColor: colors.surface }}>
-            <Text className="text-base font-bold text-gold mb-4">Add Seating Table</Text>
-            
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Table Number (e.g. S-13, L-11)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${newTableNumber.trim().length > 0 ? (isNewTableNumberValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
-                style={{ color: colors.text }}
-                placeholder="S-13"
-                placeholderTextColor={colors.placeholder}
-                value={newTableNumber}
-                onChangeText={setNewTableNumber}
-                autoCapitalize="characters"
-              />
-              {newTableNumber.trim().length > 0 && !isNewTableNumberValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Must start with S- or L- followed by a 2-3 digit number (e.g., S-12, L-04).</Text>
-                </View>
-              )}
-            </View>
+      <AlertModal
+        visible={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setNewTableNumber('');
+          setNewCapacity('');
+        }}
+        title="Add Seating Table"
+      >
+        <View>
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Table Number (e.g. S-13, L-11)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${newTableNumber.trim().length > 0 ? (isNewTableNumberValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder="S-13"
+              placeholderTextColor={colors.placeholder}
+              value={newTableNumber}
+              onChangeText={setNewTableNumber}
+              autoCapitalize="characters"
+              editable={!isProcessing}
+            />
+            {newTableNumber.trim().length > 0 && !isNewTableNumberValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Must start with S- or L- followed by a 2-3 digit number (e.g., S-12, L-04).</Text>
+            )}
+          </View>
 
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Place Type</Text>
-              <View className="flex-row gap-2">
-                <TouchableOpacity 
-                  className="flex-1 py-2.5 items-center rounded-xl border" style={{ borderColor: newPlaceType === 'STANDING_BAR' ? colors.gold : 'transparent', backgroundColor: newPlaceType === 'STANDING_BAR' ? (isDark ? 'rgba(245,166,35,0.05)' : 'rgba(212,175,55,0.05)') : colors.themeInput }}
-                  onPress={() => setNewPlaceType('STANDING_BAR')}
-                >
-                  <Text className={`text-xs font-bold ${newPlaceType === 'STANDING_BAR' ? 'text-gold' : 'text-muted'}`}>Standing Bar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  className="flex-1 py-2.5 items-center rounded-xl border" style={{ borderColor: newPlaceType === 'PREMIUM_LOUNGE' ? colors.gold : 'transparent', backgroundColor: newPlaceType === 'PREMIUM_LOUNGE' ? (isDark ? 'rgba(245,166,35,0.05)' : 'rgba(212,175,55,0.05)') : colors.themeInput }}
-                  onPress={() => setNewPlaceType('PREMIUM_LOUNGE')}
-                >
-                  <Text className={`text-xs font-bold ${newPlaceType === 'PREMIUM_LOUNGE' ? 'text-gold' : 'text-muted'}`}>Premium Lounge</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View className="mb-6">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Capacity (Pax)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${newCapacity.trim().length > 0 ? (isNewCapacityValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
-                style={{ color: colors.text }}
-                placeholder="2"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-                value={newCapacity}
-                onChangeText={setNewCapacity}
-              />
-              {newCapacity.trim().length > 0 && !isNewCapacityValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Capacity must be a number between 1 and 100.</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="flex-row justify-end gap-2.5">
-              <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsAddModalOpen(false)}>
-                <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Place Type</Text>
+            <View className="flex-row gap-2">
+              <TouchableOpacity 
+                className="flex-1 py-2.5 items-center rounded-xl border" style={{ borderColor: newPlaceType === 'STANDING_BAR' ? colors.gold : 'transparent', backgroundColor: newPlaceType === 'STANDING_BAR' ? (isDark ? 'rgba(245,166,35,0.05)' : 'rgba(212,175,55,0.05)') : colors.themeInput }}
+                onPress={() => setNewPlaceType('STANDING_BAR')}
+                disabled={isProcessing}
+              >
+                <Text className={`text-xs font-bold ${newPlaceType === 'STANDING_BAR' ? 'text-gold' : 'text-muted'}`}>Standing Bar</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl ${(!isAddTableFormValid || isProcessing) ? 'opacity-50' : 'active:opacity-90'}`}
-                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
-                disabled={!isAddTableFormValid || isProcessing}
-                onPress={async () => {
-                  if (!isAddTableFormValid) return;
-                  if (!startAction('add_table')) return;
-                  try {
-                    const capNum = parseInt(newCapacity, 10);
-                    const success = await addTable(newTableNumber.toUpperCase().trim(), newPlaceType, capNum);
-                    stopAction();
-                    if (success) {
-                      setIsAddModalOpen(false);
-                    }
-                  } catch (e) {
-                    stopAction();
-                  }
-                }}
+                className="flex-1 py-2.5 items-center rounded-xl border" style={{ borderColor: newPlaceType === 'PREMIUM_LOUNGE' ? colors.gold : 'transparent', backgroundColor: newPlaceType === 'PREMIUM_LOUNGE' ? (isDark ? 'rgba(245,166,35,0.05)' : 'rgba(212,175,55,0.05)') : colors.themeInput }}
+                onPress={() => setNewPlaceType('PREMIUM_LOUNGE')}
+                disabled={isProcessing}
               >
-                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
-                  {loadingAction === 'add_table' ? `Saving... (${secondsLeft}s)` : 'Save Table'}
-                </Text>
+                <Text className={`text-xs font-bold ${newPlaceType === 'PREMIUM_LOUNGE' ? 'text-gold' : 'text-muted'}`}>Premium Lounge</Text>
               </TouchableOpacity>
             </View>
           </View>
+
+          <View className="mb-6">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Capacity (Pax)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${newCapacity.trim().length > 0 ? (isNewCapacityValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder="2"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="numeric"
+              value={newCapacity}
+              onChangeText={setNewCapacity}
+              editable={!isProcessing}
+            />
+            {newCapacity.trim().length > 0 && !isNewCapacityValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Capacity must be a number between 1 and 100.</Text>
+            )}
+          </View>
+
+          <View className="flex-row justify-end gap-2.5">
+            <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsAddModalOpen(false)}>
+              <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className={`py-2.5 px-4 rounded-xl ${(!isAddTableFormValid || isProcessing) ? 'opacity-50' : 'active:opacity-90'}`}
+              style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+              disabled={!isAddTableFormValid || isProcessing}
+              onPress={async () => {
+                if (!isAddTableFormValid) return;
+                if (!startAction('add_table')) return;
+                try {
+                  const capNum = parseInt(newCapacity, 10);
+                  const success = await addTable(newTableNumber.toUpperCase().trim(), newPlaceType, capNum);
+                  stopAction();
+                  if (success) {
+                    setIsAddModalOpen(false);
+                  }
+                } catch (e) {
+                  stopAction();
+                }
+              }}
+            >
+              <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                {loadingAction === 'add_table' ? `Saving... (${secondsLeft}s)` : 'Save Table'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </Modal>
+      </AlertModal>
 
       {/* Edit Table Modal */}
-      <Modal visible={isEditModalOpen} transparent animationType="slide">
-        <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="border border-gold/20 rounded-2xl p-5 shadow-2xl" style={{ backgroundColor: colors.surface }}>
-            <Text className="text-base font-bold text-gold mb-4">Edit Table {selectedTable?.number}</Text>
+      <AlertModal
+        visible={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title={`Edit Table ${selectedTable?.number}`}
+      >
+        <View>
+          <View className="mb-6">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Capacity (Pax)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${editCapacity.trim().length > 0 ? (isEditCapacityValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder="2"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="numeric"
+              value={editCapacity}
+              onChangeText={setEditCapacity}
+              editable={!isProcessing}
+            />
+            {editCapacity.trim().length > 0 && !isEditCapacityValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Capacity must be a number between 1 and 100.</Text>
+            )}
+          </View>
 
-            <View className="mb-6">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Capacity (Pax)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${editCapacity.trim().length > 0 ? (isEditCapacityValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
-                style={{ color: colors.text }}
-                placeholder="2"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-                value={editCapacity}
-                onChangeText={setEditCapacity}
-              />
-              {editCapacity.trim().length > 0 && !isEditCapacityValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Capacity must be a number between 1 and 100.</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="flex-row justify-end gap-2.5">
-              <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsEditModalOpen(false)}>
-                <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl ${(!isEditCapacityValid || isProcessing) ? 'opacity-50' : 'active:opacity-90'}`}
-                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
-                disabled={!isEditCapacityValid || isProcessing}
-                onPress={async () => {
-                  if (!selectedTable || !isEditCapacityValid) return;
-                  if (!startAction('edit_table')) return;
-                  try {
-                    const capNum = parseInt(editCapacity, 10);
-                    const success = await editTable(selectedTable.id, selectedTable.number, selectedTable.placeType, capNum);
-                    stopAction();
-                    if (success) {
-                      setIsEditModalOpen(false);
-                    }
-                  } catch (e) {
-                    stopAction();
+          <View className="flex-row justify-end gap-2.5">
+            <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsEditModalOpen(false)}>
+              <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className={`py-2.5 px-4 rounded-xl ${(!isEditCapacityValid || isProcessing) ? 'opacity-50' : 'active:opacity-90'}`}
+              style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+              disabled={!isEditCapacityValid || isProcessing}
+              onPress={async () => {
+                if (!selectedTable || !isEditCapacityValid) return;
+                if (!startAction('edit_table')) return;
+                try {
+                  const capNum = parseInt(editCapacity, 10);
+                  const success = await editTable(selectedTable.id, selectedTable.number, selectedTable.placeType, capNum);
+                  stopAction();
+                  if (success) {
+                    setIsEditModalOpen(false);
                   }
-                }}
-              >
-                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
-                  {loadingAction === 'edit_table' ? `Saving... (${secondsLeft}s)` : 'Save Changes'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                } catch (e) {
+                  stopAction();
+                }
+              }}
+            >
+              <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                {loadingAction === 'edit_table' ? `Saving... (${secondsLeft}s)` : 'Save Changes'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </AlertModal>
 
       {/* Staff Manager Sub-Tab */}
       {adminSubTab === 'staff' && (
@@ -1170,74 +1244,78 @@ export const AdminPortal: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {users.map(staff => {
-            const isSelf = loggedUser?.id === staff.id;
-            let roleBadgeStyle = { color: colors.gold, borderColor: isDark ? 'rgba(245,166,35,0.2)' : 'rgba(212,175,55,0.2)', backgroundColor: isDark ? 'rgba(245,166,35,0.05)' : 'rgba(212,175,55,0.05)' };
-            if (staff.role.name === 'admin') roleBadgeStyle = { color: colors.red, borderColor: isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)', backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)' };
-            else if (staff.role.name === 'bartender') roleBadgeStyle = { color: colors.success, borderColor: isDark ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)', backgroundColor: isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)' };
-            else if (staff.role.name === 'manager') roleBadgeStyle = { color: '#3b82f6', borderColor: 'rgba(59,130,246,0.2)', backgroundColor: 'rgba(59,130,246,0.05)' };
+          {isTabLoading ? (
+            <SkeletonLoader type="list-item" count={3} />
+          ) : (
+            users.map(staff => {
+              const isSelf = loggedUser?.id === staff.id;
+              let roleBadgeStyle = { color: colors.gold, borderColor: isDark ? 'rgba(245,166,35,0.2)' : 'rgba(212,175,55,0.2)', backgroundColor: isDark ? 'rgba(245,166,35,0.05)' : 'rgba(212,175,55,0.05)' };
+              if (staff.role.name === 'admin') roleBadgeStyle = { color: colors.red, borderColor: isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)', backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)' };
+              else if (staff.role.name === 'bartender') roleBadgeStyle = { color: colors.success, borderColor: isDark ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)', backgroundColor: isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)' };
+              else if (staff.role.name === 'manager') roleBadgeStyle = { color: '#3b82f6', borderColor: 'rgba(59,130,246,0.2)', backgroundColor: 'rgba(59,130,246,0.05)' };
 
-            return (
-              <View key={staff.id} className="border rounded-xl p-3.5 mb-2.5" style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}>
-                <View className="flex-row justify-between items-center mb-2">
-                  <View className="flex-1 mr-2">
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-themeText font-bold text-sm" style={{ color: colors.text }}>{staff.fullName}</Text>
-                      {isSelf && (
-                        <View className="bg-white/10 px-1.5 py-0.5 rounded">
-                          <Text className="text-[8px] text-themeText font-bold">YOU</Text>
-                        </View>
+              return (
+                <View key={staff.id} className="border rounded-xl p-3.5 mb-2.5" style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}>
+                  <View className="flex-row justify-between items-center mb-2">
+                    <View className="flex-1 mr-2">
+                      <View className="flex-row items-center gap-2">
+                        <Text className="text-themeText font-bold text-sm" style={{ color: colors.text }}>{staff.fullName}</Text>
+                        {isSelf && (
+                          <View className="bg-white/10 px-1.5 py-0.5 rounded">
+                            <Text className="text-[8px] text-themeText font-bold">YOU</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text className="text-muted text-[10px] font-mono mt-0.5">
+                        Username: {staff.username}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: roleBadgeStyle.borderColor, backgroundColor: roleBadgeStyle.backgroundColor }}>
+                        <Text style={{ fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: roleBadgeStyle.color }}>{staff.role.name}</Text>
+                      </View>
+                      <Text style={{ fontSize: 9, fontWeight: 'semibold', marginTop: 4, color: staff.isActive ? colors.success : colors.red }}>
+                        {staff.isActive ? 'Active' : 'Deactivated'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Staff Actions */}
+                  <View className="flex-row justify-between items-center mt-2 border-t border-transparent pt-2">
+                    <View>
+                      {isSelf ? (
+                        <Text className="text-muted text-[9px] font-semibold italic">Cannot deactivate self</Text>
+                      ) : (
+                        <TouchableOpacity
+                          className="px-2.5 py-1 rounded border" style={{ borderColor: staff.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)', backgroundColor: staff.isActive ? 'rgba(239,68,68,0.05)' : 'rgba(34,197,94,0.05)' }}
+                          onPress={() => updateStaffStatus(staff.id, !staff.isActive)}
+                        >
+                          <Text style={{ fontSize: 9, fontWeight: 'bold', color: staff.isActive ? colors.red : colors.success }}>
+                            {staff.isActive ? 'Deactivate' : 'Activate'}
+                          </Text>
+                        </TouchableOpacity>
                       )}
                     </View>
-                    <Text className="text-muted text-[10px] font-mono mt-0.5">
-                      Username: {staff.username}
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: roleBadgeStyle.borderColor, backgroundColor: roleBadgeStyle.backgroundColor }}>
-                      <Text style={{ fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: roleBadgeStyle.color }}>{staff.role.name}</Text>
-                    </View>
-                    <Text style={{ fontSize: 9, fontWeight: 'semibold', marginTop: 4, color: staff.isActive ? colors.success : colors.red }}>
-                      {staff.isActive ? 'Active' : 'Deactivated'}
-                    </Text>
+
+                    <TouchableOpacity
+                      className="px-2.5 py-1 rounded border" style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                      onPress={() => {
+                        setSelectedStaff(staff);
+                        setEditStaffUsername(staff.username);
+                        setEditStaffFullName(staff.fullName);
+                        setEditStaffRole(staff.role.name as any);
+                        setEditStaffIsActive(staff.isActive);
+                        setEditStaffPassword('');
+                        setIsEditStaffOpen(true);
+                      }}
+                    >
+                      <Text className="text-themeText text-[9px] font-bold" style={{ color: colors.text }}>Edit Profile</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-
-                {/* Staff Actions */}
-                <View className="flex-row justify-between items-center mt-2 border-t border-transparent pt-2">
-                  <View>
-                    {isSelf ? (
-                      <Text className="text-muted text-[9px] font-semibold italic">Cannot deactivate self</Text>
-                    ) : (
-                      <TouchableOpacity
-                        className="px-2.5 py-1 rounded border" style={{ borderColor: staff.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)', backgroundColor: staff.isActive ? 'rgba(239,68,68,0.05)' : 'rgba(34,197,94,0.05)' }}
-                        onPress={() => updateStaffStatus(staff.id, !staff.isActive)}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: staff.isActive ? colors.red : colors.success }}>
-                          {staff.isActive ? 'Deactivate' : 'Activate'}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    className="px-2.5 py-1 rounded border" style={{ backgroundColor: colors.input, borderColor: colors.border }}
-                    onPress={() => {
-                      setSelectedStaff(staff);
-                      setEditStaffUsername(staff.username);
-                      setEditStaffFullName(staff.fullName);
-                      setEditStaffRole(staff.role.name as any);
-                      setEditStaffIsActive(staff.isActive);
-                      setEditStaffPassword('');
-                      setIsEditStaffOpen(true);
-                    }}
-                  >
-                    <Text className="text-themeText text-[9px] font-bold" style={{ color: colors.text }}>Edit Profile</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
+              );
+            })
+          )}
         </ScrollView>
       )}
 
@@ -1362,15 +1440,55 @@ export const AdminPortal: React.FC = () => {
             })}
           </ScrollView>
 
+          {/* Sort Selector */}
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 6, paddingLeft: 2 }}>Sort By:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+              {([
+                { value: 'latest_first', label: 'Latest First' },
+                { value: 'oldest_first', label: 'Oldest First' },
+                { value: 'expiring_soon', label: 'Expiring Soon' },
+                { value: 'recently_updated', label: 'Recently Updated' },
+                { value: 'customer_name', label: 'Customer Name' },
+                { value: 'table_number', label: 'Table Number' }
+              ] as const).map((opt) => {
+                const isActive = customerSort === opt.value;
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={{
+                      paddingVertical: 5,
+                      paddingHorizontal: 10,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: isActive ? colors.gold : colors.border,
+                      backgroundColor: isActive ? (isDark ? 'rgba(245,166,35,0.08)' : 'rgba(212,175,55,0.08)') : colors.secondarySurface
+                    }}
+                    onPress={() => setCustomerSort(opt.value)}
+                  >
+                    <Text style={{ fontSize: 9, fontWeight: 'bold', color: isActive ? colors.gold : colors.muted }}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
           {/* Session Cards List */}
           <View style={{ gap: 10 }}>
             {(() => {
+              if (isTabLoading) {
+                return <SkeletonLoader type="list-item" count={3} />;
+              }
+
               const filteredSessions = adminSessions.filter(s => {
                 const matchesSearch = 
                   s.customerName.toLowerCase().includes(customerSearch.toLowerCase()) ||
                   s.phoneNumber.includes(customerSearch) ||
                   (s.email && s.email.toLowerCase().includes(customerSearch.toLowerCase())) ||
                   (s.tableNumber && s.tableNumber.toLowerCase().includes(customerSearch.toLowerCase())) ||
+                  (s.cardUid && s.cardUid.toLowerCase().includes(customerSearch.toLowerCase())) ||
                   s.tokenNumber.toLowerCase().includes(customerSearch.toLowerCase());
 
                 const matchesStatus = 
@@ -1382,120 +1500,202 @@ export const AdminPortal: React.FC = () => {
 
               if (filteredSessions.length === 0) {
                 return (
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 20, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, padding: 20, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ color: colors.text, fontSize: 12, textAlign: 'center' }}>No sessions match current criteria</Text>
                   </View>
                 );
               }
 
-              return filteredSessions.map(session => {
-                const isDeactivatable = 
-                  session.status !== TokenStatus.CLOSED && 
-                  session.status !== TokenStatus.CANCELLED;
-
-                let badgeStyle = { bg: 'rgba(156, 163, 175, 0.1)', border: 'rgba(156, 163, 175, 0.2)', text: colors.muted };
-                if (session.status === TokenStatus.ACTIVE) {
-                  badgeStyle = { bg: 'rgba(34, 197, 94, 0.15)', border: 'rgba(34, 197, 94, 0.3)', text: 'colors.success' };
-                } else if (session.status === TokenStatus.EXTENDED) {
-                  badgeStyle = { bg: 'rgba(245, 166, 35, 0.15)', border: 'rgba(245, 166, 35, 0.3)', text: 'colors.gold' };
-                } else if (session.status === TokenStatus.EXPIRED) {
-                  badgeStyle = { bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.3)', text: 'colors.red' };
-                } else if (session.status === TokenStatus.PENDING_PAYMENT) {
-                  badgeStyle = { bg: 'rgba(212, 175, 55, 0.15)', border: 'rgba(212, 175, 55, 0.3)', text: '#d4af37' };
+              // Sort sessions
+              const sortedSessions = [...filteredSessions].sort((a, b) => {
+                switch (customerSort) {
+                  case 'latest_first':
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                  case 'oldest_first':
+                    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                  case 'customer_name':
+                    return a.customerName.localeCompare(b.customerName);
+                  case 'table_number':
+                    return (a.tableNumber || '').localeCompare(b.tableNumber || '');
+                  case 'recently_updated': {
+                    const timeA = a.redemptions && a.redemptions.length > 0
+                      ? new Date(a.redemptions[a.redemptions.length - 1].redeemedAt).getTime()
+                      : new Date(a.createdAt).getTime();
+                    const timeB = b.redemptions && b.redemptions.length > 0
+                      ? new Date(b.redemptions[b.redemptions.length - 1].redeemedAt).getTime()
+                      : new Date(b.createdAt).getTime();
+                    return timeB - timeA;
+                  }
+                  case 'expiring_soon': {
+                    const activeStatuses = [TokenStatus.ACTIVE, TokenStatus.EXTENDED];
+                    const isAActive = activeStatuses.includes(a.status);
+                    const isBActive = activeStatuses.includes(b.status);
+                    if (isAActive && isBActive) {
+                      return new Date(a.endTime).getTime() - new Date(b.endTime).getTime();
+                    }
+                    if (isAActive) return -1;
+                    if (isBActive) return 1;
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                  }
+                  default:
+                    return 0;
                 }
+              });
 
-                return (
-                  <View 
-                    key={session.id} 
-                    style={{ 
-                      backgroundColor: colors.card, 
-                      borderColor: colors.border, 
-                      borderWidth: 1,
-                      borderRadius: 16,
-                      padding: 12,
-                      gap: 8
-                    }}
-                  >
-                    {/* Header */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <View style={{ flex: 1, paddingRight: 8 }}>
-                        <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 12 }} numberOfLines={1}>{session.customerName}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 8, marginTop: 1 }}>{session.phoneNumber}</Text>
-                      </View>
-                      <View style={{ backgroundColor: badgeStyle.bg, borderColor: badgeStyle.border, borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                        <Text style={{ color: badgeStyle.text, fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase' }}>{session.status}</Text>
-                      </View>
-                    </View>
+              const paginatedSessions = sortedSessions.slice(0, visibleSessionsCount);
+              const hasMore = sortedSessions.length > visibleSessionsCount;
 
-                    {/* Table and token details Grid */}
-                    <View className="flex-row py-2 border-t border-b" style={{ borderColor: colors.border, borderTopWidth: 1, borderBottomWidth: 1 }}>
-                      <View className="flex-1">
-                        <Text style={{ color: colors.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Token Number</Text>
-                        <Text style={{ color: colors.gold, fontFamily: 'monospace', fontSize: 10, fontWeight: 'bold', marginTop: 2 }}>{session.tokenNumber}</Text>
-                      </View>
-                      <View className="flex-1">
-                        <Text style={{ color: colors.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Seating Table</Text>
-                        <Text style={{ color: colors.text, fontSize: 10, fontWeight: 'bold', marginTop: 2 }}>
-                          {session.tableNumber ? `Table ${session.tableNumber}` : 'No Table'}
-                        </Text>
-                      </View>
-                      <View className="flex-1">
-                        <Text style={{ color: colors.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Format / Guests</Text>
-                        <Text style={{ color: colors.text, fontSize: 10, fontWeight: 'bold', marginTop: 2 }}>
-                          {session.deliveryMode === 'EMAIL_QR' ? '📧 QR' : '💳 NFC'} • {session.persons} pax
-                        </Text>
-                      </View>
-                    </View>
+              return (
+                <>
+                  {paginatedSessions.map(session => {
+                    const isDeactivatable = 
+                      session.status !== TokenStatus.CLOSED && 
+                      session.status !== TokenStatus.CANCELLED;
 
-                    {/* Actions block */}
-                    <View className="flex-row justify-between items-center mt-1">
-                      <View className="flex-grow">
-                        {session.status !== TokenStatus.CLOSED && session.status !== TokenStatus.CANCELLED && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={{ color: colors.muted, fontSize: 9 }}>
-                              Redeemed: {session.redemptionCount}/{session.redemptionLimit} drinks
+                    let badgeStyle = { bg: colors.secondarySurface, border: colors.border, text: colors.muted, accentText: colors.text };
+                    if (session.status === TokenStatus.ACTIVE) {
+                      badgeStyle = { bg: 'rgba(34, 197, 94, 0.08)', border: 'rgba(34, 197, 94, 0.25)', text: colors.success, accentText: colors.success };
+                    } else if (session.status === TokenStatus.EXTENDED) {
+                      badgeStyle = { bg: 'rgba(59, 130, 246, 0.08)', border: 'rgba(59, 130, 246, 0.25)', text: '#3B82F6', accentText: '#3B82F6' };
+                    } else if (session.status === TokenStatus.PENDING_PAYMENT) {
+                      badgeStyle = { bg: 'rgba(249, 115, 22, 0.08)', border: 'rgba(249, 115, 22, 0.25)', text: '#F97316', accentText: '#F97316' };
+                    } else if (session.status === TokenStatus.EXPIRED) {
+                      badgeStyle = { bg: 'rgba(107, 114, 128, 0.08)', border: 'rgba(107, 114, 128, 0.25)', text: '#6B7280', accentText: '#6B7280' };
+                    } else if (session.status === TokenStatus.CANCELLED) {
+                      badgeStyle = { bg: 'rgba(239, 68, 68, 0.08)', border: 'rgba(239, 68, 68, 0.25)', text: colors.red, accentText: colors.red };
+                    } else if (session.status === TokenStatus.CLOSED) {
+                      badgeStyle = { bg: 'rgba(139, 92, 246, 0.08)', border: 'rgba(139, 92, 246, 0.25)', text: '#8B5CF6', accentText: '#8B5CF6' };
+                    }
+
+                    return (
+                      <View 
+                        key={session.id} 
+                        style={{ 
+                          backgroundColor: colors.card, 
+                          borderColor: colors.border, 
+                          borderWidth: 1.5,
+                          borderRadius: 16,
+                          padding: 16,
+                          gap: 12,
+                        }}
+                      >
+                        {/* Header */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 13 }} numberOfLines={1}>{session.customerName}</Text>
+                            <Text style={{ color: colors.muted, fontSize: 9, marginTop: 2 }}>{session.phoneNumber}</Text>
+                          </View>
+                          <View style={{ backgroundColor: badgeStyle.bg, borderColor: badgeStyle.border, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                            <Text style={{ color: badgeStyle.text, fontSize: 8.5, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>{session.status.replace('_', ' ')}</Text>
+                          </View>
+                        </View>
+
+                        {/* Table and token details Grid */}
+                        <View className="flex-row py-3 border-t border-b" style={{ borderColor: colors.divider, borderTopWidth: 1, borderBottomWidth: 1 }}>
+                          <View className="flex-1">
+                            <Text style={{ color: colors.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Token ID</Text>
+                            <Text style={{ color: colors.gold, fontFamily: 'monospace', fontSize: 10.5, fontWeight: 'bold', marginTop: 3 }}>{session.tokenNumber}</Text>
+                          </View>
+                          <View className="flex-grow flex-1" style={{ paddingHorizontal: 4 }}>
+                            <Text style={{ color: colors.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Seating Table</Text>
+                            <Text style={{ color: colors.text, fontSize: 10.5, fontWeight: 'bold', marginTop: 3 }}>
+                              {session.tableNumber ? `Table ${session.tableNumber}` : 'No Table'}
                             </Text>
-                            {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
-                              <Text style={{ color: (new Date(session.endTime).getTime() - Date.now() <= 15 * 60 * 1000) ? 'colors.red' : colors.gold, fontSize: 9, fontWeight: 'bold' }}>
-                                ⏰ {formatTimeRemaining(new Date(session.endTime).getTime() - Date.now())} left
+                          </View>
+                          <View className="flex-1 items-end">
+                            <Text style={{ color: colors.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Format / Pax</Text>
+                            <Text style={{ color: colors.text, fontSize: 10.5, fontWeight: 'bold', marginTop: 3 }}>
+                              {session.deliveryMode === 'EMAIL_QR' ? '📧 QR' : '💳 NFC'} • {session.persons}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Actions block */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            {session.status !== TokenStatus.CLOSED && session.status !== TokenStatus.CANCELLED ? (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={{ color: colors.muted, fontSize: 9 }}>
+                                  Drinks: {session.redemptionCount}/{session.redemptionLimit}
+                                </Text>
+                                {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
+                                  <Text style={{ color: (new Date(session.endTime).getTime() - Date.now() <= 15 * 60 * 1000) ? colors.red : colors.gold, fontSize: 9, fontWeight: 'bold' }}>
+                                    ⏰ {formatTimeRemaining(new Date(session.endTime).getTime() - Date.now())}
+                                  </Text>
+                                )}
+                              </View>
+                            ) : (
+                              <Text style={{ color: colors.muted, fontSize: 9 }}>
+                                Drinks served: {session.redemptionCount} total
                               </Text>
                             )}
                           </View>
-                        )}
-                      </View>
-                      {isDeactivatable && (
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
-                          {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
+                          
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
                             <TouchableOpacity
-                              style={{ backgroundColor: 'rgba(245, 166, 35, 0.1)', borderWidth: 1, borderColor: 'rgba(245, 166, 35, 0.3)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}
-                              onPress={() => {
-                                setSelectedAdminSession(session);
-                                setIsAdminExtendModalOpen(true);
-                              }}
+                              style={{ backgroundColor: colors.secondaryButtonBg, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: 'center' }}
+                              onPress={() => setSelectedDetailsSession(session)}
                             >
-                              <Text style={{ color: colors.gold, fontSize: 9, fontWeight: 'bold' }}>Extend</Text>
+                              <Text style={{ color: colors.text, fontSize: 9, fontWeight: 'bold' }}>View Details</Text>
                             </TouchableOpacity>
-                          )}
-                          <TouchableOpacity
-                            style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignItems: 'center' }}
-                            onPress={() => {
-                              setDeactivateTargetSession({
-                                tokenNumber: session.tokenNumber,
-                                status: session.status,
-                                customerName: session.customerName
-                              });
-                              setForceRelease(false);
-                              setDeactivateConfirmModalOpen(true);
-                            }}
-                          >
-                            <Text style={{ color: 'colors.red', fontSize: 9, fontWeight: 'bold' }}>End Session</Text>
-                          </TouchableOpacity>
+
+                            {isDeactivatable && (
+                              <View style={{ flexDirection: 'row', gap: 6 }}>
+                                {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
+                                  <TouchableOpacity
+                                    style={{ backgroundColor: 'rgba(245, 166, 35, 0.08)', borderWidth: 1.5, borderColor: 'rgba(245, 166, 35, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: 'center' }}
+                                    onPress={() => {
+                                      setSelectedAdminSession(session);
+                                      setIsAdminExtendModalOpen(true);
+                                    }}
+                                  >
+                                    <Text style={{ color: colors.gold, fontSize: 9, fontWeight: 'bold' }}>Extend</Text>
+                                  </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                  style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderWidth: 1.5, borderColor: 'rgba(239, 68, 68, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: 'center' }}
+                                  onPress={() => {
+                                    setDeactivateTargetSession({
+                                      tokenNumber: session.tokenNumber,
+                                      status: session.status,
+                                      customerName: session.customerName
+                                    });
+                                    setForceRelease(false);
+                                    setDeactivateConfirmModalOpen(true);
+                                  }}
+                                >
+                                  <Text style={{ color: colors.red, fontSize: 9, fontWeight: 'bold' }}>End</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
                         </View>
-                      )}
-                    </View>
-                  </View>
-                );
-              });
+                      </View>
+                    );
+                  })}
+
+                  {hasMore && (
+                    <TouchableOpacity
+                      style={{ 
+                        backgroundColor: colors.secondarySurface, 
+                        borderColor: colors.border, 
+                        borderWidth: 1.5, 
+                        borderRadius: 12, 
+                        paddingVertical: 12, 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        marginTop: 4,
+                        marginBottom: 20
+                      }}
+                      onPress={() => setVisibleSessionsCount(prev => prev + 10)}
+                    >
+                      <Text style={{ color: colors.gold, fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Show More Sessions ({sortedSessions.length - visibleSessionsCount} remaining)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              );
             })()}
           </View>
         </ScrollView>
@@ -1503,635 +1703,890 @@ export const AdminPortal: React.FC = () => {
       </View>
 
       {/* Add Staff Modal */}
-      <Modal visible={isAddStaffOpen} transparent animationType="slide">
-        <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="border border-gold/20 rounded-2xl p-5 shadow-2xl" style={{ backgroundColor: colors.surface }}>
-            <Text className="text-base font-bold text-gold mb-4">Add Staff Account</Text>
-            
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Full Name *</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${newStaffFullName.trim().length > 0 ? (isNewStaffFullNameValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
-                style={{ color: colors.text }}
-                placeholder="e.g. John Doe"
-                placeholderTextColor={colors.placeholder}
-                value={newStaffFullName}
-                onChangeText={setNewStaffFullName}
-              />
-              {newStaffFullName.trim().length > 0 && !isNewStaffFullNameValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Name must be between 2 and 100 characters, containing only letters.</Text>
-                </View>
-              )}
-            </View>
+      {/* Add Staff Modal */}
+      <AlertModal
+        visible={isAddStaffOpen}
+        onClose={() => {
+          setIsAddStaffOpen(false);
+          setNewStaffFullName('');
+          setNewStaffUsername('');
+          setNewStaffPassword('');
+        }}
+        title="Add Staff Account"
+      >
+        <View>
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Full Name *</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${newStaffFullName.trim().length > 0 ? (isNewStaffFullNameValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder="e.g. John Doe"
+              placeholderTextColor={colors.placeholder}
+              value={newStaffFullName}
+              onChangeText={setNewStaffFullName}
+              editable={!isProcessing}
+            />
+            {newStaffFullName.trim().length > 0 && !isNewStaffFullNameValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Name must be between 2 and 100 characters, containing only letters.</Text>
+            )}
+          </View>
 
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Role</Text>
-              <View className="flex-row flex-wrap gap-2">
-                {(['receptionist', 'bartender', 'manager', 'admin'] as const).map(r => (
-                  <TouchableOpacity 
-                    key={r}
-                    className="flex-grow py-2 px-3 items-center rounded-xl border" style={{ borderColor: newStaffRole === r ? colors.gold : colors.border, backgroundColor: newStaffRole === r ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)') : colors.input }}
-                    onPress={() => {
-                      setNewStaffRole(r);
-                      const prefix = r === 'admin' ? 'ADM' : (r === 'receptionist' ? 'REC' : (r === 'bartender' ? 'BAR' : 'MGR'));
-                      // Autofill a standard format suffix if blank or matching previous roles
-                      if (!newStaffUsername || /^(REC|BAR|ADM|MGR)-\d{2}$/.test(newStaffUsername.trim().toUpperCase()) || newStaffUsername.trim().length <= 4) {
-                        setNewStaffUsername(`${prefix}-05`);
-                      }
-                    }}
-                  >
-                    <Text className={`text-[10px] font-bold capitalize ${newStaffRole === r ? 'text-gold' : 'text-muted'}`}>{r}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Username (Format: {expectedNewStaffPrefix}-XX)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
-                  ${newStaffUsername.trim().length > 0 ? (isNewStaffUsernameValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
-                style={{ color: colors.text }}
-                placeholder={`${expectedNewStaffPrefix}-05`}
-                placeholderTextColor={colors.placeholder}
-                value={newStaffUsername}
-                onChangeText={setNewStaffUsername}
-                autoCapitalize="characters"
-              />
-              <View className="mt-1.5">
-                {newStaffUsername.trim().length > 0 ? (
-                  isNewStaffUsernameValid ? (
-                    <Text className="text-teal text-[10px] font-semibold">✓ Correct prefix code and 2-digit numeric suffix</Text>
-                  ) : (
-                    <View className="bg-red/5 border border-red/10 rounded-lg p-2">
-                      <Text className="text-red text-[10px] leading-3.5">⚠️ Expected prefix "{expectedNewStaffPrefix}-" followed by exactly 2 digits (e.g. {expectedNewStaffPrefix}-12).</Text>
-                    </View>
-                  )
-                ) : (
-                  <Text className="text-muted text-[10px]">Enter employee identity code matching role suffix.</Text>
-                )}
-              </View>
-            </View>
-
-            <View className="mb-6">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>PIN (4 Digits) *</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
-                  ${newStaffPassword.trim().length > 0 ? (isNewStaffPasswordValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
-                style={{ color: colors.text }}
-                placeholder="1234"
-                placeholderTextColor={colors.placeholder}
-                value={newStaffPassword}
-                onChangeText={setNewStaffPassword}
-                secureTextEntry
-                keyboardType="numeric"
-                maxLength={4}
-              />
-              <View className="flex-row justify-between items-center mt-1.5">
-                <View className="flex-row gap-1.5">
-                  {[0, 1, 2, 3].map(i => (
-                    <View 
-                      key={i} 
-                      className="w-2.5 h-2.5 rounded-full border" style={{ borderColor: newStaffPassword.length > i ? colors.gold : colors.border, backgroundColor: newStaffPassword.length > i ? colors.gold : colors.input }} 
-                    />
-                  ))}
-                </View>
-                {newStaffPassword.trim().length > 0 && (
-                  <Text className={`text-[10px] font-bold ${isNewStaffPasswordValid ? 'text-teal' : 'text-red'}`}>
-                    {isNewStaffPasswordValid ? '✓ 4-digit PIN ready' : '✗ Must be 4 digits'}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            <View className="flex-row justify-end gap-2.5">
-              <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsAddStaffOpen(false)}>
-                <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isAddStaffFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
-                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
-                disabled={!isAddStaffFormValid || isProcessing}
-                onPress={async () => {
-                  if (!isAddStaffFormValid) return;
-                  if (!startAction('register_staff')) return;
-                  try {
-                    const success = await registerStaff(
-                      newStaffUsername.toUpperCase().trim(),
-                      newStaffPassword,
-                      newStaffFullName.trim(),
-                      newStaffRole
-                    );
-                    stopAction();
-                    if (success) {
-                      setIsAddStaffOpen(false);
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Role</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {(['receptionist', 'bartender', 'manager', 'admin'] as const).map(r => (
+                <TouchableOpacity 
+                  key={r}
+                  className="flex-grow py-2 px-3 items-center rounded-xl border" style={{ borderColor: newStaffRole === r ? colors.gold : colors.border, backgroundColor: newStaffRole === r ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)') : colors.input }}
+                  onPress={() => {
+                    setNewStaffRole(r);
+                    const prefix = r === 'admin' ? 'ADM' : (r === 'receptionist' ? 'REC' : (r === 'bartender' ? 'BAR' : 'MGR'));
+                    if (!newStaffUsername || /^(REC|BAR|ADM|MGR)-\d{2}$/.test(newStaffUsername.trim().toUpperCase()) || newStaffUsername.trim().length <= 4) {
+                      setNewStaffUsername(`${prefix}-05`);
                     }
-                  } catch (e) {
-                    stopAction();
-                  }
-                }}
-              >
-                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
-                  {loadingAction === 'register_staff' ? `Saving... (${secondsLeft}s)` : 'Save Staff'}
-                </Text>
-              </TouchableOpacity>
+                  }}
+                  disabled={isProcessing}
+                >
+                  <Text className={`text-[10px] font-bold capitalize ${newStaffRole === r ? 'text-gold' : 'text-muted'}`}>{r}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
+
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Username (Format: {expectedNewStaffPrefix}-XX)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
+                ${newStaffUsername.trim().length > 0 ? (isNewStaffUsernameValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder={`${expectedNewStaffPrefix}-05`}
+              placeholderTextColor={colors.placeholder}
+              value={newStaffUsername}
+              onChangeText={setNewStaffUsername}
+              autoCapitalize="characters"
+              editable={!isProcessing}
+            />
+            {newStaffUsername.trim().length > 0 && !isNewStaffUsernameValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Expected prefix "{expectedNewStaffPrefix}-" followed by exactly 2 digits (e.g. {expectedNewStaffPrefix}-12).</Text>
+            )}
+          </View>
+
+          <View className="mb-6">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>PIN (4 Digits) *</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
+                ${newStaffPassword.trim().length > 0 ? (isNewStaffPasswordValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder="1234"
+              placeholderTextColor={colors.placeholder}
+              value={newStaffPassword}
+              onChangeText={setNewStaffPassword}
+              secureTextEntry
+              keyboardType="numeric"
+              maxLength={4}
+              editable={!isProcessing}
+            />
+            {newStaffPassword.trim().length > 0 && !isNewStaffPasswordValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Must be 4 digits.</Text>
+            )}
+          </View>
+
+          <View className="flex-row justify-end gap-2.5">
+            <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsAddStaffOpen(false)}>
+              <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isAddStaffFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
+              style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+              disabled={!isAddStaffFormValid || isProcessing}
+              onPress={async () => {
+                if (!isAddStaffFormValid) return;
+                if (!startAction('register_staff')) return;
+                try {
+                  const success = await registerStaff(
+                    newStaffUsername.toUpperCase().trim(),
+                    newStaffPassword,
+                    newStaffFullName.trim(),
+                    newStaffRole
+                  );
+                  stopAction();
+                  if (success) {
+                    setIsAddStaffOpen(false);
+                  }
+                } catch (e) {
+                  stopAction();
+                }
+              }}
+            >
+              <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                {loadingAction === 'register_staff' ? `Saving... (${secondsLeft}s)` : 'Save Staff'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </Modal>
+      </AlertModal>
 
       {/* Edit Staff Modal */}
-      <Modal visible={isEditStaffOpen} transparent animationType="slide">
-        <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="border border-gold/20 rounded-2xl p-5 shadow-2xl" style={{ backgroundColor: colors.surface }}>
-            <Text className="text-base font-bold text-gold mb-4">Edit Staff Profile</Text>
-            
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Full Name *</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${editStaffFullName.trim().length > 0 ? (isEditStaffFullNameValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
-                style={{ color: colors.text }}
-                placeholder="e.g. John Doe"
-                placeholderTextColor={colors.placeholder}
-                value={editStaffFullName}
-                onChangeText={setEditStaffFullName}
-              />
-              {editStaffFullName.trim().length > 0 && !isEditStaffFullNameValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Name must be between 2 and 100 characters, containing only letters.</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Role</Text>
-              <View className="flex-row flex-wrap gap-2">
-                {(['receptionist', 'bartender', 'manager', 'admin'] as const).map(r => (
-                  <TouchableOpacity 
-                    key={r}
-                    className="flex-grow py-2 px-3 items-center rounded-xl border" style={{ borderColor: editStaffRole === r ? colors.gold : colors.border, backgroundColor: editStaffRole === r ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)') : colors.input }}
-                    onPress={() => {
-                      setEditStaffRole(r);
-                      const prefix = r === 'admin' ? 'ADM' : (r === 'receptionist' ? 'REC' : (r === 'bartender' ? 'BAR' : 'MGR'));
-                      if (!editStaffUsername || /^(REC|BAR|ADM|MGR)-\d{2}$/.test(editStaffUsername.trim().toUpperCase())) {
-                        setEditStaffUsername(`${prefix}-${editStaffUsername.split('-')[1] || '01'}`);
-                      }
-                    }}
-                  >
-                    <Text className={`text-[10px] font-bold capitalize ${editStaffRole === r ? 'text-gold' : 'text-muted'}`}>{r}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Username (Format: {expectedEditStaffPrefix}-XX)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
-                  ${editStaffUsername.trim().length > 0 ? (isEditStaffUsernameValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-                style={{ color: colors.text }}
-                placeholder={`${expectedEditStaffPrefix}-05`}
-                placeholderTextColor={colors.placeholder}
-                value={editStaffUsername}
-                onChangeText={setEditStaffUsername}
-                autoCapitalize="characters"
-              />
-              <View className="mt-1.5">
-                {editStaffUsername.trim().length > 0 ? (
-                  isEditStaffUsernameValid ? (
-                    <Text className="text-teal text-[10px] font-semibold">✓ Correct prefix code and 2-digit numeric suffix</Text>
-                  ) : (
-                    <View className="bg-red/5 border border-red/10 rounded-lg p-2">
-                      <Text className="text-red text-[10px] leading-3.5">⚠️ Expected prefix "{expectedEditStaffPrefix}-" followed by exactly 2 digits (e.g. {expectedEditStaffPrefix}-12).</Text>
-                    </View>
-                  )
-                ) : (
-                  <Text className="text-muted text-[10px]">Enter employee identity code matching role suffix.</Text>
-                )}
-              </View>
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>New PIN / Password (Leave blank to keep current)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
-                  ${editStaffPassword.trim().length > 0 ? (isEditStaffPasswordValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-                style={{ color: colors.text }}
-                placeholder="New 4-Digit PIN"
-                placeholderTextColor={colors.placeholder}
-                value={editStaffPassword}
-                onChangeText={setEditStaffPassword}
-                secureTextEntry
-                keyboardType="numeric"
-                maxLength={4}
-              />
-              <View className="flex-row justify-between items-center mt-1.5">
-                <View className="flex-row gap-1.5">
-                  {[0, 1, 2, 3].map(i => (
-                    <View 
-                      key={i} 
-                      className="w-2.5 h-2.5 rounded-full border" style={{ borderColor: editStaffPassword.length > i ? colors.gold : colors.border, backgroundColor: editStaffPassword.length > i ? colors.gold : colors.input }} 
-                    />
-                  ))}
-                </View>
-                {editStaffPassword.trim().length > 0 ? (
-                  <Text className={`text-[10px] font-bold ${isEditStaffPasswordValid ? 'text-teal' : 'text-red'}`}>
-                    {isEditStaffPasswordValid ? '✓ 4-digit PIN ready' : '✗ Must be 4 digits'}
-                  </Text>
-                ) : (
-                  <Text className="text-muted text-[10px]">Keeping current PIN.</Text>
-                )}
-              </View>
-            </View>
-
-            <View className="mb-6 flex-row items-center justify-between">
-              <Text className="text-themeText text-xs font-semibold" style={{ color: colors.text }}>Account Active Status</Text>
-              {loggedUser?.id === selectedStaff?.id ? (
-                <Text className="text-muted text-[10px] italic">Locked (Logged-in User)</Text>
-              ) : (
-                <View className="flex-row gap-2">
-                  <TouchableOpacity
-                    className="px-3 py-1.5 rounded-lg border" style={{ borderColor: editStaffIsActive ? 'colors.success' : colors.border, backgroundColor: editStaffIsActive ? 'rgba(34, 197, 94, 0.05)' : colors.input }}
-                    onPress={() => setEditStaffIsActive(true)}
-                  >
-                    <Text className="text-[10px] font-bold" style={{ color: editStaffIsActive ? colors.success : colors.muted }}>Active</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className="px-3 py-1.5 rounded-lg border" style={{ borderColor: !editStaffIsActive ? colors.red : colors.border, backgroundColor: !editStaffIsActive ? 'rgba(239, 68, 68, 0.05)' : colors.input }}
-                    onPress={() => setEditStaffIsActive(false)}
-                  >
-                    <Text className={`text-[10px] font-bold ${!editStaffIsActive ? 'text-red' : 'text-muted'}`}>Deactivated</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
-            <View className="flex-row justify-end gap-2.5">
-              <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsEditStaffOpen(false)}>
-                <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isEditStaffFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
-                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
-                disabled={!isEditStaffFormValid || isProcessing}
-                onPress={async () => {
-                  if (!selectedStaff || !isEditStaffFormValid) return;
-                  if (!startAction('update_staff')) return;
-                  try {
-                    const success = await updateStaff(
-                      selectedStaff.id,
-                      editStaffUsername.toUpperCase().trim(),
-                      editStaffFullName.trim(),
-                      editStaffRole,
-                      editStaffIsActive,
-                      editStaffPassword ? editStaffPassword : undefined
-                    );
-                    stopAction();
-                    if (success) {
-                      setIsEditStaffOpen(false);
-                    }
-                  } catch (e) {
-                    stopAction();
-                  }
-                }}
-              >
-                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
-                  {loadingAction === 'update_staff' ? `Saving... (${secondsLeft}s)` : 'Save Changes'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+      <AlertModal
+        visible={isEditStaffOpen}
+        onClose={() => setIsEditStaffOpen(false)}
+        title="Edit Staff Profile"
+      >
+        <View>
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Full Name *</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${editStaffFullName.trim().length > 0 ? (isEditStaffFullNameValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder="e.g. John Doe"
+              placeholderTextColor={colors.placeholder}
+              value={editStaffFullName}
+              onChangeText={setEditStaffFullName}
+              editable={!isProcessing}
+            />
+            {editStaffFullName.trim().length > 0 && !isEditStaffFullNameValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Name must be between 2 and 100 characters, containing only letters.</Text>
+            )}
           </View>
-        </View>
-      </Modal>
 
-      {/* Edit Rate Modal */}
-      <Modal visible={isEditRateOpen} transparent animationType="slide">
-        <View className="flex-1 justify-center p-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="border border-gold/20 rounded-2xl p-5 shadow-2xl" style={{ backgroundColor: colors.surface }}>
-            <Text className="text-base font-bold text-gold mb-4">Edit Rate Configuration</Text>
-            
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Place Type / Zone Name</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${editRateName.trim().length > 0 ? (isEditRateNameValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-                style={{ color: colors.text }}
-                placeholder="e.g. VIP Lounge"
-                placeholderTextColor={colors.placeholder}
-                value={editRateName}
-                onChangeText={setEditRateName}
-              />
-              {editRateName.trim().length > 0 && !isEditRateNameValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Place type / zone name is required.</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Base Price (₹ per Guest)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${editRatePrice.trim().length > 0 ? (isEditRatePriceValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-                style={{ color: colors.text }}
-                placeholder="500"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-                value={editRatePrice}
-                onChangeText={setEditRatePrice}
-              />
-              {editRatePrice.trim().length > 0 && !isEditRatePriceValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Price must be a non-negative number.</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Duration (Hours)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${editRateDuration.trim().length > 0 ? (isEditRateDurationValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-                style={{ color: colors.text }}
-                placeholder="2"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-                value={editRateDuration}
-                onChangeText={setEditRateDuration}
-              />
-              {editRateDuration.trim().length > 0 && !isEditRateDurationValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Duration must be a number between 0.5 and 24 hours.</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="mb-6">
-              <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Drinks Allowance (Per Guest)</Text>
-              <TextInput
-                className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                  ${editRateAllowance.trim().length > 0 ? (isEditRateAllowanceValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-                style={{ color: colors.text }}
-                placeholder="2"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-                value={editRateAllowance}
-                onChangeText={setEditRateAllowance}
-              />
-              {editRateAllowance.trim().length > 0 && !isEditRateAllowanceValid && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Drinks allowance must be an integer between 0 and 50.</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="flex-row justify-end gap-2.5">
-              <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsEditRateOpen(false)}>
-                <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isEditRateFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
-                style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
-                disabled={!isEditRateFormValid || isProcessing}
-                onPress={async () => {
-                  if (!selectedRate || !selectedRate.id || !isEditRateFormValid) return;
-                  if (!startAction('update_rates')) return;
-                  try {
-                    const priceNum = parseFloat(editRatePrice);
-                    const durNum = parseFloat(editRateDuration);
-                    const drinksNum = parseInt(editRateAllowance, 10);
-
-                    const success = await updateRateCard(
-                      selectedRate.id,
-                      priceNum,
-                      durNum,
-                      drinksNum,
-                      editRateName.trim()
-                    );
-                    stopAction();
-                    if (success) {
-                      setIsEditRateOpen(false);
-                    }
-                  } catch (e) {
-                    stopAction();
-                  }
-                }}
-              >
-                <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
-                  {loadingAction === 'update_rates' ? `Saving... (${secondsLeft}s)` : 'Save Rates'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Deactivate / End Session Confirmation Modal */}
-      <Modal visible={deactivateConfirmModalOpen} transparent animationType="fade">
-        <View className="flex-1 justify-center items-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}>
-          <View className="w-[90%] border rounded-2xl p-5 shadow-2xl" style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}>
-            <View className="w-12 h-12 rounded-full bg-red/10 border justify-center items-center mb-4 self-center" style={{ borderColor: 'colors.red' }}>
-              <Text className="text-xl">⚠️</Text>
-            </View>
-
-            <Text className="text-base font-bold text-center text-gold mb-2">End Customer Session</Text>
-            <Text className="text-muted text-[11px] text-center mb-5" style={{ color: colors.muted }}>
-              Are you sure you want to manually end the session for customer <Text className="font-bold text-themeText" style={{ color: colors.text }}>{deactivateTargetSession?.customerName}</Text>?
-            </Text>
-
-            {/* Details Box */}
-            <View className="w-full border rounded-xl p-3 mb-5" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
-              <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
-                <Text className="text-[10px] text-muted">Token Code:</Text>
-                <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>{deactivateTargetSession?.tokenNumber}</Text>
-              </View>
-              <View className="flex-row justify-between py-1.5">
-                <Text className="text-[10px] text-muted">Current Status:</Text>
-                <Text className="text-[10px] font-bold uppercase" style={{ color: colors.text }}>{deactivateTargetSession?.status}</Text>
-              </View>
-            </View>
-
-            {/* Force Release Checkbox Section */}
-            {deactivateTargetSession?.status !== TokenStatus.PENDING_PAYMENT && (
-              <View className="flex-row items-center gap-2 mb-6 p-3 rounded-xl border border-red/15 bg-red/5">
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Role</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {(['receptionist', 'bartender', 'manager', 'admin'] as const).map(r => (
                 <TouchableOpacity 
-                  className={`w-5 h-5 rounded border justify-center items-center ${forceRelease ? 'bg-red border-red' : 'bg-transparent'}`}
-                  style={{ borderColor: forceRelease ? 'transparent' : colors.border }}
-                  onPress={() => setForceRelease(!forceRelease)}
+                  key={r}
+                  className="flex-grow py-2 px-3 items-center rounded-xl border" style={{ borderColor: editStaffRole === r ? colors.gold : colors.border, backgroundColor: editStaffRole === r ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)') : colors.input }}
+                  onPress={() => {
+                    setEditStaffRole(r);
+                    const prefix = r === 'admin' ? 'ADM' : (r === 'receptionist' ? 'REC' : (r === 'bartender' ? 'BAR' : 'MGR'));
+                    if (!editStaffUsername || /^(REC|BAR|ADM|MGR)-\d{2}$/.test(editStaffUsername.trim().toUpperCase()) || editStaffUsername.trim().length <= 4) {
+                      setEditStaffUsername(`${prefix}-05`);
+                    }
+                  }}
+                  disabled={isProcessing}
                 >
-                  {forceRelease && <Text className="text-white text-xs font-bold">✓</Text>}
+                  <Text className={`text-[10px] font-bold capitalize ${editStaffRole === r ? 'text-gold' : 'text-muted'}`}>{r}</Text>
                 </TouchableOpacity>
-                <View className="flex-1">
-                  <Text className="text-[11px] font-bold text-red">Force Release (Ghost/Orphan Override)</Text>
-                  <Text className="text-[9px] text-muted mt-0.5" style={{ color: colors.muted }}>
-                    Forcibly sets table & card status directly to available, bypassing validation.
-                  </Text>
-                </View>
+              ))}
+            </View>
+          </View>
+
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Username (Format: {expectedEditStaffPrefix}-XX)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
+                ${editStaffUsername.trim().length > 0 ? (isEditStaffUsernameValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder={`${expectedEditStaffPrefix}-05`}
+              placeholderTextColor={colors.placeholder}
+              value={editStaffUsername}
+              onChangeText={setEditStaffUsername}
+              autoCapitalize="characters"
+              editable={!isProcessing}
+            />
+            {editStaffUsername.trim().length > 0 && !isEditStaffUsernameValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Expected prefix "{expectedEditStaffPrefix}-" followed by exactly 2 digits.</Text>
+            )}
+          </View>
+
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>PIN (Leave blank to keep current) *</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm font-mono
+                ${editStaffPassword.trim().length > 0 ? (isEditStaffPasswordValid ? 'border-teal/30' : 'border-red/45') : colors.border }`}
+              style={{ color: colors.text }}
+              placeholder="••••"
+              placeholderTextColor={colors.placeholder}
+              value={editStaffPassword}
+              onChangeText={setEditStaffPassword}
+              secureTextEntry
+              keyboardType="numeric"
+              maxLength={4}
+              editable={!isProcessing}
+            />
+            {editStaffPassword.trim().length > 0 && !isEditStaffPasswordValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>PIN must be 4 digits.</Text>
+            )}
+          </View>
+
+          <View className="mb-6 flex-row items-center justify-between">
+            <Text className="text-themeText text-xs font-semibold" style={{ color: colors.text }}>Account Active Status</Text>
+            {loggedUser?.id === selectedStaff?.id ? (
+              <Text className="text-muted text-[10px] italic">Locked (Logged-in User)</Text>
+            ) : (
+              <View className="flex-row gap-2">
+                <TouchableOpacity
+                  className="px-3 py-1.5 rounded-lg border" style={{ borderColor: editStaffIsActive ? colors.success : colors.border, backgroundColor: editStaffIsActive ? 'rgba(34, 197, 94, 0.05)' : colors.input }}
+                  onPress={() => setEditStaffIsActive(true)}
+                  disabled={isProcessing}
+                >
+                  <Text className="text-[10px] font-bold" style={{ color: editStaffIsActive ? colors.success : colors.muted }}>Active</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="px-3 py-1.5 rounded-lg border" style={{ borderColor: !editStaffIsActive ? colors.red : colors.border, backgroundColor: !editStaffIsActive ? 'rgba(239, 68, 68, 0.05)' : colors.input }}
+                  onPress={() => setEditStaffIsActive(false)}
+                  disabled={isProcessing}
+                >
+                  <Text className={`text-[10px] font-bold ${!editStaffIsActive ? 'text-red' : 'text-muted'}`}>Deactivated</Text>
+                </TouchableOpacity>
               </View>
             )}
+          </View>
 
-            {/* Action Buttons */}
-            <View className="flex-row gap-2.5 w-full">
-              <TouchableOpacity 
-                className="flex-1 py-3 rounded-xl bg-themeInput items-center justify-center min-h-[44px]" 
-                onPress={() => {
-                  setDeactivateConfirmModalOpen(false);
-                  setDeactivateTargetSession(null);
-                }}
-                disabled={isDeactivating}
-              >
-                <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                className="flex-1 py-3 rounded-xl bg-red items-center justify-center min-h-[44px]"
-                style={{ opacity: isProcessing ? 0.6 : 1 }}
-                onPress={async () => {
-                  if (!deactivateTargetSession) return;
-                  if (!startAction('deactivate_session')) return;
-                  setIsDeactivating(true);
-                  try {
-                    const success = await adminDeactivateSession(
-                      deactivateTargetSession.tokenNumber,
-                      deactivateTargetSession.status,
-                      forceRelease
-                    );
-                    stopAction();
-                    setIsDeactivating(false);
-                    if (success) {
-                      setDeactivateConfirmModalOpen(false);
-                      setDeactivateTargetSession(null);
-                    }
-                  } catch (e) {
-                    stopAction();
-                    setIsDeactivating(false);
+          <View className="flex-row justify-end gap-2.5">
+            <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsEditStaffOpen(false)}>
+              <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isEditStaffFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
+              style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+              disabled={!isEditStaffFormValid || isProcessing}
+              onPress={async () => {
+                if (!selectedStaff || !isEditStaffFormValid) return;
+                if (!startAction('update_staff')) return;
+                try {
+                  const success = await updateStaff(
+                    selectedStaff.id,
+                    editStaffUsername.toUpperCase().trim(),
+                    editStaffFullName.trim(),
+                    editStaffRole,
+                    editStaffIsActive,
+                    editStaffPassword ? editStaffPassword : undefined
+                  );
+                  stopAction();
+                  if (success) {
+                    setIsEditStaffOpen(false);
                   }
-                }}
-                disabled={isProcessing}
-              >
-                <Text className="text-xs font-bold text-white">
-                  {loadingAction === 'deactivate_session' ? `Ending... (${secondsLeft}s)` : 'End Session'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                } catch (e) {
+                  stopAction();
+                }
+              }}
+            >
+              <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                {loadingAction === 'update_staff' ? `Saving... (${secondsLeft}s)` : 'Save Changes'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </AlertModal>
 
-      {/* ADMIN EXTEND SESSION PAYMENT CONFIRMATION MODAL */}
-      <Modal
-        visible={isAdminExtendModalOpen && selectedAdminSession !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsAdminExtendModalOpen(false)}
+      {/* Edit Rate Modal */}
+      <AlertModal
+        visible={isEditRateOpen}
+        onClose={() => setIsEditRateOpen(false)}
+        title="Edit Rate Configuration"
       >
-        <View className="flex-1 bg-black/75 justify-center p-4">
-          {selectedAdminSession && (
-            <View 
-              className="border border-gold/20 rounded-2xl p-5 shadow-2xl" 
-              style={{ backgroundColor: colors.surface }}
+        <View>
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Place Type / Zone Name</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${editRateName.trim().length > 0 ? (isEditRateNameValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
+              style={{ color: colors.text }}
+              placeholder="e.g. VIP Lounge"
+              placeholderTextColor={colors.placeholder}
+              value={editRateName}
+              onChangeText={setEditRateName}
+              editable={!isProcessing}
+            />
+            {editRateName.trim().length > 0 && !isEditRateNameValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Place type / zone name is required.</Text>
+            )}
+          </View>
+
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Base Price (₹ per Guest)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${editRatePrice.trim().length > 0 ? (isEditRatePriceValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
+              style={{ color: colors.text }}
+              placeholder="500"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="numeric"
+              value={editRatePrice}
+              onChangeText={setEditRatePrice}
+              editable={!isProcessing}
+            />
+            {editRatePrice.trim().length > 0 && !isEditRatePriceValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Price must be a non-negative number.</Text>
+            )}
+          </View>
+
+          <View className="mb-4">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Duration (Hours)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${editRateDuration.trim().length > 0 ? (isEditRateDurationValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
+              style={{ color: colors.text }}
+              placeholder="2"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="numeric"
+              value={editRateDuration}
+              onChangeText={setEditRateDuration}
+              editable={!isProcessing}
+            />
+            {editRateDuration.trim().length > 0 && !isEditRateDurationValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Duration must be a number between 0.5 and 24 hours.</Text>
+            )}
+          </View>
+
+          <View className="mb-6">
+            <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Drinks Allowance (Per Guest)</Text>
+            <TextInput
+              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
+                ${editRateAllowance.trim().length > 0 ? (isEditRateAllowanceValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
+              style={{ color: colors.text }}
+              placeholder="2"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="numeric"
+              value={editRateAllowance}
+              onChangeText={setEditRateAllowance}
+              editable={!isProcessing}
+            />
+            {editRateAllowance.trim().length > 0 && !isEditRateAllowanceValid && (
+              <Text className="text-[10px] text-red mt-1" style={{ color: colors.red }}>Drinks allowance must be an integer between 0 and 50.</Text>
+            )}
+          </View>
+
+          <View className="flex-row justify-end gap-2.5">
+            <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsEditRateOpen(false)}>
+              <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isEditRateFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
+              style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+              disabled={!isEditRateFormValid || isProcessing}
+              onPress={async () => {
+                if (!selectedRate || !selectedRate.id || !isEditRateFormValid) return;
+                if (!startAction('update_rates')) return;
+                try {
+                  const priceNum = parseFloat(editRatePrice);
+                  const durNum = parseFloat(editRateDuration);
+                  const drinksNum = parseInt(editRateAllowance, 10);
+
+                  const success = await updateRateCard(
+                    selectedRate.id,
+                    priceNum,
+                    durNum,
+                    drinksNum,
+                    editRateName.trim()
+                  );
+                  stopAction();
+                  if (success) {
+                    setIsEditRateOpen(false);
+                  }
+                } catch (e) {
+                  stopAction();
+                }
+              }}
             >
-              <Text className="text-base font-bold text-gold mb-3">Extend Session — 1 Hour (Admin)</Text>
-              
-              <View className="mb-4 gap-2 py-2 border-t border-b" style={{ borderColor: colors.border }}>
-                <View className="flex-row justify-between">
-                  <Text className="text-xs" style={{ color: colors.muted }}>Customer</Text>
-                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedAdminSession.customerName}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-xs" style={{ color: colors.muted }}>Table</Text>
-                  <Text className="text-xs font-mono font-bold" style={{ color: colors.gold }}>Table {selectedAdminSession.tableNumber || 'N/A'}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-xs" style={{ color: colors.muted }}>Guest Count</Text>
-                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedAdminSession.persons} Pax</Text>
-                </View>
-                <View className="flex-row justify-between mt-1">
-                  <Text className="text-xs font-bold" style={{ color: colors.text }}>Extension Fee</Text>
-                  <Text className="text-xs font-bold" style={{ color: colors.gold }}>
-                    ₹{(() => {
-                      const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
-                      const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
-                      const duration = rateCard?.durationHours || 2;
-                      return (rate * selectedAdminSession.persons * (1 / duration)).toFixed(0);
-                    })()}
-                  </Text>
-                </View>
-              </View>
+              <Text className="text-xs font-extrabold" style={{ color: isProcessing ? colors.muted : colors.primaryButtonText }}>
+                {loadingAction === 'update_rates' ? `Saving... (${secondsLeft}s)` : 'Save Rates'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </AlertModal>
 
-              {/* Payment Mode Selector */}
-              <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
-              <View className="flex-row gap-2 mb-4">
-                {(['CASH', 'UPI'] as const).map(mode => (
-                  <TouchableOpacity
-                    key={mode}
-                    className="flex-1 py-2.5 rounded-xl border items-center justify-center"
-                    style={{
-                      backgroundColor: adminExtendPaymentMode === mode ? 'rgba(212, 175, 55, 0.1)' : colors.input,
-                      borderColor: adminExtendPaymentMode === mode ? colors.gold : colors.border,
-                      borderWidth: 1
-                    }}
-                    onPress={() => setAdminExtendPaymentMode(mode)}
-                  >
-                    <Text className="text-[11px] font-bold" style={{ color: adminExtendPaymentMode === mode ? colors.gold : colors.muted }}>
-                      {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+      {/* Deactivate / End Session Confirmation Modal */}
+      <AlertModal
+        visible={deactivateConfirmModalOpen}
+        onClose={() => {
+          setDeactivateConfirmModalOpen(false);
+          setDeactivateTargetSession(null);
+        }}
+        title="End Customer Session"
+      >
+        <View>
+          <View className="w-12 h-12 rounded-full bg-red/10 border justify-center items-center mb-4 self-center" style={{ borderColor: colors.red }}>
+            <Text className="text-xl">⚠️</Text>
+          </View>
 
-              {/* Static Dummy QR Code for UPI */}
-              {adminExtendPaymentMode === 'UPI' && (
-                <View className="items-center justify-center mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.input, borderColor: colors.border }}>
-                  <Text className="text-[11px] font-bold mb-2" style={{ color: colors.gold }}>Scan dummy QR to pay</Text>
-                  <Image
-                    source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${(() => {
-                      const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
-                      const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
-                      const duration = rateCard?.durationHours || 2;
-                      return (rate * selectedAdminSession.persons * (1 / duration)).toFixed(0);
-                    })()}` }}
-                    style={{ width: 150, height: 150, borderRadius: 8 }}
-                  />
-                  <Text className="text-[9px] font-semibold mt-2" style={{ color: colors.muted }}>Demo purposes only • No actual verification</Text>
-                </View>
-              )}
+          <Text className="text-muted text-[11px] text-center mb-5" style={{ color: colors.muted }}>
+            Are you sure you want to manually end the session for customer <Text className="font-bold text-themeText" style={{ color: colors.text }}>{deactivateTargetSession?.customerName}</Text>?
+          </Text>
 
-              {/* Actions */}
-              <View className="flex-row gap-3">
-                <TouchableOpacity
-                  className="flex-1 py-3 rounded-xl border items-center justify-center"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
-                  onPress={() => {
-                    setIsAdminExtendModalOpen(false);
-                    setAdminExtendRefId('');
-                  }}
-                  disabled={isProcessing}
-                >
-                  <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  className="flex-1 py-3 rounded-xl items-center justify-center border"
-                  style={{
-                    backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
-                    borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
-                    borderWidth: 1,
-                    opacity: isProcessing ? 0.6 : 1
-                  }}
-                  onPress={handleAdminExtend}
-                  disabled={isProcessing}
-                >
-                  <Text className="text-sm font-bold" style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}>
-                    {loadingAction === 'admin_extend' ? `Extending... (${secondsLeft}s)` : 'Confirm & Extend'}
-                  </Text>
-                </TouchableOpacity>
+          {/* Details Box */}
+          <View className="w-full border rounded-xl p-3 mb-5" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1.5 }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+              <Text className="text-[10px] text-muted">Token Code:</Text>
+              <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>{deactivateTargetSession?.tokenNumber}</Text>
+            </View>
+            <View className="flex-row justify-between py-1.5">
+              <Text className="text-[10px] text-muted">Current Status:</Text>
+              <Text className="text-[10px] font-bold uppercase" style={{ color: colors.text }}>{deactivateTargetSession?.status}</Text>
+            </View>
+          </View>
+
+          {/* Force Release Checkbox Section */}
+          {deactivateTargetSession?.status !== TokenStatus.PENDING_PAYMENT && (
+            <View className="flex-row items-center gap-2 mb-6 p-3 rounded-xl border border-red/15 bg-red/5">
+              <TouchableOpacity 
+                className={`w-5 h-5 rounded border justify-center items-center ${forceRelease ? 'bg-red border-red' : 'bg-transparent'}`}
+                style={{ borderColor: forceRelease ? 'transparent' : colors.border }}
+                onPress={() => setForceRelease(!forceRelease)}
+              >
+                {forceRelease && <Text className="text-white text-xs font-bold">✓</Text>}
+              </TouchableOpacity>
+              <View className="flex-1">
+                <Text className="text-[11px] font-bold text-red">Force Release (Ghost/Orphan Override)</Text>
+                <Text className="text-[9px] text-muted mt-0.5" style={{ color: colors.muted }}>
+                  Forcibly sets table & card status directly to available, bypassing validation.
+                </Text>
               </View>
             </View>
           )}
+
+          {/* Action Buttons */}
+          <View className="flex-row gap-2.5 w-full">
+            <TouchableOpacity 
+              className="flex-1 py-3 rounded-xl bg-themeInput items-center justify-center min-h-[44px]" 
+              onPress={() => {
+                setDeactivateConfirmModalOpen(false);
+                setDeactivateTargetSession(null);
+              }}
+              disabled={isDeactivating}
+            >
+              <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className="flex-1 py-3 rounded-xl bg-red items-center justify-center min-h-[44px]"
+              style={{ opacity: isProcessing ? 0.6 : 1 }}
+              onPress={async () => {
+                if (!deactivateTargetSession) return;
+                if (!startAction('deactivate_session')) return;
+                setIsDeactivating(true);
+                try {
+                  const success = await adminDeactivateSession(
+                    deactivateTargetSession.tokenNumber,
+                    deactivateTargetSession.status,
+                    forceRelease
+                  );
+                  stopAction();
+                  setIsDeactivating(false);
+                  if (success) {
+                    setDeactivateConfirmModalOpen(false);
+                    setDeactivateTargetSession(null);
+                  }
+                } catch (e) {
+                  stopAction();
+                  setIsDeactivating(false);
+                }
+              }}
+              disabled={isProcessing}
+            >
+              <Text className="text-xs font-bold text-white">
+                {loadingAction === 'deactivate_session' ? `Ending... (${secondsLeft}s)` : 'End Session'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </Modal>
+      </AlertModal>
+
+      {/* ADMIN EXTEND SESSION PAYMENT CONFIRMATION MODAL */}
+      <AlertModal
+        visible={isAdminExtendModalOpen && selectedAdminSession !== null}
+        onClose={() => {
+          setIsAdminExtendModalOpen(false);
+          setAdminExtendRefId('');
+        }}
+        title="Extend Session — 1 Hour (Admin)"
+      >
+        {selectedAdminSession && (
+          <View>
+            <View className="mb-4 gap-2 py-2 border-t border-b" style={{ borderColor: colors.border }}>
+              <View className="flex-row justify-between">
+                <Text className="text-xs" style={{ color: colors.muted }}>Customer</Text>
+                <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedAdminSession.customerName}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-xs" style={{ color: colors.muted }}>Table</Text>
+                <Text className="text-xs font-mono font-bold" style={{ color: colors.gold }}>Table {selectedAdminSession.tableNumber || 'N/A'}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-xs" style={{ color: colors.muted }}>Guest Count</Text>
+                <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedAdminSession.persons} Pax</Text>
+              </View>
+              <View className="flex-row justify-between mt-1">
+                <Text className="text-xs font-bold" style={{ color: colors.text }}>Extension Fee</Text>
+                <Text className="text-xs font-bold" style={{ color: colors.gold }}>
+                  ₹{(() => {
+                    const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
+                    const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                    const duration = rateCard?.durationHours || 2;
+                    return (rate * selectedAdminSession.persons * (1 / duration)).toFixed(0);
+                  })()}
+                </Text>
+              </View>
+            </View>
+
+            {/* Payment Mode Selector */}
+            <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
+            <View className="flex-row gap-2 mb-4">
+              {(['CASH', 'UPI'] as const).map(mode => (
+                <TouchableOpacity
+                  key={mode}
+                  className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+                  style={{
+                    backgroundColor: adminExtendPaymentMode === mode ? 'rgba(212, 175, 55, 0.1)' : colors.input,
+                    borderColor: adminExtendPaymentMode === mode ? colors.gold : colors.border,
+                    borderWidth: 1.5
+                  }}
+                  onPress={() => setAdminExtendPaymentMode(mode)}
+                  disabled={isProcessing}
+                >
+                  <Text className="text-[11px] font-bold" style={{ color: adminExtendPaymentMode === mode ? colors.gold : colors.muted }}>
+                    {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Static Dummy QR Code for UPI */}
+            {adminExtendPaymentMode === 'UPI' && (
+              <View className="items-center justify-center mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1.5 }}>
+                <Text className="text-[11px] font-bold mb-2" style={{ color: colors.gold }}>Scan dummy QR to pay</Text>
+                <Image
+                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${(() => {
+                    const rateCard = rates.find(r => r.placeType === selectedAdminSession.placeType);
+                    const rate = rateCard ? rateCard.ratePerPerson : (selectedAdminSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                    const duration = rateCard?.durationHours || 2;
+                    return (rate * selectedAdminSession.persons * (1 / duration)).toFixed(0);
+                  })()}` }}
+                  style={{ width: 150, height: 150, borderRadius: 8 }}
+                />
+                <Text className="text-[9px] font-semibold mt-2" style={{ color: colors.muted }}>Demo purposes only • No actual verification</Text>
+              </View>
+            )}
+
+            {/* Actions */}
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl border items-center justify-center"
+                style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1.5, opacity: isProcessing ? 0.5 : 1 }}
+                onPress={() => {
+                  setIsAdminExtendModalOpen(false);
+                  setAdminExtendRefId('');
+                }}
+                disabled={isProcessing}
+              >
+                <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl items-center justify-center border"
+                style={{
+                  backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                  borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.6 : 1
+                }}
+                onPress={handleAdminExtend}
+                disabled={isProcessing}
+              >
+                <Text className="text-sm font-bold" style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}>
+                  {loadingAction === 'admin_extend' ? `Extending... (${secondsLeft}s)` : 'Confirm & Extend'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </AlertModal>
+
+      {/* CUSTOMER SESSION DETAILS INSPECTOR MODAL */}
+      <AlertModal
+        visible={selectedDetailsSession !== null}
+        onClose={() => setSelectedDetailsSession(null)}
+        title="Session Inspector"
+      >
+        {selectedDetailsSession && (() => {
+          const session = selectedDetailsSession;
+          const totalDurationMinutes = Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (60 * 1000));
+          const remainingMinutes = Math.round((new Date(session.endTime).getTime() - Date.now()) / (60 * 1000));
+          const extensionMinutes = session.extensions ? session.extensions.reduce((acc: number, ext: any) => acc + ext.extraMinutes, 0) : 0;
+          const extensionAmount = session.extensions ? session.extensions.reduce((acc: number, ext: any) => acc + ext.additionalAmount, 0) : 0;
+
+          // Helper to format timestamps nicely
+          const formatTimestamp = (dateStr?: string) => {
+            if (!dateStr) return 'N/A';
+            const d = new Date(dateStr);
+            return `${d.toLocaleDateString('en-GB')} ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+          };
+
+          // Assemble timeline events
+          const events: Array<{ type: string; title: string; desc: string; time: string; timestamp: number }> = [];
+          
+          if (session.createdAt) {
+            events.push({
+              type: 'created',
+              title: 'Customer Session Created',
+              desc: `Registered by receptionist (Issued ID: ${session.tokenNumber})`,
+              time: formatTimestamp(session.createdAt),
+              timestamp: new Date(session.createdAt).getTime()
+            });
+            if (session.deliveryMode === 'EMAIL_QR') {
+              events.push({
+                type: 'qr',
+                title: 'QR Code Generated',
+                desc: `Delivery format assigned: Email QR code`,
+                time: formatTimestamp(session.createdAt),
+                timestamp: new Date(session.createdAt).getTime()
+              });
+            }
+          }
+          if (session.startTime) {
+            events.push({
+              type: 'started',
+              title: 'Session Started',
+              desc: `Checked in & activated`,
+              time: formatTimestamp(session.startTime),
+              timestamp: new Date(session.startTime).getTime()
+            });
+            if (session.tableNumber) {
+              events.push({
+                type: 'table',
+                title: 'Table Assigned',
+                desc: `Table ${session.tableNumber} occupied`,
+                time: formatTimestamp(session.startTime),
+                timestamp: new Date(session.startTime).getTime()
+              });
+            }
+            if (session.cardUid) {
+              events.push({
+                type: 'nfc',
+                title: 'NFC Card Programmed',
+                desc: `NFC Uid: ${session.cardUid}`,
+                time: formatTimestamp(session.startTime),
+                timestamp: new Date(session.startTime).getTime()
+              });
+            }
+          }
+
+          if (session.extensions) {
+            session.extensions.forEach((ext: any) => {
+              events.push({
+                type: 'extend',
+                title: 'Session Extended',
+                desc: `Added +${ext.extraMinutes} mins | Approved by: ${ext.approvedBy}`,
+                time: formatTimestamp(ext.extendedAt),
+                timestamp: new Date(ext.extendedAt).getTime()
+              });
+            });
+          }
+
+          if (session.redemptions) {
+            session.redemptions.forEach((red: any) => {
+              events.push({
+                type: 'redeem',
+                title: `Drinks Redeemed (Seq #${red.redemptionSequence})`,
+                desc: `Redemption processed by bartender: ${red.bartenderName}`,
+                time: formatTimestamp(red.redeemedAt),
+                timestamp: new Date(red.redeemedAt).getTime()
+              });
+            });
+          }
+
+          if (session.status === TokenStatus.EXPIRED) {
+            events.push({
+              type: 'expired',
+              title: 'Session Expired',
+              desc: `Chronological limit reached`,
+              time: formatTimestamp(session.endTime),
+              timestamp: new Date(session.endTime).getTime()
+            });
+          }
+
+          if (session.closedAt) {
+            events.push({
+              type: 'closed',
+              title: 'Checkout & Closed',
+              desc: `Closed by: ${session.closedBy || 'System'}`,
+              time: formatTimestamp(session.closedAt),
+              timestamp: new Date(session.closedAt).getTime()
+            });
+            if (session.tableNumber) {
+              events.push({
+                type: 'release',
+                title: 'Table Released',
+                desc: `Table ${session.tableNumber} vacated & released`,
+                time: formatTimestamp(session.closedAt),
+                timestamp: new Date(session.closedAt).getTime()
+              });
+            }
+          }
+
+          if (session.cancelledAt) {
+            events.push({
+              type: 'cancelled',
+              title: 'Session Cancelled',
+              desc: `Cancelled by: ${session.cancelledBy || 'User'} (Reason: ${session.cancelReason || 'N/A'})`,
+              time: formatTimestamp(session.cancelledAt),
+              timestamp: new Date(session.cancelledAt).getTime()
+            });
+          }
+
+          // Sort chronologically
+          events.sort((a, b) => a.timestamp - b.timestamp);
+
+          return (
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              {/* Customer Info Card */}
+              <View className="mb-4 p-3 rounded-xl border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border }}>
+                <Text style={{ color: colors.gold, fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', marginBottom: 8 }}>Customer Profile</Text>
+                <View className="gap-2">
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Name</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{session.customerName}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Mobile</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{session.phoneNumber}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Email</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{session.email || 'N/A'}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Guest Count (Pax)</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{session.persons}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Customer ID</Text>
+                    <Text className="text-xs font-mono" style={{ color: colors.muted }} numberOfLines={1}>{session.customerId || 'N/A'}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Session Details Info */}
+              <View className="mb-4 p-3 rounded-xl border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border }}>
+                <Text style={{ color: colors.gold, fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', marginBottom: 8 }}>Session Specifications</Text>
+                <View className="gap-2">
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Session Status</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.gold }}>{session.status.toUpperCase()}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Assigned Table</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{session.tableNumber ? `Table ${session.tableNumber}` : 'No Seating'}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>NFC UID Reference</Text>
+                    <Text className="text-xs font-mono font-bold" style={{ color: colors.text }}>{session.cardUid || 'N/A'}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Start Time</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{formatTimestamp(session.startTime)}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>End Time</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{formatTimestamp(session.endTime)}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Base Duration</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{totalDurationMinutes - extensionMinutes} mins</Text>
+                  </View>
+                  {extensionMinutes > 0 && (
+                    <View className="flex-row justify-between">
+                      <Text className="text-xs" style={{ color: colors.muted }}>Extended Duration</Text>
+                      <Text className="text-xs font-bold" style={{ color: colors.gold }}>+{extensionMinutes} mins</Text>
+                    </View>
+                  )}
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Remaining Time</Text>
+                    <Text className="text-xs font-bold" style={{ color: remainingMinutes > 0 ? colors.success : colors.red }}>
+                      {remainingMinutes > 0 ? `${remainingMinutes} mins` : 'Expired'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Payment Summary */}
+              <View className="mb-4 p-3 rounded-xl border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border }}>
+                <Text style={{ color: colors.gold, fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', marginBottom: 8 }}>Payment & Accounting</Text>
+                <View className="gap-2">
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Base Paid Amount</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>₹{session.amountPaid - extensionAmount}</Text>
+                  </View>
+                  {extensionAmount > 0 && (
+                    <View className="flex-row justify-between">
+                      <Text className="text-xs" style={{ color: colors.muted }}>Extensions Surcharges</Text>
+                      <Text className="text-xs font-bold" style={{ color: colors.text }}>₹{extensionAmount}</Text>
+                    </View>
+                  )}
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>Total Settlement</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.gold }}>₹{session.amountPaid}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Payment Status</Text>
+                    <Text className="text-xs font-bold" style={{ color: session.paymentVerified ? colors.success : colors.red }}>
+                      {session.paymentVerified ? 'Verified' : 'Pending Verification'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Customer History Summary */}
+              <View className="mb-4 p-3 rounded-xl border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border }}>
+                <Text style={{ color: colors.gold, fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', marginBottom: 8 }}>Customer History</Text>
+                <View className="gap-2">
+                  <View className="flex-row justify-between">
+                    <Text className="text-xs" style={{ color: colors.muted }}>Total Registered Visits</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>{session.customerVisits || 1} times</Text>
+                  </View>
+                  {session.lastVisit && (
+                    <View className="flex-row justify-between">
+                      <Text className="text-xs" style={{ color: colors.muted }}>Previous Check-in</Text>
+                      <Text className="text-xs font-bold" style={{ color: colors.text }}>{formatTimestamp(session.lastVisit)}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Chronological Session Timeline */}
+              <View className="mb-4 p-3 rounded-xl border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border }}>
+                <Text style={{ color: colors.gold, fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase', marginBottom: 12 }}>Session Timeline</Text>
+                <View style={{ paddingLeft: 12 }}>
+                  {events.map((ev, index) => (
+                    <View key={index} style={{ flexDirection: 'row', marginBottom: 16 }}>
+                      {/* Vertical line indicator */}
+                      <View style={{ alignItems: 'center', marginRight: 12, position: 'relative' }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.gold, zIndex: 2 }} />
+                        {index < events.length - 1 && (
+                          <View style={{ width: 2, position: 'absolute', top: 8, bottom: -16, backgroundColor: colors.border, zIndex: 1 }} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1, marginTop: -3 }}>
+                        <Text style={{ fontSize: 11, fontWeight: 'bold', color: colors.text }}>{ev.title}</Text>
+                        <Text style={{ fontSize: 9, color: colors.muted, marginTop: 2 }}>{ev.desc}</Text>
+                        <Text style={{ fontSize: 8, color: colors.muted, marginTop: 4 }}>{ev.time}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Close Action */}
+              <TouchableOpacity
+                style={{ 
+                  backgroundColor: colors.gold, 
+                  borderRadius: 12, 
+                  paddingVertical: 12, 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  marginTop: 10,
+                  marginBottom: 10
+                }}
+                onPress={() => setSelectedDetailsSession(null)}
+              >
+                <Text style={{ color: colors.goldButtonText, fontWeight: 'bold', fontSize: 12 }}>Close Inspector</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          );
+        })()}
+      </AlertModal>
     </View>
   );
 };

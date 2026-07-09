@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Platform, ScrollView, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../context/NfcBarContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -9,6 +9,8 @@ import { AppIcon } from '../common/AppIcon';
 import nfcService from '../../services/nfc/nfcManager';
 import { useResponsive } from '../../utils/responsive';
 import { useActionProgress } from '../../utils/actionProgress';
+import { AlertModal } from '../common/AlertModal';
+import { ProgressOverlay } from '../common/ProgressOverlay';
 
 const formatRedemptionTime = (timestampStr: string) => {
   const date = new Date(timestampStr);
@@ -43,6 +45,35 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
   const [isScanning, setIsScanning] = useState(false);
   const [isSanitizing, setIsSanitizing] = useState(false);
   const [redemptionsHistory, setRedemptionsHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    const handleReturnBack = () => {
+      // 1. Block back press if checkout is sanitizing/wiping card
+      if (isSanitizing) {
+        return true;
+      }
+
+      // 2. Go back one step in ReturnCardModal
+      if (returnStep > 1) {
+        setReturnStep(returnStep - 1);
+        return true;
+      }
+
+      // 3. Otherwise close the checkout flow modal
+      onClose();
+      return true;
+    };
+
+    let subscription: any;
+    if (Platform.OS === 'android') {
+      subscription = BackHandler.addEventListener('hardwareBackPress', handleReturnBack);
+    }
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
+  }, [returnStep, isSanitizing, onClose]);
 
   const getBackendUrl = () => {
     const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -172,50 +203,77 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
   };
 
   return (
-    <View className="absolute inset-0 z-50" style={isCentered ? { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.overlay } : { justifyContent: 'flex-end', backgroundColor: colors.overlay }}>
-      <View 
-        className={`shadow-2xl border ${isCentered ? 'rounded-[24px]' : 'rounded-t-[20px]'}`}
-        style={[
-          { 
-            padding: 20,
-            paddingBottom: insets.bottom + 16,
-            backgroundColor: colors.modal,
-            borderColor: colors.border,
-            borderWidth: 1.5
-          },
-          isCentered 
-            ? { width: '90%', maxWidth: 420, height: 500 }
-            : { width: '100%', height: 480 + insets.bottom }
-        ]}
+    <>
+      <AlertModal
+        visible={true}
+        onClose={onClose}
+        title="Return Smart Card"
       >
-        {/* Header Row */}
-        <View className="flex-row justify-between items-center pb-3 mb-4 border-b" style={{ borderBottomColor: colors.border }}>
-          <Text className="text-base font-bold" style={{ color: colors.text }}>Return Smart Card</Text>
-          <TouchableOpacity 
-            onPress={onClose} 
-            className="w-10 h-10 rounded-full justify-center items-center border"
-            style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5 }}
-          >
-            <AppIcon name="x" label="Dismiss" color={colors.muted} size={16} />
-          </TouchableOpacity>
-        </View>
+        <View>
+          {/* STEP 1: SELECT SESSION OR SCAN NFC */}
+          {returnStep === 1 && (
+            <View className="py-2">
+              {!nfcEnabled ? (
+                <View className="flex-col justify-start">
+                  <Text className="text-[10px] font-bold uppercase tracking-wider mb-2 px-1" style={{ color: colors.muted }}>Select Guest to Check Out:</Text>
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+                    {sessions.filter(s => s.status === TokenStatus.ACTIVE).length === 0 ? (
+                      <View className="py-8 items-center">
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>No active guest sessions found.</Text>
+                      </View>
+                    ) : (
+                      sessions.filter(s => s.status === TokenStatus.ACTIVE).map(s => (
+                        <TouchableOpacity
+                          key={s.id}
+                          className="rounded-xl p-4 mb-2 flex-row justify-between items-center border"
+                          style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
+                          onPress={() => {
+                            setSessionDetails(s);
+                            setReturnStep(2);
+                          }}
+                        >
+                          <View>
+                            <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
+                            <Text className="text-[9px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
+                          </View>
+                          <View className="items-end">
+                            <Text className="text-[10px] font-extrabold uppercase" style={{ color: colors.gold }}>Table {s.tableNumber}</Text>
+                            <Text className="text-[9px] mt-0.5" style={{ color: colors.muted }}>Drinks: {s.redemptionCount}/{s.redemptionLimit}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              ) : (
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+                  <TouchableOpacity 
+                    className="items-center justify-center mb-4 border rounded-2xl w-full py-6"
+                    style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
+                    onPress={handlePhysicalScan}
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-4xl mb-2" style={{ color: colors.gold }}>💳</Text>
+                    <Text className="text-[11px] font-bold tracking-widest uppercase" style={{ color: colors.gold }}>START NFC SCAN</Text>
+                    <Text className="text-[9px] text-center max-w-[80%] mt-1.5 leading-4" style={{ color: colors.muted }}>
+                      Position Client Smart Card on reader to check invoice details.
+                    </Text>
+                  </TouchableOpacity>
 
-        {/* STEP 1: SELECT SESSION OR SCAN NFC */}
-        {returnStep === 1 && (
-          <View className="flex-grow justify-center py-2">
-            {!nfcEnabled ? (
-              <View className="flex-1 flex-col justify-start">
-                <Text className="text-[10px] font-bold uppercase tracking-wider mb-2 px-1" style={{ color: colors.muted }}>Select Guest to Check Out:</Text>
-                <ScrollView className="flex-1" showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+                  {/* Also show active sessions lookup list for hybrid checkout */}
+                  <Text className="text-[10px] font-bold uppercase tracking-wider mb-2 mt-2 px-1" style={{ color: colors.muted }}>Or Select Guest Session:</Text>
                   {sessions.filter(s => s.status === TokenStatus.ACTIVE).length === 0 ? (
-                    <View className="py-8 items-center">
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>No active guest sessions found.</Text>
+                    <View 
+                      className="py-4 items-center rounded-xl border"
+                      style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
+                    >
+                      <Text className="text-[11px]" style={{ color: colors.muted }}>No active guest sessions found.</Text>
                     </View>
                   ) : (
                     sessions.filter(s => s.status === TokenStatus.ACTIVE).map(s => (
                       <TouchableOpacity
                         key={s.id}
-                        className="rounded-xl p-4 mb-2 flex-row justify-between items-center border"
+                        className="rounded-xl p-3 mb-2 flex-row justify-between items-center border"
                         style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
                         onPress={() => {
                           setSessionDetails(s);
@@ -234,183 +292,121 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
                     ))
                   )}
                 </ScrollView>
+              )}
+            </View>
+          )}
+
+          {/* STEP 2: SUMMARY CONFIRM */}
+          {returnStep === 2 && sessionDetails && (
+            <View className="py-2">
+              <Text className="text-[11px] font-bold uppercase tracking-wider mb-3" style={{ color: colors.gold }}>Session Summary Log</Text>
+              
+              {/* Itemized Scannable Invoice Grid */}
+              <View 
+                className="rounded-xl p-4 border mb-4"
+                style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
+              >
+                <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
+                  <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name</Text>
+                  <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.customerName}</Text>
+                </View>
+                <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
+                  <Text className="text-[11px]" style={{ color: colors.muted }}>Table Occupied</Text>
+                  <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.tableNumber} ({sessionDetails.placeType.replace('_', ' ')})</Text>
+                </View>
+                <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
+                  <Text className="text-[11px]" style={{ color: colors.muted }}>Time Duration</Text>
+                  <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{formatMinutesUsed(sessionDetails.startTime)} Min</Text>
+                </View>
+                <View className="flex-row justify-between py-2">
+                  <Text className="text-[11px]" style={{ color: colors.muted }}>Drinks Allotted / Used</Text>
+                  <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.redemptionCount} / {sessionDetails.redemptionLimit} served</Text>
+                </View>
               </View>
-            ) : isScanning ? (
-              <View className="items-center justify-center py-6">
-                <ActivityIndicator size="large" color={colors.gold} />
-                <Text className="text-[13px] mt-4 font-bold tracking-wider uppercase" style={{ color: colors.muted }}>Interfacing Card Chip...</Text>
-              </View>
-            ) : (
-              <ScrollView className="flex-1" showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+
+              {redemptionsHistory && redemptionsHistory.length > 0 && (
+                <View className="mb-4" style={{ maxHeight: 120 }}>
+                  <Text className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Drinks Redemption Timeline</Text>
+                  <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
+                    <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
+                      {redemptionsHistory.map((item, index) => (
+                        <View key={item.id || index} className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider }}>
+                          <Text className="text-[10px]" style={{ color: colors.text }}>Drink #{index + 1}</Text>
+                          <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>
+                            {formatRedemptionTime(item.timestamp)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+
+              <Text className="text-red text-center text-[10px] leading-4 mb-4 font-semibold" style={{ color: colors.red }}>
+                Confirm closure: This will mark table {sessionDetails.tableNumber} as available, clear all card data, and return card ID {selectedCardId || 'N/A'} back to stock.
+              </Text>
+
+              <View className="flex-row gap-3">
                 <TouchableOpacity 
-                  className="items-center justify-center mb-4 border rounded-2xl w-full py-6"
-                  style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
-                  onPress={handlePhysicalScan}
-                  activeOpacity={0.8}
+                  className="flex-1 py-3 rounded-xl border items-center justify-center min-h-[44px]" 
+                  style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5, opacity: isProcessing ? 0.5 : 1 }}
+                  onPress={() => setReturnStep(1)}
+                  disabled={isProcessing}
                 >
-                  <Text className="text-4xl mb-2" style={{ color: colors.gold }}>💳</Text>
-                  <Text className="text-[11px] font-bold tracking-widest uppercase" style={{ color: colors.gold }}>START NFC SCAN</Text>
-                  <Text className="text-[9px] text-center max-w-[80%] mt-1.5 leading-4" style={{ color: colors.muted }}>
-                    Position Client Smart Card on reader to check invoice details.
+                  <Text className="font-bold text-xs" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  className="flex-1 py-3 rounded-xl items-center justify-center min-h-[44px] border" 
+                  style={{ 
+                    backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : (isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2'),
+                    borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : (isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5'),
+                    borderWidth: 1.5,
+                    opacity: isProcessing ? 0.5 : 1 
+                  }} 
+                  onPress={handleConfirmClosure}
+                  disabled={isProcessing}
+                >
+                  <Text className="font-bold text-xs" style={{ color: isProcessing ? colors.muted : colors.red }}>
+                    {loadingAction === 'close_session' ? `Closing... (${secondsLeft}s)` : 'Close Session'}
                   </Text>
                 </TouchableOpacity>
-
-                {/* Also show active sessions lookup list for hybrid checkout */}
-                <Text className="text-[10px] font-bold uppercase tracking-wider mb-2 mt-2 px-1" style={{ color: colors.muted }}>Or Select Guest Session:</Text>
-                {sessions.filter(s => s.status === TokenStatus.ACTIVE).length === 0 ? (
-                  <View 
-                    className="py-4 items-center rounded-xl border"
-                    style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
-                  >
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>No active guest sessions found.</Text>
-                  </View>
-                ) : (
-                  sessions.filter(s => s.status === TokenStatus.ACTIVE).map(s => (
-                    <TouchableOpacity
-                      key={s.id}
-                      className="rounded-xl p-3 mb-2 flex-row justify-between items-center border"
-                      style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
-                      onPress={() => {
-                        setSessionDetails(s);
-                        setReturnStep(2);
-                      }}
-                    >
-                      <View>
-                        <Text className="text-xs font-bold" style={{ color: colors.text }}>{s.customerName}</Text>
-                        <Text className="text-[9px] font-mono mt-0.5" style={{ color: colors.muted }}>{s.tokenNumber}</Text>
-                      </View>
-                      <View className="items-end">
-                        <Text className="text-[10px] font-extrabold uppercase" style={{ color: colors.gold }}>Table {s.tableNumber}</Text>
-                        <Text className="text-[9px] mt-0.5" style={{ color: colors.muted }}>Drinks: {s.redemptionCount}/{s.redemptionLimit}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))
-                )}
-              </ScrollView>
-            )}
-          </View>
-        )}
-
-        {/* STEP 2: SUMMARY CONFIRM OR SANITIZATION PROGRESS */}
-        {returnStep === 2 && sessionDetails && (
-          <View className="flex-grow justify-center py-2">
-            {isSanitizing ? (
-              <View className="items-center justify-center py-8">
-                <ActivityIndicator size="large" color={colors.red} />
-                <Text className="text-red font-bold text-sm mt-4 uppercase tracking-widest">
-                  Sanitizing Card Block...
-                </Text>
-                <Text className="text-[11px] text-center mt-1" style={{ color: colors.muted }}>
-                  Clearing card data and restoring to available stock
-                </Text>
               </View>
-            ) : (
-              <>
-                <Text className="text-[11px] font-bold uppercase tracking-wider mb-3" style={{ color: colors.gold }}>Session Summary Log</Text>
-                
-                {/* Itemized Scannable Invoice Grid */}
-                <View 
-                  className="rounded-xl p-4 border mb-4"
-                  style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
-                >
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name</Text>
-                    <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.customerName}</Text>
-                  </View>
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>Table Occupied</Text>
-                    <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.tableNumber} ({sessionDetails.placeType.replace('_', ' ')})</Text>
-                  </View>
-                  <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.divider }}>
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>Time Duration</Text>
-                    <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{formatMinutesUsed(sessionDetails.startTime)} Min</Text>
-                  </View>
-                  <View className="flex-row justify-between py-2">
-                    <Text className="text-[11px]" style={{ color: colors.muted }}>Drinks Allotted / Used</Text>
-                    <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{sessionDetails.redemptionCount} / {sessionDetails.redemptionLimit} served</Text>
-                  </View>
-                </View>
-
-                {redemptionsHistory && redemptionsHistory.length > 0 && (
-                  <View className="mb-4" style={{ maxHeight: 150 }}>
-                    <Text className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Drinks Redemption Timeline (with seconds)</Text>
-                    <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
-                      <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
-                        {redemptionsHistory.map((item, index) => (
-                          <View key={item.id || index} className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider }}>
-                            <Text className="text-[10px]" style={{ color: colors.text }}>Drink #{index + 1}</Text>
-                            <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>
-                              {formatRedemptionTime(item.timestamp)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </ScrollView>
-                  </View>
-                )}
-
-                <Text className="text-red text-center text-[10px] leading-4 mb-4 font-semibold" style={{ color: colors.red }}>
-                  Confirm closure: This will mark table {sessionDetails.tableNumber} as available, clear all card data, and return card ID {selectedCardId} back to available stock.
-                </Text>
-
-                <View className="flex-row gap-3">
-                  <TouchableOpacity 
-                    className="flex-1 py-3.5 rounded-xl border items-center justify-center min-h-[48px]" 
-                    style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5, opacity: isProcessing ? 0.5 : 1 }}
-                    onPress={() => setReturnStep(1)}
-                    disabled={isProcessing}
-                  >
-                    <Text className="font-bold text-sm" style={{ color: colors.secondaryButtonText }}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    className="flex-1 py-3.5 rounded-xl items-center justify-center min-h-[48px] border" 
-                    style={{ 
-                      backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : (isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2'),
-                      borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : (isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5'),
-                      borderWidth: 1.5,
-                      opacity: isProcessing ? 0.5 : 1 
-                    }} 
-                    onPress={handleConfirmClosure}
-                    disabled={isProcessing}
-                  >
-                    <Text className="font-bold text-sm" style={{ color: isProcessing ? colors.muted : colors.red }}>
-                      {loadingAction === 'close_session' ? `Closing... (${secondsLeft}s)` : 'Close Session'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        )}
-
-        {/* STEP 3: SUCCESS WRAP */}
-        {returnStep === 3 && (
-          <View className="items-center justify-center py-4 flex-1">
-            <View 
-              className="w-16 h-16 rounded-full border justify-center items-center mb-4" 
-              style={{ 
-                backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', 
-                borderColor: isDark ? 'rgba(34, 197, 94, 0.4)' : '#BBF7D0', 
-                borderWidth: 1.5 
-              }}
-            >
-              <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>
             </View>
-            <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>Session Closed Successfully</Text>
-            <Text className="text-[11px] text-center leading-4 max-w-[85%] mb-6" style={{ color: colors.muted }}>
-              Table seating freed. Card formatted and returned back to the active stock.
-            </Text>
-            <TouchableOpacity 
-              className="py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
-              style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }} 
-              onPress={onClose}
-            >
-              <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>Dismiss</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </View>
+          )}
+
+          {/* STEP 3: SUCCESS WRAP */}
+          {returnStep === 3 && (
+            <View className="items-center justify-center py-4">
+              <View 
+                className="w-16 h-16 rounded-full border justify-center items-center mb-4" 
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', 
+                  borderColor: isDark ? 'rgba(34, 197, 94, 0.4)' : '#BBF7D0', 
+                  borderWidth: 1.5 
+                }}
+              >
+                <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>
+              </View>
+              <Text className="text-base font-bold mb-2 text-center" style={{ color: colors.text }}>Session Closed Successfully</Text>
+              <Text className="text-[11px] text-center leading-4 max-w-[85%] mb-6" style={{ color: colors.muted }}>
+                Table seating freed. Card formatted and returned back to the active stock.
+              </Text>
+              <TouchableOpacity 
+                className="py-3.5 rounded-xl w-full items-center justify-center min-h-[48px] border" 
+                style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }} 
+                onPress={onClose}
+              >
+                <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </AlertModal>
+
+      {/* Progress Blockers */}
+      <ProgressOverlay visible={isScanning} message="Interfacing Card Chip..." />
+      <ProgressOverlay visible={isSanitizing} message="Sanitizing Card Block..." />
+    </>
   );
 };
 

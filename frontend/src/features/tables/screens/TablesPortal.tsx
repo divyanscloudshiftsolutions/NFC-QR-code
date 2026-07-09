@@ -10,6 +10,7 @@ import { Table, SessionToken, PlaceType, TableStatus, TokenStatus, UserRole } fr
 import { isTableExpiring } from '../../../context/nfc_bar_utils';
 import { AppIcon } from '../../../components/common/AppIcon';
 import { useResponsive } from '../../../utils/responsive';
+import { AlertModal } from '../../../components/common/AlertModal';
 import { useActionProgress } from '../../../utils/actionProgress';
 
 export const TablesPortal: React.FC = () => {
@@ -137,18 +138,23 @@ export const TablesPortal: React.FC = () => {
     // Determine colors/classes based on status
     let primaryColor = colors.gold; // Gold default
     let labelText = 'Occupied';
+    let filledBg = isDark ? 'rgba(245, 166, 35, 0.12)' : '#FEF3C7';
     
     if (table.status === TableStatus.MAINTENANCE) {
       primaryColor = colors.muted; // Muted gray
+      filledBg = isDark ? 'rgba(122, 125, 138, 0.12)' : '#F4F4F5';
       labelText = 'Maintenance';
     } else if (table.status === TableStatus.RESERVED) {
-      primaryColor = '#3b82f6'; // Blue
+      primaryColor = isDark ? '#60A5FA' : '#2563EB'; // Blue
+      filledBg = isDark ? 'rgba(59, 130, 246, 0.12)' : '#EFF6FF';
       labelText = 'Reserved';
     } else if (isExpiring) {
       primaryColor = colors.red; // Red
+      filledBg = isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2';
       labelText = 'Expiring';
     } else if (table.status === TableStatus.AVAILABLE) {
-      primaryColor = '#22c55e'; // Green
+      primaryColor = colors.success; // Green
+      filledBg = isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4';
       labelText = 'Free';
     }
 
@@ -160,7 +166,6 @@ export const TablesPortal: React.FC = () => {
       }
 
       const chairColor = filled ? primaryColor : colors.muted;
-      const borderStyle = filled ? { borderColor: primaryColor } : { borderColor: colors.border };
 
       return (
         <View className="items-center" style={{ flexDirection: 'column', gap: 4 }}>
@@ -170,18 +175,16 @@ export const TablesPortal: React.FC = () => {
             />
           )}
           <View
-            style={[
-              {
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderWidth: 2,
-                backgroundColor: filled ? (isDark ? 'rgba(245, 166, 35, 0.15)' : 'rgba(212, 175, 55, 0.1)') : (isDark ? colors.input : colors.secondarySurface)
-              },
-              borderStyle
-            ]}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1.5,
+              borderColor: filled ? primaryColor : colors.border,
+              backgroundColor: filled ? filledBg : colors.secondarySurface
+            }}
           >
             <Text style={{ color: filled ? primaryColor : colors.muted, fontSize: 13, fontWeight: 'bold' }}>
               👤
@@ -199,7 +202,7 @@ export const TablesPortal: React.FC = () => {
     return (
       <View 
         className="items-center py-4 rounded-2xl mb-4 border"
-        style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+        style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
       >
         <Text className="text-[10px] uppercase font-bold tracking-wider mb-4" style={{ color: colors.muted, fontFamily: Platform.OS !== 'web' ? 'System' : 'monospace' }}>
           TABLE SEATING MAP ({labelText})
@@ -218,9 +221,9 @@ export const TablesPortal: React.FC = () => {
             className="flex-row items-center justify-center rounded-2xl px-6 py-4 border"
             style={{
               minWidth: Math.max(120, topCount * 48),
-              backgroundColor: colors.surface,
+              backgroundColor: colors.card,
               borderColor: colors.border,
-              borderWidth: 1
+              borderWidth: 1.5
             }}
           >
             <View className="items-center">
@@ -278,7 +281,7 @@ export const TablesPortal: React.FC = () => {
       statusTextColor = colors.muted;
     } else if (table.status === TableStatus.RESERVED) {
       statusText = 'Reserved';
-      statusTextColor = '#3b82f6';
+      statusTextColor = isDark ? '#60A5FA' : '#2563EB';
     } else if (isSessionExpired) {
       statusText = 'Expired';
       statusTextColor = colors.red;
@@ -296,52 +299,52 @@ export const TablesPortal: React.FC = () => {
     return (
       <View 
         className="rounded-xl p-3.5 border mb-4"
-        style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+        style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
       >
-        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Table Number</Text>
           <Text className="text-[11px] font-bold" style={{ color: itemValueColor }}>{table.number}</Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Place Type</Text>
           <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
             {table.placeType === 'STANDING_BAR' ? 'Standing Bar' : 'Premium Lounge'}
           </Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Capacity</Text>
           <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>{table.seats} Seats</Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Occupancy</Text>
           <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
             {isOccupied ? `${table.occupiedSeats} / ${table.totalCapacity} Seats occupied` : '0 / ' + table.seats + ' occupied'}
           </Text>
         </View>
-        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+        <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
           <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Status</Text>
           <Text className="text-[11px] font-bold" style={{ color: statusTextColor }}>{statusText}</Text>
         </View>
 
         {activeToken ? (
           <>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Group</Text>
               <Text className="text-[11px] font-bold" style={{ color: itemValueColor }}>{activeToken.persons} Guests</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Start Time</Text>
               <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
                 {new Date(activeToken.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Time Left</Text>
               <Text className="text-[11px] font-bold" style={{ color: isExpiring ? colors.red : itemValueColor }}>
                 {calculateTimeRemaining(activeToken.endTime) === 'Expired' ? 'Expired' : `${calculateTimeRemaining(activeToken.endTime)} left`}
               </Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Drinks Used / Total</Text>
               <Text className="text-[11px] font-semibold" style={{ color: itemValueColor }}>
                 {activeToken.redemptionCount} / {activeToken.redemptionLimit}
@@ -356,19 +359,19 @@ export const TablesPortal: React.FC = () => {
           </>
         ) : (
           <>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Current Group</Text>
               <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>None (Free Table)</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Start Time</Text>
               <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>N/A</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Session Time Left</Text>
               <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>N/A</Text>
             </View>
-            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.border }}>
+            <View className="flex-row justify-between py-1.5 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
               <Text className="text-[11px]" style={{ color: itemLabelColor }}>Drinks Used / Total</Text>
               <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>N/A</Text>
             </View>
@@ -417,11 +420,11 @@ export const TablesPortal: React.FC = () => {
       {/* Segmented Place Types */}
       <View 
         className="flex-row rounded-xl p-1 mb-4 border"
-        style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1 }}
+        style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
       >
         <TouchableOpacity 
           className="flex-1 py-[13px] items-center rounded-lg"
-          style={selectedPlace === 'STANDING_BAR' ? { backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.border } : {}}
+          style={selectedPlace === 'STANDING_BAR' ? { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border } : {}}
           onPress={() => setSelectedPlace('STANDING_BAR')}
         >
           <Text 
@@ -433,7 +436,7 @@ export const TablesPortal: React.FC = () => {
         </TouchableOpacity>
         <TouchableOpacity 
           className="flex-1 py-[13px] items-center rounded-lg"
-          style={selectedPlace === 'PREMIUM_LOUNGE' ? { backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.border } : {}}
+          style={selectedPlace === 'PREMIUM_LOUNGE' ? { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border } : {}}
           onPress={() => setSelectedPlace('PREMIUM_LOUNGE')}
         >
           <Text 
@@ -449,23 +452,23 @@ export const TablesPortal: React.FC = () => {
       <View className="flex-row justify-between mb-4" style={{ marginHorizontal: -4 }}>
         <View 
           className="flex-1 items-center border p-3 rounded-xl mx-1"
-          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+          style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
         >
           <Text className="text-lg font-bold" style={{ color: colors.text }}>{totalCount}</Text>
           <Text className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: colors.muted }}>Total</Text>
         </View>
         <View 
           className="flex-1 items-center border p-3 rounded-xl mx-1"
-          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+          style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
         >
           <Text className="text-lg font-bold" style={{ color: colors.gold }}>{occupiedCount}</Text>
           <Text className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: colors.muted }}>Occupied</Text>
         </View>
         <View 
           className="flex-1 items-center border p-3 rounded-xl mx-1"
-          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+          style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5 }}
         >
-          <Text className="text-lg font-bold" style={{ color: '#22c55e' }}>{freeCount}</Text>
+          <Text className="text-lg font-bold" style={{ color: colors.success }}>{freeCount}</Text>
           <Text className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: colors.muted }}>Free</Text>
         </View>
       </View>
@@ -477,9 +480,9 @@ export const TablesPortal: React.FC = () => {
             key={f}
             className="px-4 py-3 rounded-full border mr-1.5 justify-center"
             style={{
-              backgroundColor: filter === f ? (isDark ? 'rgba(245,166,35,0.1)' : 'rgba(212,175,55,0.1)') : colors.surface,
+              backgroundColor: filter === f ? (isDark ? 'rgba(245, 166, 35, 0.12)' : 'rgba(212, 175, 55, 0.12)') : colors.secondarySurface,
               borderColor: filter === f ? colors.gold : colors.border,
-              borderWidth: 1
+              borderWidth: 1.5
             }}
             onPress={() => setFilter(f as any)}
           >
@@ -494,7 +497,7 @@ export const TablesPortal: React.FC = () => {
       <View className="mb-3">
         <TextInput 
           className="border rounded-xl py-3 px-4 text-xs font-semibold"
-          style={{ backgroundColor: colors.input, borderColor: colors.inputBorder, color: colors.text, borderWidth: 1 }}
+          style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, color: colors.text, borderWidth: 1.5 }}
           placeholder="Search Table ID... (e.g. S-03)"
           placeholderTextColor={colors.placeholder}
           value={searchQuery}
@@ -519,8 +522,8 @@ export const TablesPortal: React.FC = () => {
               statusTextColor = colors.muted;
               statusText = 'Maintenance';
             } else if (table.status === TableStatus.RESERVED) {
-              statusColor = '#3b82f6'; // Blue
-              statusTextColor = '#3b82f6';
+              statusColor = isDark ? '#60A5FA' : '#2563EB'; // Blue
+              statusTextColor = isDark ? '#60A5FA' : '#2563EB';
               statusText = 'Reserved';
             } else if (isExp) {
               statusColor = colors.red; // Red
@@ -537,9 +540,25 @@ export const TablesPortal: React.FC = () => {
                 <TouchableOpacity
                   style={{ 
                     minHeight: 110,
-                    backgroundColor: isExp ? (isDark ? 'rgba(239,68,68,0.05)' : 'rgba(239,68,68,0.08)') : colors.surface,
-                    borderColor: isExp ? colors.red : (table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.3)') : (table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.3)') : colors.border)),
-                    borderWidth: 1,
+                    backgroundColor: isExp 
+                      ? (isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2') 
+                      : (table.status === TableStatus.AVAILABLE 
+                         ? (isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4') 
+                         : (table.status === TableStatus.RESERVED 
+                            ? (isDark ? 'rgba(59, 130, 246, 0.12)' : '#EFF6FF') 
+                            : (table.status === TableStatus.OCCUPIED 
+                               ? (isDark ? 'rgba(245, 166, 35, 0.12)' : '#FEF3C7') 
+                               : colors.secondarySurface))),
+                    borderColor: isExp 
+                      ? colors.red 
+                      : (table.status === TableStatus.AVAILABLE 
+                         ? (isDark ? 'rgba(34, 197, 94, 0.35)' : '#BBF7D0') 
+                         : (table.status === TableStatus.RESERVED 
+                            ? (isDark ? 'rgba(59, 130, 246, 0.35)' : '#BFDBFE') 
+                            : (table.status === TableStatus.OCCUPIED 
+                               ? (isDark ? 'rgba(245, 166, 35, 0.3)' : '#FDE68A') 
+                               : colors.border))),
+                    borderWidth: 1.5,
                     borderRadius: 12,
                     padding: 10
                   }}
@@ -601,26 +620,26 @@ export const TablesPortal: React.FC = () => {
       {/* LEGEND BAR */}
       <View 
         className="flex-row justify-around py-3 border-t"
-        style={{ borderTopColor: colors.border, backgroundColor: colors.bg }}
+        style={{ borderTopColor: colors.border, borderTopWidth: 1.5, backgroundColor: colors.bg }}
       >
         <View className="flex-row items-center gap-1.5">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
+          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors.success }} />
           <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Free</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#f5a623]" />
+          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors.gold }} />
           <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Occupied</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#e63946]" />
+          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors.red }} />
           <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Expiring</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isDark ? '#60A5FA' : '#2563EB' }} />
           <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Reserved</Text>
         </View>
         <View className="flex-row items-center gap-1.5">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#7a7d8a]" />
+          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors.muted }} />
           <Text className="text-[9px] uppercase font-bold tracking-wider" style={{ color: colors.muted }}>Maint</Text>
         </View>
       </View>
@@ -632,7 +651,7 @@ export const TablesPortal: React.FC = () => {
         transparent={true}
         onRequestClose={() => setIsBottomSheetOpen(false)}
       >
-        <View className="flex-1 bg-black/65 justify-end">
+        <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}>
           {selectedTable && (
             <View 
               className="rounded-t-[20px] p-4 border-t"
@@ -640,13 +659,13 @@ export const TablesPortal: React.FC = () => {
                 paddingBottom: insets.bottom + 16,
                 marginTop: insets.top + 10,
                 maxHeight: '90%',
-                backgroundColor: colors.surface,
+                backgroundColor: colors.modal,
                 borderTopColor: colors.border,
-                borderTopWidth: 1
+                borderTopWidth: 1.5
               }}
             >
               {/* Header */}
-              <View className="flex-row justify-between items-center pb-3 mb-2 border-b" style={{ borderBottomColor: colors.border }}>
+              <View className="flex-row justify-between items-center pb-3 mb-2 border-b" style={{ borderBottomColor: colors.divider, borderBottomWidth: 1.5 }}>
                 <View>
                   <Text className="text-base font-bold" style={{ color: colors.text }}>Table {selectedTable.number}</Text>
                   <Text className="text-[11px]" style={{ color: colors.muted }}>
@@ -656,7 +675,7 @@ export const TablesPortal: React.FC = () => {
                 <TouchableOpacity 
                   onPress={() => setIsBottomSheetOpen(false)} 
                   className="w-11 h-11 rounded-full justify-center items-center border"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                  style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5 }}
                 >
                   <AppIcon name="x" label="Close details" color={colors.muted} size={18} />
                 </TouchableOpacity>
@@ -679,7 +698,8 @@ export const TablesPortal: React.FC = () => {
               <View className="mt-3">
                 {selectedTable.status === TableStatus.AVAILABLE ? (
                   <TouchableOpacity 
-                    className="w-full bg-[#22c55e] py-[15px] rounded-xl items-center justify-center mb-1.5" 
+                    className="w-full py-[15px] rounded-xl items-center justify-center mb-1.5 border" 
+                    style={{ backgroundColor: colors.success, borderColor: colors.success, borderWidth: 1.5 }}
                     onPress={() => {
                       setPreselectedTableNumber(selectedTable.number);
                       setTab('checkin');
@@ -693,8 +713,8 @@ export const TablesPortal: React.FC = () => {
                 {selectedSession && user?.role !== UserRole.MANAGER && (
                   <View className="flex-row gap-2.5 mb-1.5">
                     <TouchableOpacity 
-                      className="flex-1 bg-red/10 border border-red py-[15px] rounded-xl items-center justify-center" 
-                      style={{ borderColor: colors.red, opacity: isProcessing ? 0.5 : 1 }} 
+                      className="flex-1 border py-[15px] rounded-xl items-center justify-center" 
+                      style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderColor: colors.red, borderWidth: 1.5, opacity: isProcessing ? 0.5 : 1 }} 
                       onPress={handleCloseSession}
                       disabled={isProcessing}
                     >
@@ -703,8 +723,8 @@ export const TablesPortal: React.FC = () => {
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
-                      className="flex-1 bg-gold py-[15px] rounded-xl items-center justify-center border" 
-                      style={{ borderColor: colors.gold, opacity: isProcessing ? 0.5 : 1 }} 
+                      className="flex-1 py-[15px] rounded-xl items-center justify-center border" 
+                      style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5, opacity: isProcessing ? 0.5 : 1 }} 
                       onPress={() => setIsExtendModalOpen(true)}
                       disabled={isProcessing}
                     >
@@ -716,7 +736,7 @@ export const TablesPortal: React.FC = () => {
                 {selectedSession && user?.role === UserRole.MANAGER && (
                   <View 
                     className="rounded-xl p-3 mb-2 border items-center justify-center"
-                    style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}
+                    style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
                   >
                     <Text className="text-[11px] font-semibold" style={{ color: colors.muted }}>Read-only access for Manager role</Text>
                   </View>
@@ -724,7 +744,7 @@ export const TablesPortal: React.FC = () => {
  
                 <TouchableOpacity 
                   className="w-full py-[15px] rounded-xl items-center justify-center border" 
-                  style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                  style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5 }}
                   onPress={() => setIsBottomSheetOpen(false)}
                 >
                   <Text className="font-bold text-sm" style={{ color: colors.text }}>Dismiss</Text>
@@ -736,117 +756,112 @@ export const TablesPortal: React.FC = () => {
       </Modal>
 
       {/* EXTEND SESSION PAYMENT CONFIRMATION MODAL */}
-      <Modal
+      <AlertModal
         visible={isExtendModalOpen && selectedSession !== null}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setIsExtendModalOpen(false)}
+        onClose={() => {
+          setIsExtendModalOpen(false);
+          setExtendRefId('');
+        }}
+        title="Extend Session — 1 Hour"
       >
-        <View className="flex-1 bg-black/75 justify-center p-4">
-          {selectedSession && (
-            <View 
-              className="border border-gold/20 rounded-2xl p-5 shadow-2xl" 
-              style={{ backgroundColor: colors.surface }}
-            >
-              <Text className="text-base font-bold text-gold mb-3">Extend Session — 1 Hour</Text>
-              
-              <View className="mb-4 gap-2 py-2 border-t border-b" style={{ borderColor: colors.border }}>
-                <View className="flex-row justify-between">
-                  <Text className="text-xs" style={{ color: colors.muted }}>Customer</Text>
-                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedSession.customerName}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-xs" style={{ color: colors.muted }}>Table</Text>
-                  <Text className="text-xs font-mono font-bold" style={{ color: colors.gold }}>Table {selectedSession.tableNumber || 'N/A'}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-xs" style={{ color: colors.muted }}>Guest Count</Text>
-                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedSession.persons} Pax</Text>
-                </View>
-                <View className="flex-row justify-between mt-1">
-                  <Text className="text-xs font-bold" style={{ color: colors.text }}>Extension Fee</Text>
-                  <Text className="text-xs font-bold" style={{ color: colors.gold }}>
-                    ₹{(() => {
-                      const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
-                      const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
-                      const duration = rateCard?.durationHours || 2;
-                      return (rate * selectedSession.persons * (1 / duration)).toFixed(0);
-                    })()}
-                  </Text>
-                </View>
+        {selectedSession && (
+          <View>
+            <View className="mb-4 gap-2 py-2 border-t border-b" style={{ borderTopColor: colors.divider, borderBottomColor: colors.divider, borderTopWidth: 1.5, borderBottomWidth: 1.5 }}>
+              <View className="flex-row justify-between">
+                <Text className="text-xs" style={{ color: colors.muted }}>Customer</Text>
+                <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedSession.customerName}</Text>
               </View>
-
-              {/* Payment Mode Selector */}
-              <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
-              <View className="flex-row gap-2 mb-4">
-                {(['CASH', 'UPI'] as const).map(mode => (
-                  <TouchableOpacity
-                    key={mode}
-                    className="flex-1 py-2.5 rounded-xl border items-center justify-center"
-                    style={{
-                      backgroundColor: extendPaymentMode === mode ? 'rgba(212, 175, 55, 0.1)' : colors.input,
-                      borderColor: extendPaymentMode === mode ? colors.gold : colors.border,
-                      borderWidth: 1
-                    }}
-                    onPress={() => setExtendPaymentMode(mode)}
-                  >
-                    <Text className="text-[11px] font-bold" style={{ color: extendPaymentMode === mode ? colors.gold : colors.muted }}>
-                      {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <View className="flex-row justify-between">
+                <Text className="text-xs" style={{ color: colors.muted }}>Table</Text>
+                <Text className="text-xs font-mono font-bold" style={{ color: colors.gold }}>Table {selectedSession.tableNumber || 'N/A'}</Text>
               </View>
-
-              {/* Static Dummy QR Code for UPI */}
-              {extendPaymentMode === 'UPI' && (
-                <View className="items-center justify-center mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.input, borderColor: colors.border }}>
-                  <Text className="text-[11px] font-bold mb-2" style={{ color: colors.gold }}>Scan dummy QR to pay</Text>
-                  <Image
-                    source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${(() => {
-                      const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
-                      const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
-                      const duration = rateCard?.durationHours || 2;
-                      return (rate * selectedSession.persons * (1 / duration)).toFixed(0);
-                    })()}` }}
-                    style={{ width: 150, height: 150, borderRadius: 8 }}
-                  />
-                  <Text className="text-[9px] font-semibold mt-2" style={{ color: colors.muted }}>Demo purposes only • No actual verification</Text>
-                </View>
-              )}
-
-              {/* Actions */}
-              <View className="flex-row gap-3">
-                <TouchableOpacity
-                  className="flex-1 py-3 rounded-xl border items-center justify-center"
-                  style={{ backgroundColor: colors.input, borderColor: colors.border, opacity: isProcessing ? 0.5 : 1 }}
-                  onPress={() => {
-                    setIsExtendModalOpen(false);
-                    setExtendRefId('');
-                  }}
-                  disabled={isProcessing}
-                >
-                  <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  className="flex-1 py-3 rounded-xl items-center justify-center border"
-                  style={{
-                    backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
-                    borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
-                    borderWidth: 1,
-                    opacity: isProcessing ? 0.6 : 1
-                  }}
-                  onPress={handleExtend}
-                  disabled={isProcessing}
-                >
-                  <Text className="text-sm font-bold" style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}>
-                    {loadingAction === 'extend_session' ? `Extending... (${secondsLeft}s)` : 'Confirm & Extend'}
-                  </Text>
-                </TouchableOpacity>
+              <View className="flex-row justify-between">
+                <Text className="text-xs" style={{ color: colors.muted }}>Guest Count</Text>
+                <Text className="text-xs font-bold" style={{ color: colors.text }}>{selectedSession.persons} Pax</Text>
+              </View>
+              <View className="flex-row justify-between mt-1">
+                <Text className="text-xs font-bold" style={{ color: colors.text }}>Extension Fee</Text>
+                <Text className="text-xs font-bold" style={{ color: colors.gold }}>
+                  ₹{(() => {
+                    const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
+                    const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                    const duration = rateCard?.durationHours || 2;
+                    return (rate * selectedSession.persons * (1 / duration)).toFixed(0);
+                  })()}
+                </Text>
               </View>
             </View>
-          )}
-        </View>
-      </Modal>
+
+            {/* Payment Mode Selector */}
+            <Text className="text-xs font-semibold mb-2" style={{ color: colors.text }}>Payment Mode *</Text>
+            <View className="flex-row gap-2 mb-4">
+              {(['CASH', 'UPI'] as const).map(mode => (
+                <TouchableOpacity
+                  key={mode}
+                  className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+                  style={{
+                    backgroundColor: extendPaymentMode === mode ? (isDark ? 'rgba(245, 166, 35, 0.12)' : 'rgba(212, 175, 55, 0.12)') : colors.secondarySurface,
+                    borderColor: extendPaymentMode === mode ? colors.gold : colors.border,
+                    borderWidth: 1.5
+                  }}
+                  onPress={() => setExtendPaymentMode(mode)}
+                >
+                  <Text className="text-[11px] font-bold" style={{ color: extendPaymentMode === mode ? colors.gold : colors.muted }}>
+                    {mode === 'CASH' ? '💵 CASH' : '📱 UPI'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Static Dummy QR Code for UPI */}
+            {extendPaymentMode === 'UPI' && (
+              <View className="items-center justify-center mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
+                <Text className="text-[11px] font-bold mb-2" style={{ color: colors.gold }}>Scan dummy QR to pay</Text>
+                <Image
+                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${(() => {
+                    const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
+                    const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
+                    const duration = rateCard?.durationHours || 2;
+                    return (rate * selectedSession.persons * (1 / duration)).toFixed(0);
+                  })()}` }}
+                  style={{ width: 150, height: 150, borderRadius: 8 }}
+                />
+                <Text className="text-[9px] font-semibold mt-2" style={{ color: colors.muted }}>Demo purposes only • No actual verification</Text>
+              </View>
+            )}
+
+            {/* Actions */}
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl border items-center justify-center"
+                style={{ backgroundColor: colors.secondaryButtonBg, borderColor: colors.border, borderWidth: 1.5, opacity: isProcessing ? 0.5 : 1 }}
+                onPress={() => {
+                  setIsExtendModalOpen(false);
+                  setExtendRefId('');
+                }}
+                disabled={isProcessing}
+              >
+                <Text className="text-sm font-bold" style={{ color: colors.text }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl items-center justify-center border"
+                style={{
+                  backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
+                  borderColor: isProcessing ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                  borderWidth: 1.5,
+                  opacity: isProcessing ? 0.6 : 1
+                }}
+                onPress={handleExtend}
+                disabled={isProcessing}
+              >
+                <Text className="text-sm font-bold" style={{ color: isProcessing ? colors.muted : colors.goldButtonText }}>
+                  {loadingAction === 'extend_session' ? `Extending... (${secondsLeft}s)` : 'Confirm & Extend'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </AlertModal>
     </View>
   );
 };

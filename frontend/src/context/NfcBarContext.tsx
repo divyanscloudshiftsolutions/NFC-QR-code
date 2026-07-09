@@ -112,6 +112,7 @@ interface NfcBarContextType {
   adminSessions: SessionToken[];
   fetchAdminSessions: () => Promise<boolean>;
   adminDeactivateSession: (tokenNumber: string, status: TokenStatus, force?: boolean) => Promise<boolean>;
+  exportSessionsCSV: (status: string) => Promise<string | null>;
 }
 
 const NfcBarContext = createContext<NfcBarContextType | undefined>(undefined);
@@ -278,7 +279,19 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     cardUid: t.cardUid || null,
     createdAt: t.createdAt,
     deliveryMode: t.deliveryMode,
-    paymentVerified: t.paymentVerified
+    paymentVerified: t.paymentVerified,
+    // Audit logs & history metadata mapping
+    createdBy: t.createdBy,
+    closedBy: t.closedBy,
+    closedAt: t.closedAt,
+    cancelledAt: t.cancelledAt,
+    cancelledBy: t.cancelledBy,
+    cancelReason: t.cancelReason,
+    customerId: t.customerId,
+    customerVisits: t.customerVisits,
+    lastVisit: t.lastVisit,
+    extensions: t.extensions,
+    redemptions: t.redemptions
   });
 
   const fetchLatestState = async (token?: string) => {
@@ -1811,6 +1824,29 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const exportSessionsCSV = async (status: string): Promise<string | null> => {
+    if (systemMode === 'offline') {
+      showToast('Cannot export offline', 'danger');
+      return null;
+    }
+    const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
+    if (!activeToken) return null;
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/admin/sessions/export?status=${status}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${activeToken}`
+        }
+      });
+      if (!response.ok) throw new Error('Export failed');
+      return await response.text();
+    } catch (err) {
+      console.log('Failed to export sessions:', err);
+      return null;
+    }
+  };
+
   const adminDeactivateSession = async (tokenNumber: string, status: TokenStatus, force: boolean = false): Promise<boolean> => {
     if (systemMode === 'offline') {
       showToast('Cannot close session offline', 'danger');
@@ -2045,7 +2081,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       fetchRates, updateRateCard,
       fetchReports,
       startReturnCardFlow, setReturnCardStep, setReturnCardUid, cancelReturnCardFlow,
-      fetchAdminSessions, adminDeactivateSession
+      fetchAdminSessions, adminDeactivateSession, exportSessionsCSV
     }}>
       {children}
     </NfcBarContext.Provider>

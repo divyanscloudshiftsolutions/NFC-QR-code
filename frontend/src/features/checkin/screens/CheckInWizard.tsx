@@ -2,16 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
   ActivityIndicator, StyleSheet, Platform, Alert, Modal, Image,
-  Animated, LayoutAnimation, UIManager
+  Animated, LayoutAnimation, UIManager, BackHandler
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
-import { SessionToken, PlaceType, TableStatus, TokenStatus } from '../../../types/nfc_bar';
+import { SessionToken, PlaceType, TableStatus, TokenStatus, UserRole } from '../../../types/nfc_bar';
 import { isTableExpiring } from '../../../context/nfc_bar_utils';
 import { AppIcon } from '../../../components/common/AppIcon';
 import nfcService from '../../../services/nfc/nfcManager';
 import { useResponsive } from '../../../utils/responsive';
+import { AlertModal } from '../../../components/common/AlertModal';
+import { ProgressOverlay } from '../../../components/common/ProgressOverlay';
 import { useActionProgress } from '../../../utils/actionProgress';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -143,6 +145,60 @@ export const CheckInWizard: React.FC = () => {
       setPreselectedTableNumber(null); // Clear it
     }
   }, [preselectedTableNumber, tables]);
+
+  // Android hardware back button handler for CheckInWizard
+  useEffect(() => {
+    const handleWizardBack = () => {
+      // 1. Block back press if NFC card is writing
+      if (isNfcWriting) {
+        return true; // Consume event (block)
+      }
+
+      // 2. Go back one step in wizard
+      if (stepState > 1) {
+        setStepState(stepState - 1);
+        return true;
+      }
+
+      // 3. Unsaved changes check on Step 1
+      const isDirty = fullName.trim().length > 0 || phone.trim().length > 0 || email.trim().length > 0;
+      if (stepState === 1 && isDirty) {
+        Alert.alert(
+          'Discard Changes',
+          'You have unsaved check-in details. Are you sure you want to go back?',
+          [
+            { text: 'Continue Editing', style: 'cancel' },
+            { 
+              text: 'Discard Changes', 
+              style: 'destructive',
+              onPress: () => {
+                // Reset form values
+                setFullName('');
+                setPhone('');
+                setEmail('');
+                setGuestCount(1);
+                // Return to home tab
+                setTab('tables');
+              } 
+            }
+          ]
+        );
+        return true;
+      }
+
+      return false; // Let it bubble up to root handler
+    };
+
+    let subscription: any;
+    if (Platform.OS === 'android') {
+      subscription = BackHandler.addEventListener('hardwareBackPress', handleWizardBack);
+    }
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
+  }, [stepState, fullName, phone, email, isNfcWriting]);
 
   useEffect(() => {
     if (rates.length > 0) {
@@ -1692,394 +1748,290 @@ export const CheckInWizard: React.FC = () => {
       </ScrollView>
 
       {/* Beautiful Custom Design Capacity Alert Modal */}
-      <Modal
+      <AlertModal
         visible={showCapacityAlert}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowCapacityAlert(false)}
+        onClose={() => setShowCapacityAlert(false)}
+        title="Change Guest Count?"
       >
-        <View style={{
-          flex: 1,
-          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 20
-        }}>
+        <View style={{ alignItems: 'center' }}>
           <View style={{
-            width: '90%',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: isDark ? 'rgba(245, 166, 35, 0.2)' : colors.border,
-            borderRadius: 20,
-            padding: 22,
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
             alignItems: 'center',
-            shadowColor: colors.gold,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.15,
-            shadowRadius: 16,
-            elevation: 8
+            justifyContent: 'center',
+            marginBottom: 16,
+            borderWidth: 1.5,
+            borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
           }}>
-            <View style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 16,
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
-            }}>
-              <Text style={{ fontSize: 22 }}>⚠️</Text>
-            </View>
+            <Text style={{ fontSize: 22 }}>⚠️</Text>
+          </View>
 
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.gold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>
-              Change Guest Count?
-            </Text>
+          <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+            If you increase the number of persons, you can't match the selected table. You can select the number of persons based on the table availability.
+          </Text>
 
-            <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
-              If you increase the number of persons, you can't match the selected table. You can select the number of persons based on the table availability.
-            </Text>
+          <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: colors.input,
+                borderWidth: 1.5,
+                borderColor: colors.border,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={() => setShowCapacityAlert(false)}
+            >
+              <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Cancel</Text>
+            </TouchableOpacity>
 
-            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={() => setShowCapacityAlert(false)}
-              >
-                <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: colors.gold,
-                  borderWidth: 1,
-                  borderColor: colors.gold,
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={() => {
-                  setShowCapacityAlert(false);
-                  setSelectedTableNum(null);
-                  setIsTablePreselected(false);
-                  setGuestCount(c => Math.min(20, c + 1));
-                  showToast("Table selection reset. Please select a matching table.", "info");
-                }}
-              >
-                <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Increase</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: colors.gold,
+                borderWidth: 1.5,
+                borderColor: colors.gold,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={() => {
+                setShowCapacityAlert(false);
+                setSelectedTableNum(null);
+                setIsTablePreselected(false);
+                setGuestCount(c => Math.min(20, c + 1));
+                showToast("Table selection reset. Please select a matching table.", "info");
+              }}
+            >
+              <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Increase</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </AlertModal>
 
       {/* Pending Session Exists Modal */}
-      <Modal
+      <AlertModal
         visible={showPendingExistsModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPendingExistsModal(false)}
+        onClose={() => setShowPendingExistsModal(false)}
+        title="Pending Session Found"
       >
-        <View style={{
-          flex: 1,
-          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 20
-        }}>
+        <View style={{ alignItems: 'center' }}>
           <View style={{
-            width: '90%',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: isDark ? 'rgba(245, 166, 35, 0.2)' : colors.border,
-            borderRadius: 20,
-            padding: 22,
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
             alignItems: 'center',
-            shadowColor: colors.gold,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.15,
-            shadowRadius: 16,
-            elevation: 8
+            justifyContent: 'center',
+            marginBottom: 16,
+            borderWidth: 1.5,
+            borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
           }}>
-            <View style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 16,
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
-            }}>
-              <Text style={{ fontSize: 22 }}>⏳</Text>
-            </View>
+            <Text style={{ fontSize: 22 }}>⏳</Text>
+          </View>
 
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.gold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>
-              Pending Session Found
-            </Text>
+          <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+            A pending payment session already exists for this customer.
+          </Text>
 
-            <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
-              A pending payment session already exists for this customer.
-            </Text>
+          <View style={{ flexDirection: 'column', gap: 10, width: '100%' }}>
+            <TouchableOpacity
+              style={{
+                width: '100%',
+                backgroundColor: colors.gold,
+                borderWidth: 1.5,
+                borderColor: colors.gold,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={() => {
+                setPendingToken(pendingExistsTokenNumber);
+                setScannedToken('');
+                setQrVerificationSuccess(false);
+                setQrVerificationError(null);
+                setShowPendingExistsModal(false);
+                setStep(5);
+              }}
+            >
+              <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Continue Check-in</Text>
+            </TouchableOpacity>
 
-            <View style={{ flexDirection: 'column', gap: 10, width: '100%' }}>
-              <TouchableOpacity
-                style={{
-                  width: '100%',
-                  backgroundColor: colors.gold,
-                  borderWidth: 1,
-                  borderColor: colors.gold,
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={() => {
-                  setPendingToken(pendingExistsTokenNumber);
-                  setScannedToken('');
-                  setQrVerificationSuccess(false);
-                  setQrVerificationError(null);
-                  setShowPendingExistsModal(false);
-                  setStep(5);
-                }}
-              >
-                <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Continue Check-in</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                width: '100%',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                borderWidth: 1.5,
+                borderColor: '#EF4444',
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={async () => {
+                setShowPendingExistsModal(false);
+                await cancelPendingSession(pendingExistsTokenNumber, 'SESSION_RESTARTED');
+                handleStep1Submit();
+              }}
+            >
+              <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: 'bold' }}>Cancel Existing & Start New</Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity
-                style={{
-                  width: '100%',
-                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
-                  borderWidth: 1,
-                  borderColor: '#EF4444',
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={async () => {
-                  setShowPendingExistsModal(false);
-                  await cancelPendingSession(pendingExistsTokenNumber, 'SESSION_RESTARTED');
-                  handleStep1Submit();
-                }}
-              >
-                <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: 'bold' }}>Cancel Existing & Start New</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  width: '100%',
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={() => setShowPendingExistsModal(false)}
-              >
-                <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Go Back</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={{
+                width: '100%',
+                backgroundColor: colors.input,
+                borderWidth: 1.5,
+                borderColor: colors.border,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={() => setShowPendingExistsModal(false)}
+            >
+              <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Go Back</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </AlertModal>
 
       {/* Cancel Pending Session Confirmation Modal */}
-      <Modal
+      <AlertModal
         visible={showCancelConfirmModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowCancelConfirmModal(false)}
+        onClose={() => setShowCancelConfirmModal(false)}
+        title="Cancel Check-in"
       >
-        <View style={{
-          flex: 1,
-          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 20
-        }}>
+        <View style={{ alignItems: 'center' }}>
           <View style={{
-            width: '90%',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: isDark ? 'rgba(245, 166, 35, 0.2)' : colors.border,
-            borderRadius: 20,
-            padding: 22,
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
             alignItems: 'center',
-            shadowColor: colors.gold,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.15,
-            shadowRadius: 16,
-            elevation: 8
+            justifyContent: 'center',
+            marginBottom: 16,
+            borderWidth: 1.5,
+            borderColor: '#EF4444'
           }}>
-            <View style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 16,
-              borderWidth: 1,
-              borderColor: '#EF4444'
-            }}>
-              <Text style={{ fontSize: 22 }}>⚠️</Text>
-            </View>
+            <Text style={{ fontSize: 22 }}>⚠️</Text>
+          </View>
 
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.gold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>
-              Cancel Check-in
-            </Text>
+          <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+            Are you sure you want to cancel this pending check-in? The guest session has not been activated yet.
+          </Text>
 
-            <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
-              Are you sure you want to cancel this pending check-in? The guest session has not been activated yet.
-            </Text>
+          <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: colors.input,
+                borderWidth: 1.5,
+                borderColor: colors.border,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={() => setShowCancelConfirmModal(false)}
+            >
+              <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Continue Check-in</Text>
+            </TouchableOpacity>
 
-            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={() => setShowCancelConfirmModal(false)}
-              >
-                <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>Continue Check-in</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: '#EF4444',
-                  borderWidth: 1,
-                  borderColor: '#EF4444',
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={async () => {
-                  setShowCancelConfirmModal(false);
-                  if (pendingToken) {
-                    await cancelPendingSession(pendingToken, 'USER_CANCELLED');
-                  }
-                  resetWizard();
-                }}
-              >
-                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '900' }}>Cancel Check-in</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: '#EF4444',
+                borderWidth: 1.5,
+                borderColor: '#EF4444',
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={async () => {
+                setShowCancelConfirmModal(false);
+                if (pendingToken) {
+                  await cancelPendingSession(pendingToken, 'USER_CANCELLED');
+                }
+                resetWizard();
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '900' }}>Cancel Check-in</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </AlertModal>
 
       {/* Payment Confirmation Modal */}
-      <Modal
+      <AlertModal
         visible={showPaymentConfirmModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPaymentConfirmModal(false)}
+        onClose={() => setShowPaymentConfirmModal(false)}
+        title="Payment Confirmation"
       >
-        <View style={{
-          flex: 1,
-          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.82)' : 'rgba(0, 0, 0, 0.55)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 20
-        }}>
+        <View style={{ alignItems: 'center' }}>
           <View style={{
-            width: '90%',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: isDark ? 'rgba(245, 166, 35, 0.2)' : colors.border,
-            borderRadius: 20,
-            padding: 22,
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
             alignItems: 'center',
-            shadowColor: colors.gold,
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.15,
-            shadowRadius: 16,
-            elevation: 8
+            justifyContent: 'center',
+            marginBottom: 16,
+            borderWidth: 1.5,
+            borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
           }}>
-            <View style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(200, 155, 60, 0.1)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 16,
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : colors.border
-            }}>
-              <Text style={{ fontSize: 22 }}>💳</Text>
-            </View>
+            <Text style={{ fontSize: 22 }}>💳</Text>
+          </View>
 
-            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.gold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 }}>
-              Payment Confirmation
-            </Text>
+          <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
+            Has the customer successfully completed the payment? Only confirm the payment after verifying that the payment has been received.
+          </Text>
 
-            <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>
-              Has the customer successfully completed the payment? Only confirm the payment after verifying that the payment has been received.
-            </Text>
+          <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: colors.input,
+                borderWidth: 1.5,
+                borderColor: colors.border,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={() => setShowPaymentConfirmModal(false)}
+            >
+              <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>No</Text>
+            </TouchableOpacity>
 
-            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: colors.input,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={() => setShowPaymentConfirmModal(false)}
-              >
-                <Text style={{ color: colors.muted, fontSize: 13, fontWeight: 'bold' }}>No</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: colors.teal,
-                  borderWidth: 1,
-                  borderColor: colors.teal,
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onPress={() => {
-                  setShowPaymentConfirmModal(false);
-                  handlePaymentCollected();
-                }}
-              >
-                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '900' }}>Yes, Payment Received</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                backgroundColor: colors.teal,
+                borderWidth: 1.5,
+                borderColor: colors.teal,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onPress={() => {
+                setShowPaymentConfirmModal(false);
+                handlePaymentCollected();
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '900' }}>Yes, Payment Received</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </AlertModal>
     </View>
   );
 };

@@ -940,6 +940,7 @@ router.patch('/users/:id/status', authenticate, authorize(['admin']), async (req
 // Get all tables
 router.get('/tables', authenticate, async (req: Request, res: Response) => {
   try {
+    await tokenService.reconcileSystemState();
     const tables = await prisma.table.findMany({
       include: { placeType: true },
       orderBy: { tableNumber: 'asc' },
@@ -966,6 +967,7 @@ router.get('/tables', authenticate, async (req: Request, res: Response) => {
 router.get('/tables/available', authenticate, async (req: Request, res: Response) => {
   const { placeTypeId, placeType } = req.query;
   try {
+    await tokenService.reconcileSystemState();
     let finalPlaceTypeId = placeTypeId as string;
     
     // If client sent placeType string (e.g. "PREMIUM_LOUNGE"), resolve UUID
@@ -999,6 +1001,7 @@ router.get('/tables/available', authenticate, async (req: Request, res: Response
 // Get occupancy
 router.get('/tables/occupancy', authenticate, async (req: Request, res: Response) => {
   try {
+    await tokenService.reconcileSystemState();
     const report = await tableService.getTableOccupancy();
     return res.json({
       success: true,
@@ -1997,8 +2000,9 @@ router.put('/config/delivery-mode', authenticate, authorize(['admin']), async (r
 // Get active tokens (list)
 router.get('/tokens/active', authenticate, async (req: Request, res: Response) => {
   try {
+    await tokenService.reconcileSystemState();
     const activeTokens = await prisma.token.findMany({
-      where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
+      where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED] } },
       include: { customer: true, placeType: true, table: true, card: true },
       orderBy: { startTime: 'desc' },
     });
@@ -2038,11 +2042,59 @@ router.get('/tokens/active', authenticate, async (req: Request, res: Response) =
   }
 });
 
+// Export sessions as CSV (Admin only)
+router.get('/admin/sessions/export', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+  try {
+    const { status, startDate, endDate, paymentVerified } = req.query;
+
+    const whereClause: any = {};
+    if (status && status !== 'all') {
+      whereClause.status = (status as string).toUpperCase() as any;
+    }
+    if (startDate || endDate) {
+      whereClause.startTime = {};
+      if (startDate) whereClause.startTime.gte = new Date(startDate as string);
+      if (endDate) whereClause.startTime.lte = new Date(endDate as string);
+    }
+    if (paymentVerified && paymentVerified !== 'all') {
+      whereClause.paymentVerified = paymentVerified === 'true';
+    }
+
+    const tokens = await prisma.token.findMany({
+      where: whereClause,
+      include: { customer: true, table: true },
+      orderBy: { issuedAt: 'desc' }
+    });
+
+    const headers = 'Token Number,Customer Name,Phone Number,Table,Status,Amount Paid,Guests,Start Time,End Time\n';
+    const rows = tokens.map(t => {
+      const tableStr = t.table ? t.table.tableNumber : 'N/A';
+      return `"${t.tokenNumber}","${t.customer.name.replace(/"/g, '""')}","${t.customer.phoneNumber}","${tableStr}","${t.status}","${t.amountPaid.toString()}","${t.personsCount}","${t.startTime.toISOString()}","${t.endTime.toISOString()}"`;
+    }).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="sessions_export.csv"');
+    return res.status(200).send(headers + rows);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
 // Get all sessions (Admin only)
 router.get('/admin/sessions', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
   try {
+    await tokenService.reconcileSystemState();
     const sessions = await prisma.token.findMany({
-      include: { customer: true, placeType: true, table: true, card: true },
+      include: { 
+        customer: true, 
+        placeType: true, 
+        table: true, 
+        card: true,
+        redemptions: { include: { bartender: true } },
+        extensions: { include: { approver: true } },
+        creator: true,
+        closer: true
+      },
       orderBy: { issuedAt: 'desc' },
     });
     
@@ -2071,7 +2123,32 @@ router.get('/admin/sessions', authenticate, authorize(['admin']), async (req: Re
         number: t.table.tableNumber,
         placeType: t.placeType.name,
         status: t.table.status.toUpperCase(),
-      } : null
+      } : null,
+      // Enhanced audit trail & history parameters
+      createdBy: t.creator?.fullName || t.issuedBy,
+      closedBy: t.closer?.fullName || t.closedBy || null,
+      closedAt: t.closedAt ? t.closedAt.toISOString() : null,
+      cancelledAt: t.cancelledAt ? t.cancelledAt.toISOString() : null,
+      cancelledBy: t.cancelledBy || null,
+      cancelReason: t.cancelReason || null,
+      customerId: t.customerId,
+      customerVisits: t.customer.totalVisits,
+      lastVisit: t.customer.lastVisit ? t.customer.lastVisit.toISOString() : null,
+      extensions: t.extensions.map((ext: any) => ({
+        id: ext.id,
+        extraMinutes: ext.extraMinutes,
+        additionalAmount: parseFloat(ext.additionalAmount.toString()),
+        approvedBy: ext.approver?.fullName || ext.approvedBy,
+        extendedAt: ext.extendedAt.toISOString(),
+        newEndTime: ext.newEndTime.toISOString()
+      })),
+      redemptions: t.redemptions.map((red: any) => ({
+        id: red.id,
+        redemptionSequence: red.redemptionSequence,
+        redeemedAt: red.redeemedAt.toISOString(),
+        bartenderName: red.bartender?.fullName || red.bartenderId,
+        notes: red.notes || null
+      }))
     }));
 
     return res.json(mapped);
@@ -3049,6 +3126,7 @@ function getDateRangeFromFilter(filter?: string, queryStart?: string, queryEnd?:
 // GET /reports/dashboard
 router.get('/reports/dashboard', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
   try {
+    await tokenService.reconcileSystemState();
     const { filter, startDate: qStart, endDate: qEnd } = req.query;
     const { startDate, endDate } = getDateRangeFromFilter(filter as string, qStart as string, qEnd as string);
 

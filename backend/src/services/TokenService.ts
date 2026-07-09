@@ -3,6 +3,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import redisService from './RedisService';
 import emailNotificationService from './EmailNotificationService';
 import jwt from 'jsonwebtoken';
+import { logStateTransition } from './AuditLogger';
 
 const TokenStatus = {
   PENDING_PAYMENT: 'PENDING_PAYMENT' as const,
@@ -421,6 +422,8 @@ export class TokenService {
         }
       });
 
+      logStateTransition(tokenNumber, token.status, newStatus, `extended by +${extraMinutes} mins`, approvedBy);
+
       // Log extension
       await tx.tokenExtension.create({
         data: {
@@ -448,8 +451,10 @@ export class TokenService {
     });
   }
 
-  async reconcileMaintenanceTables(): Promise<void> {
+  async reconcileSystemState(): Promise<void> {
     const now = new Date();
+
+    // 1. Reconcile maintenance tables
     const expiredTables = await prisma.table.findMany({
       where: {
         status: 'maintenance',
@@ -479,7 +484,7 @@ export class TokenService {
       await redisService.del('table:available:all');
     }
 
-    // Reconcile expired pending payment sessions (e.g. 20 minutes expiry)
+    // 2. Reconcile expired pending payment sessions (e.g. 20 minutes expiry)
     const expiryWindowMinutes = 20;
     const expiryTime = new Date(now.getTime() - expiryWindowMinutes * 60 * 1000);
     const expiredPendingTokens = await prisma.token.findMany({
@@ -502,6 +507,69 @@ export class TokenService {
         await redisService.del(`token:${t.tokenNumber}`);
       }
     }
+
+    // 3. Reconcile expired active/extended sessions
+    const expiredActiveTokens = await prisma.token.findMany({
+      where: {
+        status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED] },
+        endTime: { lte: now }
+      },
+      include: { card: true }
+    });
+
+    if (expiredActiveTokens.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        for (const token of expiredActiveTokens) {
+          const freshToken = await tx.token.findUnique({
+            where: { id: token.id }
+          });
+          if (freshToken && (freshToken.status === TokenStatus.ACTIVE || freshToken.status === TokenStatus.EXTENDED) && freshToken.endTime <= now) {
+            await tx.token.update({
+              where: { id: token.id },
+              data: {
+                status: TokenStatus.EXPIRED
+              }
+            });
+
+            logStateTransition(token.tokenNumber, token.status, TokenStatus.EXPIRED, 'chronological auto-expiration', 'system_reconciler');
+
+            if (token.tableId) {
+              await tx.table.update({
+                where: { id: token.tableId },
+                data: {
+                  status: 'available',
+                  currentTokenId: null,
+                  occupiedSince: null,
+                  maintenanceStart: null,
+                  maintenanceEnd: null
+                }
+              });
+
+              await tx.tableOccupancyLog.updateMany({
+                where: {
+                  tableId: token.tableId,
+                  tokenId: token.id,
+                  vacatedAt: null
+                },
+                data: { vacatedAt: now }
+              });
+
+              await redisService.del(`table:${token.tableId}:status`);
+            }
+
+            await redisService.del(`token:${token.tokenNumber}`);
+            if (token.card?.nfcUid) {
+              await redisService.del(`token:active:${token.card.nfcUid}`);
+            }
+          }
+        }
+      });
+      await redisService.del('table:available:all');
+    }
+  }
+
+  async reconcileMaintenanceTables(): Promise<void> {
+    await this.reconcileSystemState();
   }
 
   async closeSession(
@@ -583,6 +651,8 @@ export class TokenService {
           table: true
         }
       });
+
+      logStateTransition(tokenNumber, token.status, TokenStatus.CLOSED, `session closed: ${closeReason}`, closedBy);
 
       // Update table status
       if (token.tableId) {
@@ -958,6 +1028,8 @@ export class TokenService {
         }
       });
 
+      logStateTransition(tokenNumber, token.status, TokenStatus.ACTIVE, 'receptionist activation', activatedBy);
+
       // 4. Update table status to occupied
       await tx.table.update({
         where: { id: table.id },
@@ -1018,6 +1090,8 @@ export class TokenService {
           cancelReason: cancelReason
         }
       });
+
+      logStateTransition(tokenNumber, token.status, TokenStatus.CANCELLED, `cancelled: ${cancelReason}`, cancelledBy);
 
       // Invalidate cache
       await redisService.del(`token:${tokenNumber}`);

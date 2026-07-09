@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, ScrollView, 
-  Platform, StatusBar
+  Platform, StatusBar, BackHandler, Alert, Animated, Easing
 } from 'react-native';
+import { AnimatedToast } from '../../components/common/AnimatedToast';
+import { AlertModal } from '../../components/common/AlertModal';
+import { EmptyState } from '../../components/common/EmptyState';
+import { ANIMATIONS } from '../../theme/animations';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../context/NfcBarContext';
 import { UserRole } from '../../types/nfc_bar';
@@ -20,7 +24,7 @@ import { useResponsive } from '../../utils/responsive';
 
 export const MainAppShell: React.FC = () => {
   const { colors, isDark } = useTheme();
-  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, fetchLatestState } = useNfcBar();
+  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, fetchLatestState, showToast } = useNfcBar();
   const { isTablet, isLargeScreen } = useResponsive();
   const isCentered = isTablet || isLargeScreen;
   
@@ -35,6 +39,71 @@ export const MainAppShell: React.FC = () => {
     }
   }, [activeTab, currentScreen, user]);
   
+  const lastBackPressTime = React.useRef<number>(0);
+  const isTransitioning = React.useRef<boolean>(false);
+
+  // Android hardware back button handler
+  React.useEffect(() => {
+    const handleBackPress = () => {
+      if (isTransitioning.current) return true; // Throttling rapid presses
+
+      // 1. Close Notifications if open
+      if (isNotifsOpen) {
+        setIsNotifsOpen(false);
+        return true;
+      }
+
+      // 2. Close Return Card Modal if open
+      if (isReturnModalOpen) {
+        setIsReturnModalOpen(false);
+        return true;
+      }
+
+      // 3. Handle non-default tab redirection dynamically based on role
+      if (currentScreen === 'app' && user) {
+        let defaultTab: 'checkin' | 'bartender' | 'tables' | 'admin' = 'checkin';
+        if (user.role === UserRole.BARTENDER) {
+          defaultTab = 'bartender';
+        } else if (user.role === UserRole.MANAGER) {
+          defaultTab = 'tables';
+        }
+
+        if (activeTab !== defaultTab) {
+          isTransitioning.current = true;
+          setTab(defaultTab);
+          setTimeout(() => {
+            isTransitioning.current = false;
+          }, 350); // Throttle lock during animation
+          return true;
+        }
+      }
+
+      // 4. Handle exit on root screen (login or default tab)
+      if (currentScreen === 'login' || currentScreen === 'app') {
+        const now = Date.now();
+        if (now - lastBackPressTime.current < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
+        lastBackPressTime.current = now;
+        showToast('Press back again to exit', 'info');
+        return true;
+      }
+
+      return false;
+    };
+
+    let subscription: any;
+    if (Platform.OS === 'android') {
+      subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    }
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
+  }, [currentScreen, activeTab, isNotifsOpen, isReturnModalOpen, user]);
+
   // safe area offsets
   const insets = useSafeAreaInsets();
 
@@ -154,77 +223,32 @@ export const MainAppShell: React.FC = () => {
         className="absolute top-20 z-[9999] gap-2 self-center"
         style={isCentered ? { width: '90%', maxWidth: 380 } : { left: 16, right: 16 }}
       >
-        {toasts.map(toast => {
-          let bg = colors.card;
-          let border = colors.border;
-          let textCol = colors.text;
-          
-          if (toast.type === 'success') {
-            bg = isDark ? '#064e3b' : '#ecfdf5';
-            border = isDark ? '#059669' : '#10b981';
-            textCol = isDark ? '#34d399' : '#047857';
-          } else if (toast.type === 'warning') {
-            bg = isDark ? '#78350f' : '#fffbeb';
-            border = isDark ? '#d97706' : '#f59e0b';
-            textCol = isDark ? '#fbbf24' : '#b45309';
-          } else if (toast.type === 'danger') {
-            bg = isDark ? '#7f1d1d' : '#fef2f2';
-            border = isDark ? '#dc2626' : '#ef4444';
-            textCol = isDark ? '#f87171' : '#b91c1c';
-          } else if (toast.type === 'info') {
-            bg = isDark ? '#1e3a8a' : '#eff6ff';
-            border = isDark ? '#3b82f6' : '#60a5fa';
-            textCol = isDark ? '#93c5fd' : '#1d4ed8';
-          }
-
-          return (
-            <View 
-              key={toast.id} 
-              className="py-3.5 px-5 rounded-2xl border"
-              style={{ 
-                backgroundColor: bg,
-                borderColor: border,
-                borderWidth: 1.5,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 10,
-                elevation: 8,
-              }}
-            >
-              <Text className="text-[13px] font-bold text-center leading-5" style={{ color: textCol }}>
-                {toast.message}
-              </Text>
-            </View>
-          );
-        })}
+        {toasts.map(toast => (
+          <AnimatedToast
+            key={toast.id}
+            id={toast.id}
+            message={toast.message}
+            type={toast.type}
+            onDismiss={() => {}}
+          />
+        ))}
       </View>
 
-      {/* NOTIFICATIONS MODAL PANEL */}
-      {isNotifsOpen && (
-        <View className="absolute inset-0 z-50 justify-end" style={isCentered ? { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.overlay } : { backgroundColor: colors.overlay }}>
-          <View 
-            className={`border p-4 ${isCentered ? 'rounded-[24px]' : 'rounded-t-[20px]'}`}
-            style={[
-              { 
-                paddingBottom: insets.bottom + 16,
-                backgroundColor: colors.modal,
-                borderColor: colors.border,
-                borderWidth: 1,
-              },
-              isCentered 
-                ? { width: '90%', maxWidth: 420, height: 500 }
-                : { width: '100%', height: 480 + insets.bottom }
-            ]}
-          >
-            <View className="flex-row justify-between items-center pb-3 mb-4 border-b" style={{ borderBottomColor: colors.divider }}>
-              <Text className="text-base font-bold" style={{ color: colors.text }}>Notifications Log</Text>
-              <TouchableOpacity onPress={() => setIsNotifsOpen(false)} className="w-11 h-11 rounded-full justify-center items-center" style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1 }}>
-                <AppIcon name="x" label="Dismiss" color={colors.muted} size={18} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      {/* NOTIFICATIONS LOG DIALOG OVERLAY */}
+      <AlertModal
+        visible={isNotifsOpen}
+        onClose={() => setIsNotifsOpen(false)}
+        title="Notifications Log"
+      >
+        <View style={{ maxHeight: 380 }}>
+          {notifications.length === 0 ? (
+            <EmptyState 
+              icon="info" 
+              title="No Notifications" 
+              description="Your notifications log is currently empty." 
+            />
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>
               {notifications.map(notif => (
                 <View key={notif.id} className="flex-row justify-between items-start py-3 border-b" style={{ borderBottomColor: colors.divider }}>
                   <View className="flex-grow flex-1 mr-4">
@@ -235,16 +259,20 @@ export const MainAppShell: React.FC = () => {
                 </View>
               ))}
             </ScrollView>
-            
-            {/* Logout button at bottom of notifications */}
-            {user && (
-              <TouchableOpacity className="bg-red/10 border border-red py-[15px] rounded-xl items-center mt-3 justify-center" onPress={() => { setIsNotifsOpen(false); logout(); }}>
-                <Text className="font-bold text-sm" style={{ color: colors.red }}>Log Out Session</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          )}
+          
+          {/* Logout button at bottom of notifications */}
+          {user && (
+            <TouchableOpacity 
+              className="bg-red/10 border border-red py-[15px] rounded-xl items-center mt-3 justify-center" 
+              style={{ borderColor: colors.red }}
+              onPress={() => { setIsNotifsOpen(false); logout(); }}
+            >
+              <Text className="font-bold text-sm" style={{ color: colors.red }}>Log Out Session</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      )}
+      </AlertModal>
 
       {/* FLOATING RETURN CARD WORKFLOW SHEET */}
       {isReturnModalOpen && (
