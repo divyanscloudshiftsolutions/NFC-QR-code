@@ -9,6 +9,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { AlertModal } from '../../../components/common/AlertModal';
 import { SkeletonLoader } from '../../../components/common/SkeletonLoader';
 import { useActionProgress } from '../../../utils/actionProgress';
+import { EmptyState } from '../../../components/common/EmptyState';
 
 export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
   const { colors, isDark } = useTheme();
@@ -748,9 +749,12 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       {adminSubTab === 'tables' && (
         <ScrollView className="flex-grow" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-[11px] font-bold text-muted uppercase tracking-wider">Tables Seating Manager</Text>
+            <View className="flex-row items-center gap-2">
+              <Text style={{ fontSize: 16 }}>📊</Text>
+              <Text className="text-[11px] font-bold text-muted uppercase tracking-wider">Tables Seating Manager</Text>
+            </View>
             <TouchableOpacity 
-              className="bg-gold px-3 py-1.5 rounded-lg flex-row items-center gap-1"
+              style={{ backgroundColor: colors.gold, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5, borderColor: colors.gold }}
               onPress={() => {
                 setNewTableNumber('');
                 setNewCapacity('2');
@@ -758,57 +762,117 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 setIsAddModalOpen(true);
               }}
             >
-              <Text className="text-themeBg text-[10px] font-extrabold">+ Add Table</Text>
+              <Text style={{ color: colors.goldButtonText, fontSize: 10, fontWeight: 'bold' }}>+ Add Table</Text>
             </TouchableOpacity>
           </View>
 
           {isTabLoading ? (
             <SkeletonLoader type="list-item" count={3} />
+          ) : tables.length === 0 ? (
+            <EmptyState 
+              icon="info" 
+              title="No Seating Tables" 
+              description="Click '+ Add Table' to add your first seating table." 
+            />
           ) : (
             tables.map(table => {
               const isOccupied = table.status === TableStatus.OCCUPIED || table.occupiedSeats > 0;
               let statusColor = colors.success;
-              if (table.status === TableStatus.MAINTENANCE) statusColor = colors.muted;
-              else if (table.status === TableStatus.RESERVED) statusColor = '#3b82f6';
+              if (table.status === TableStatus.MAINTENANCE) statusColor = colors.red;
+              else if (table.status === TableStatus.RESERVED) statusColor = '#3B82F6';
               else if (isOccupied) statusColor = colors.gold;
 
               return (
-                <View key={table.id} className="bg-transparent border border-transparent rounded-xl p-3.5 mb-2.5">
-                  <View className="flex-row justify-between items-center mb-2">
-                    <View>
-                      <Text className="text-themeText font-mono font-bold text-sm" style={{ color: colors.text }}>Table {table.number}</Text>
-                      <Text className="text-muted text-[10px] uppercase font-bold mt-0.5">
-                        {table.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : 'Standing Bar'} • Capacity: {table.seats} Pax
-                      </Text>
+                <View 
+                  key={table.id} 
+                  className="rounded-xl p-3.5 mb-2.5 border"
+                  style={{ 
+                    backgroundColor: colors.card, 
+                    borderColor: colors.border, 
+                    borderWidth: 1.5
+                  }}
+                >
+                  <View className="flex-row justify-between items-start mb-3">
+                    <View className="flex-row items-center gap-2.5">
+                      <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.12)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.gold }}>
+                        <Text style={{ fontSize: 14 }}>{table.placeType === 'PREMIUM_LOUNGE' ? '🛋️' : '🍺'}</Text>
+                      </View>
+                      <View>
+                        <Text className="font-bold text-sm" style={{ color: colors.text }}>Table {table.number}</Text>
+                        <Text className="text-[10px] mt-0.5" style={{ color: colors.muted }}>
+                          {table.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : 'Standing Bar'} • Capacity: {table.seats} Pax
+                        </Text>
+                      </View>
                     </View>
-                    <View className="items-end">
-                      <Text className="font-extrabold text-[10px] uppercase" style={{ color: statusColor }}>{isOccupied ? 'occupied' : table.status}</Text>
+                    <View style={{ backgroundColor: isOccupied ? 'rgba(245, 166, 35, 0.12)' : (table.status === TableStatus.AVAILABLE ? 'rgba(34, 197, 94, 0.12)' : (table.status === TableStatus.RESERVED ? 'rgba(59, 130, 246, 0.12)' : 'rgba(239, 68, 68, 0.12)')), paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: isOccupied ? 'rgba(245, 166, 35, 0.25)' : (table.status === TableStatus.AVAILABLE ? 'rgba(34, 197, 94, 0.25)' : (table.status === TableStatus.RESERVED ? 'rgba(59, 130, 246, 0.25)' : 'rgba(239, 68, 68, 0.25)')) }}>
+                      <Text style={{ color: statusColor, fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isOccupied ? 'occupied' : table.status}</Text>
                     </View>
                   </View>
 
                   {/* Status Toggles & Actions */}
-                  <View className="flex-row justify-between items-center mt-2 border-t border-transparent pt-2">
+                  <View className="flex-row justify-between items-center mt-2 border-t pt-2" style={{ borderColor: colors.divider, borderTopWidth: 1 }}>
                     <View className="flex-row gap-1.5">
                       {!isOccupied ? (
                         <>
                           <TouchableOpacity
-                            className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.AVAILABLE ? colors.success : colors.border, backgroundColor: table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'available')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.AVAILABLE ? colors.success : colors.muted }}>Available</Text>
+                            style={{ 
+                              paddingHorizontal: 8, 
+                              paddingVertical: 4, 
+                              borderRadius: 6, 
+                              borderWidth: 1.5, 
+                              borderColor: table.status === TableStatus.AVAILABLE ? colors.success : colors.border, 
+                              backgroundColor: table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4') : colors.secondarySurface 
+                            }}
+                            onPress={() => updateTableStatus(table.id, 'available')}
+                          >
+                            <Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.AVAILABLE ? colors.success : colors.muted }}>Available</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.RESERVED ? '#3b82f6' : colors.border, backgroundColor: table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'reserved')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.RESERVED ? '#3b82f6' : colors.muted }}>Reserve</Text>
+                            style={{ 
+                              paddingHorizontal: 8, 
+                              paddingVertical: 4, 
+                              borderRadius: 6, 
+                              borderWidth: 1.5, 
+                              borderColor: table.status === TableStatus.RESERVED ? '#3B82F6' : colors.border, 
+                              backgroundColor: table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.12)' : '#EFF6FF') : colors.secondarySurface 
+                            }}
+                            onPress={() => updateTableStatus(table.id, 'reserved')}
+                          >
+                            <Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.RESERVED ? '#3B82F6' : colors.muted }}>Reserve</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            className="px-2 py-1 rounded border" style={{ borderColor: table.status === TableStatus.MAINTENANCE ? colors.muted : colors.border, backgroundColor: table.status === TableStatus.MAINTENANCE ? (isDark ? 'rgba(142,142,147,0.1)' : 'rgba(142,142,147,0.05)') : colors.input }} onPress={() => updateTableStatus(table.id, 'maintenance')}><Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.MAINTENANCE ? colors.red : colors.muted }}>Maint</Text>
+                            style={{ 
+                              paddingHorizontal: 8, 
+                              paddingVertical: 4, 
+                              borderRadius: 6, 
+                              borderWidth: 1.5, 
+                              borderColor: table.status === TableStatus.MAINTENANCE ? colors.red : colors.border, 
+                              backgroundColor: table.status === TableStatus.MAINTENANCE ? (isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2') : colors.secondarySurface 
+                            }}
+                            onPress={() => updateTableStatus(table.id, 'maintenance')}
+                          >
+                            <Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.MAINTENANCE ? colors.red : colors.muted }}>Maint</Text>
                           </TouchableOpacity>
                         </>
                       ) : (
-                        <Text className="text-muted text-[9px] font-semibold italic">Locked (Occupied)</Text>
+                        <View className="flex-row items-center gap-1">
+                          <Text style={{ fontSize: 10 }}>🔒</Text>
+                          <Text style={{ color: colors.gold, fontSize: 9, fontWeight: 'bold', fontStyle: 'italic' }}>Locked (Occupied)</Text>
+                        </View>
                       )}
                     </View>
 
-                    <View className="flex-row gap-2">
+                    <View className="flex-row gap-1.5">
                       <TouchableOpacity
-                        className={`px-2.5 py-1 rounded bg-transparent border border-transparent ${isOccupied ? 'opacity-50' : ''}`}
+                        style={{ 
+                          paddingHorizontal: 10, 
+                          paddingVertical: 5, 
+                          borderRadius: 6, 
+                          borderWidth: 1.5, 
+                          borderColor: colors.border, 
+                          backgroundColor: colors.secondarySurface, 
+                          opacity: isOccupied ? 0.5 : 1 
+                        }}
                         disabled={isOccupied}
                         onPress={() => {
                           if (isOccupied) {
@@ -820,10 +884,18 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                           setIsEditModalOpen(true);
                         }}
                       >
-                        <Text className="text-themeText text-[9px] font-bold" style={{ color: colors.text }}>Edit</Text>
+                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.text }}>Edit</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        className={`px-2.5 py-1 rounded bg-red/10 border border-red/20 ${isOccupied ? 'opacity-50' : ''}`}
+                        style={{ 
+                          paddingHorizontal: 10, 
+                          paddingVertical: 5, 
+                          borderRadius: 6, 
+                          borderWidth: 1.5, 
+                          borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5', 
+                          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', 
+                          opacity: isOccupied ? 0.5 : 1 
+                        }}
                         disabled={isOccupied}
                         onPress={() => {
                           if (isOccupied) {
@@ -833,7 +905,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                           deleteTable(table.id);
                         }}
                       >
-                        <Text className="text-[9px] font-bold" style={{ color: 'colors.red' }}>Delete</Text>
+                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.red }}>Delete</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1573,6 +1645,8 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                       badgeStyle = { bg: 'rgba(139, 92, 246, 0.08)', border: 'rgba(139, 92, 246, 0.25)', text: '#8B5CF6', accentText: '#8B5CF6' };
                     }
 
+                    const initials = session.customerName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
                     return (
                       <View 
                         key={session.id} 
@@ -1587,12 +1661,17 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                       >
                         {/* Header */}
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <View style={{ flex: 1, paddingRight: 8 }}>
-                            <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 13 }} numberOfLines={1}>{session.customerName}</Text>
-                            <Text style={{ color: colors.muted, fontSize: 9, marginTop: 2 }}>{session.phoneNumber}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 8 }}>
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.15)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: colors.gold }}>
+                              <Text style={{ color: colors.gold, fontSize: 11, fontWeight: 'bold' }}>{initials}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 13 }} numberOfLines={1}>{session.customerName}</Text>
+                              <Text style={{ color: colors.muted, fontSize: 9.5, marginTop: 1.5 }}>📞 {session.phoneNumber}</Text>
+                            </View>
                           </View>
-                          <View style={{ backgroundColor: badgeStyle.bg, borderColor: badgeStyle.border, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
-                            <Text style={{ color: badgeStyle.text, fontSize: 8.5, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>{session.status.replace('_', ' ')}</Text>
+                          <View style={{ backgroundColor: badgeStyle.bg, borderColor: badgeStyle.border, borderWidth: 1.5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                            <Text style={{ color: badgeStyle.text, fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>{session.status.replace('_', ' ')}</Text>
                           </View>
                         </View>
 
@@ -1621,7 +1700,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                           <View style={{ flex: 1 }}>
                             {session.status !== TokenStatus.CLOSED && session.status !== TokenStatus.CANCELLED ? (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={{ color: colors.muted, fontSize: 9 }}>
+                                <Text style={{ color: colors.muted, fontSize: 9, fontWeight: '600' }}>
                                   Drinks: {session.redemptionCount}/{session.redemptionLimit}
                                 </Text>
                                 {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
@@ -1631,15 +1710,24 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                                 )}
                               </View>
                             ) : (
-                              <Text style={{ color: colors.muted, fontSize: 9 }}>
-                                Drinks served: {session.redemptionCount} total
+                              <Text style={{ color: colors.muted, fontSize: 9, fontWeight: '600' }}>
+                                Served: {session.redemptionCount} drinks
                               </Text>
                             )}
                           </View>
                           
                           <View style={{ flexDirection: 'row', gap: 6 }}>
                             <TouchableOpacity
-                              style={{ backgroundColor: colors.secondaryButtonBg, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: 'center' }}
+                              style={{ 
+                                backgroundColor: colors.secondarySurface, 
+                                borderWidth: 1.5, 
+                                borderColor: colors.border, 
+                                paddingHorizontal: 10, 
+                                paddingVertical: 5, 
+                                borderRadius: 8, 
+                                justifyContent: 'center',
+                                alignItems: 'center' 
+                              }}
                               onPress={() => setSelectedDetailsSession(session)}
                             >
                               <Text style={{ color: colors.text, fontSize: 9, fontWeight: 'bold' }}>View Details</Text>
@@ -1649,7 +1737,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                               <View style={{ flexDirection: 'row', gap: 6 }}>
                                 {(session.status === TokenStatus.ACTIVE || session.status === TokenStatus.EXTENDED || session.status === TokenStatus.EXPIRED) && (
                                   <TouchableOpacity
-                                    style={{ backgroundColor: 'rgba(245, 166, 35, 0.08)', borderWidth: 1.5, borderColor: 'rgba(245, 166, 35, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: 'center' }}
+                                    style={{ 
+                                      backgroundColor: isDark ? 'rgba(245, 166, 35, 0.12)' : '#FEF3C7', 
+                                      borderWidth: 1.5, 
+                                      borderColor: 'rgba(245, 166, 35, 0.35)', 
+                                      paddingHorizontal: 10, 
+                                      paddingVertical: 5, 
+                                      borderRadius: 8, 
+                                      justifyContent: 'center',
+                                      alignItems: 'center' 
+                                    }}
                                     onPress={() => {
                                       setSelectedAdminSession(session);
                                       setIsAdminExtendModalOpen(true);
@@ -1659,7 +1756,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                                   </TouchableOpacity>
                                 )}
                                 <TouchableOpacity
-                                  style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderWidth: 1.5, borderColor: 'rgba(239, 68, 68, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: 'center' }}
+                                  style={{ 
+                                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', 
+                                    borderWidth: 1.5, 
+                                    borderColor: 'rgba(239, 68, 68, 0.35)', 
+                                    paddingHorizontal: 10, 
+                                    paddingVertical: 5, 
+                                    borderRadius: 8, 
+                                    justifyContent: 'center',
+                                    alignItems: 'center' 
+                                  }}
                                   onPress={() => {
                                     setDeactivateTargetSession({
                                       tokenNumber: session.tokenNumber,
