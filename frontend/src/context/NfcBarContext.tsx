@@ -35,6 +35,10 @@ interface NfcBarContextType {
   isOverlayActive: boolean;
   setOverlayActive: (active: boolean) => void;
 
+  // Swipe gesture lock to prevent horizontal scroll conflicts
+  swipeLocked: boolean;
+  setSwipeLocked: (locked: boolean) => void;
+
   preselectedTableNumber: string | null;
   setPreselectedTableNumber: (tableNumber: string | null) => void;
 
@@ -169,6 +173,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [activeReturnCardStep, setReturnCardStep] = useState<'idle' | 'scanning' | 'summary' | 'success'>('idle');
   const [activeReturnCardUid, setReturnCardUid] = useState<string | null>(null);
   const [isOverlayActive, setOverlayActive] = useState(false);
+  const [swipeLocked, setSwipeLocked] = useState(false);
   const [preselectedTableNumber, setPreselectedTableNumber] = useState<string | null>(null);
   const [notifiedTokens, setNotifiedTokens] = useState<string[]>([]);
 
@@ -2070,6 +2075,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       tables, sessions, adminSessions, users, cards, rates, systemMode, pendingSyncCount, lastSyncTime, tokenType,
       nfcEnabled, emailQrEnabled,
       activeReturnCardStep, activeReturnCardUid, isOverlayActive, setOverlayActive,
+      swipeLocked, setSwipeLocked,
       preselectedTableNumber, setPreselectedTableNumber,
       salesSummary, tableUtilization, hourlyBreakdown,
       login, logout, setTab, showToast, triggerNotification, markNotificationsAsRead,

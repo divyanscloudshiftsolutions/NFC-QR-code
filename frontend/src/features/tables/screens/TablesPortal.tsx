@@ -14,7 +14,7 @@ import { AlertModal } from '../../../components/common/AlertModal';
 import { useActionProgress } from '../../../utils/actionProgress';
 
 export const TablesPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
-  const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab, rates } = useNfcBar();
+  const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab, rates, setSwipeLocked } = useNfcBar();
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -475,7 +475,14 @@ export const TablesPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true
       </View>
 
       {/* Filters Pills Row */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 mb-3">
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        className="max-h-12 mb-3"
+        onTouchStart={() => setSwipeLocked(true)}
+        onTouchEnd={() => setSwipeLocked(false)}
+        onTouchCancel={() => setSwipeLocked(false)}
+      >
         {['all', 'available', 'occupied', 'expiring'].map(f => (
           <TouchableOpacity
             key={f}

@@ -24,7 +24,7 @@ import { useResponsive } from '../../utils/responsive';
 
 export const MainAppShell: React.FC = () => {
   const { colors, isDark } = useTheme();
-  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, fetchLatestState, showToast } = useNfcBar();
+  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, swipeLocked, fetchLatestState, showToast } = useNfcBar();
   const { isTablet, isLargeScreen } = useResponsive();
   const isCentered = isTablet || isLargeScreen;
   const { width } = useWindowDimensions();
@@ -244,7 +244,7 @@ export const MainAppShell: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               bounces={false}
               onMomentumScrollEnd={handleScrollEnd}
-              scrollEnabled={allowedTabs.length > 1 && !isOverlayActive && !isReturnModalOpen && !isNotifsOpen}
+              scrollEnabled={allowedTabs.length > 1 && !isOverlayActive && !isReturnModalOpen && !isNotifsOpen && !swipeLocked}
               contentContainerStyle={{ width: width * allowedTabs.length }}
             >
               {allowedTabs.map((tab) => {

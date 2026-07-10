@@ -19,7 +19,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard, fetchUsers,
     salesSummary, tableUtilization, hourlyBreakdown, fetchReports, showToast,
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
-    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive
+    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive, setSwipeLocked
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('live');
   const [isTabLoading, setIsTabLoading] = useState(false);
@@ -313,6 +313,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 10, paddingVertical: 2, paddingHorizontal: 2 }}
           style={{ flexGrow: 0, marginVertical: 4 }}
+          onTouchStart={() => setSwipeLocked(true)}
+          onTouchEnd={() => setSwipeLocked(false)}
+          onTouchCancel={() => setSwipeLocked(false)}
         >
           {/* Card 1: Revenue */}
           <View style={{ width: 145, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 14, justifyContent: 'center' }}>
@@ -362,6 +365,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 6, paddingRight: 8 }}
             style={{ flex: 1 }}
+            onTouchStart={() => setSwipeLocked(true)}
+            onTouchEnd={() => setSwipeLocked(false)}
+            onTouchCancel={() => setSwipeLocked(false)}
           >
             {[
               { tab: 'live', label: 'Tokens', icon: '📱' },
@@ -1086,7 +1092,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               {/* SVG Bar Chart section */}
               <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Hourly Redemption Frequency</Text>
               <View className="bg-transparent border border-transparent rounded-2xl p-4 mb-4">
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-3">
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false} 
+                  className="flex-row mb-3"
+                  onTouchStart={() => setSwipeLocked(true)}
+                  onTouchEnd={() => setSwipeLocked(false)}
+                  onTouchCancel={() => setSwipeLocked(false)}
+                >
                   <View className="flex-row items-end h-40 pb-3 border-b" style={{ gap: 8, paddingHorizontal: 5, borderBottomColor: colors.chartGrid }}>
                     {(() => {
                       const displayHours = hourlyBreakdown?.hourlyData || [];
@@ -1518,6 +1531,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             showsHorizontalScrollIndicator={false} 
             style={{ flexGrow: 0, marginBottom: 12 }}
             contentContainerStyle={{ gap: 6, paddingVertical: 2 }}
+            onTouchStart={() => setSwipeLocked(true)}
+            onTouchEnd={() => setSwipeLocked(false)}
+            onTouchCancel={() => setSwipeLocked(false)}
           >
             {(['all', 'active', 'extended', 'expired', 'pending_payment', 'closed', 'cancelled'] as const).map((statusVal) => {
               const isActive = customerStatusFilter === statusVal;
@@ -1545,7 +1561,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           {/* Sort Selector */}
           <View style={{ marginBottom: 12 }}>
             <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 6, paddingLeft: 2 }}>Sort By:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={{ gap: 6, paddingVertical: 2 }}
+              onTouchStart={() => setSwipeLocked(true)}
+              onTouchEnd={() => setSwipeLocked(false)}
+              onTouchCancel={() => setSwipeLocked(false)}
+            >
               {([
                 { value: 'latest_first', label: 'Latest First' },
                 { value: 'oldest_first', label: 'Oldest First' },
