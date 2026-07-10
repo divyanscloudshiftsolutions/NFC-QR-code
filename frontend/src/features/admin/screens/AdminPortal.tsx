@@ -521,9 +521,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 12 }}>
             {[
               { label: 'Total', filterVal: 'all' as const, count: cards.length, color: colors.text },
-              { label: 'Available', filterVal: 'available' as const, count: cards.filter(c => c.status.toLowerCase() === 'available').length, color: 'colors.success' },
-              { label: 'Assigned', filterVal: 'assigned' as const, count: cards.filter(c => c.status.toLowerCase() === 'assigned').length, color: 'colors.gold' },
-              { label: 'Lost', filterVal: 'lost' as const, count: cards.filter(c => c.status.toLowerCase() === 'lost').length, color: 'colors.red' },
+              { label: 'Available', filterVal: 'available' as const, count: cards.filter(c => c.status.toLowerCase() === 'available').length, color: colors.success },
+              { label: 'Assigned', filterVal: 'assigned' as const, count: cards.filter(c => c.status.toLowerCase() === 'assigned').length, color: colors.gold },
+              { label: 'Lost', filterVal: 'lost' as const, count: cards.filter(c => c.status.toLowerCase() === 'lost').length, color: colors.red },
               { label: 'Damaged', filterVal: 'damaged' as const, count: cards.filter(c => c.status.toLowerCase() === 'damaged').length, color: colors.muted },
               { label: 'Inactive', filterVal: 'inactive' as const, count: cards.filter(c => c.status.toLowerCase() === 'inactive').length, color: '#a78bfa' },
             ].map((stat) => {
@@ -532,8 +532,8 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 <View key={stat.label} style={{ width: '33.33%', padding: 4 }}>
                   <TouchableOpacity
                     style={{
-                      backgroundColor: isActive ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)') : colors.card,
-                      borderWidth: 1,
+                      backgroundColor: isActive ? (isDark ? 'rgba(245, 166, 35, 0.12)' : 'rgba(212, 175, 55, 0.12)') : colors.card,
+                      borderWidth: 1.5,
                       borderColor: isActive ? colors.gold : colors.border,
                       paddingVertical: 10,
                       borderRadius: 12,
@@ -564,9 +564,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
               if (filteredCards.length === 0) {
                 return (
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 20, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: colors.text, fontSize: 12, textAlign: 'center' }}>No cards match current criteria</Text>
-                  </View>
+                  <EmptyState 
+                    icon="info" 
+                    title="No Matching Cards" 
+                    description="No NFC cards found matching the selected filter." 
+                  />
                 );
               }
 
@@ -588,13 +590,13 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
                     return (
                       <View key={card.id} style={{ width: '50%', padding: 5 }}>
-                        <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, minHeight: 144, justifyContent: 'space-between' }}>
+                        <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, padding: 12, minHeight: 144, justifyContent: 'space-between' }}>
                           {/* Header */}
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}>
+                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.15)' : '#FEF3C7', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.gold }}>
                               <Text style={{ fontSize: 11 }}>💳</Text>
                             </View>
-                            <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: badgeStyle.borderColor, backgroundColor: badgeStyle.backgroundColor }}>
+                            <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1.5, borderColor: badgeStyle.borderColor, backgroundColor: badgeStyle.backgroundColor }}>
                               <Text style={{ fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', color: badgeStyle.color }}>{card.status}</Text>
                             </View>
                           </View>
@@ -602,68 +604,68 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                           {/* Info */}
                           <View style={{ marginVertical: 8 }}>
                             <Text style={{ color: colors.text, fontFamily: 'monospace', fontWeight: 'bold', fontSize: 11 }} numberOfLines={1} ellipsizeMode="middle">{card.cardUid}</Text>
-                            <Text style={{ color: colors.text, fontSize: 8, marginTop: 2 }}>
-                              Writes: {card.writeCycles}
+                            <Text style={{ color: colors.muted, fontSize: 8.5, marginTop: 2 }}>
+                              Writes: <Text style={{ color: colors.text, fontWeight: 'bold' }}>{card.writeCycles}</Text>
                             </Text>
                           </View>
 
                           {/* Actions */}
-                          <View style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 6 }}>
+                          <View style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 8 }}>
                             <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
                               {isAvailable && (
                                 <>
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.input, borderWidth: 1, borderColor: colors.border }}
+                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border }}
                                     onPress={() => updateCardStatus(card.cardUid, 'inactive')}
                                   >
-                                    <Text className="text-[#a78bfa] text-[8px] font-bold">Deact</Text>
+                                    <Text style={{ color: '#A78BFA', fontSize: 8.5, fontWeight: 'bold' }}>Deact</Text>
                                   </TouchableOpacity>
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(230,57,70,0.1)', borderWidth: 1, borderColor: 'rgba(230,57,70,0.2)' }}
+                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
                                     onPress={() => updateCardStatus(card.cardUid, 'lost')}
                                   >
-                                    <Text className="text-red text-[8px] font-bold">Lost</Text>
+                                    <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
                                   </TouchableOpacity>
                                 </>
                               )}
                               {isAssigned && (
                                 <>
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(230,57,70,0.1)', borderWidth: 1, borderColor: 'rgba(230,57,70,0.2)' }}
+                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
                                     onPress={() => updateCardStatus(card.cardUid, 'lost')}
                                   >
-                                    <Text className="text-red text-[8px] font-bold">Lost</Text>
+                                    <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
                                   </TouchableOpacity>
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.input, borderWidth: 1, borderColor: colors.border }}
+                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border }}
                                     onPress={() => updateCardStatus(card.cardUid, 'damaged')}
                                   >
-                                    <Text style={{ color: colors.text, fontSize: 8, fontWeight: 'bold' }}>Dmg</Text>
+                                    <Text style={{ color: colors.text, fontSize: 8.5, fontWeight: 'bold' }}>Dmg</Text>
                                   </TouchableOpacity>
                                 </>
                               )}
                               {isInactive && (
                                 <>
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(34,197,94,0.1)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.2)' }}
+                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
                                     onPress={() => updateCardStatus(card.cardUid, 'available')}
                                   >
-                                    <Text className="text-[8px] font-bold" style={{ color: colors.success }}>Activ</Text>
+                                    <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Activ</Text>
                                   </TouchableOpacity>
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(230,57,70,0.1)', borderWidth: 1, borderColor: 'rgba(230,57,70,0.2)' }}
+                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
                                     onPress={() => updateCardStatus(card.cardUid, 'lost')}
                                   >
-                                    <Text className="text-red text-[8px] font-bold">Lost</Text>
+                                    <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
                                   </TouchableOpacity>
                                 </>
                               )}
                               {(isLost || isDamaged) && (
                                 <TouchableOpacity
-                                  style={{ paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(34,197,94,0.1)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.2)' }}
+                                  style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
                                   onPress={() => updateCardStatus(card.cardUid, 'available')}
                                 >
-                                  <Text className="text-[8px] font-bold" style={{ color: colors.success }}>Available</Text>
+                                  <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Available</Text>
                                 </TouchableOpacity>
                               )}
                             </View>
@@ -683,28 +685,50 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       {adminSubTab === 'rates' && (
         <ScrollView className="flex-grow" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-[11px] font-bold text-muted uppercase tracking-wider">Rate Card Management</Text>
+            <View className="flex-row items-center gap-2">
+              <Text style={{ fontSize: 16 }}>💰</Text>
+              <Text className="text-[11px] font-bold text-muted uppercase tracking-wider">Rate Card Management</Text>
+            </View>
             <TouchableOpacity 
-              className="bg-themeInput border border-transparent px-2.5 py-1.5 rounded-lg"
+              style={{ backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
               onPress={() => fetchRates()}
             >
-              <AppIcon name="refresh" label="Refresh" size={10} color="colors.gold" />
+              <AppIcon name="refresh" label="Refresh" size={12} color={colors.gold} />
             </TouchableOpacity>
           </View>
 
           {isTabLoading ? (
             <SkeletonLoader type="list-item" count={3} />
+          ) : rates.length === 0 ? (
+            <EmptyState 
+              icon="info" 
+              title="No Rate Cards" 
+              description="No rate cards configured in the system." 
+            />
           ) : (
             rates.map(rate => (
-              <View key={rate.id || rate.placeType} className="bg-transparent border border-transparent rounded-xl p-3.5 mb-2.5">
-                <View className="flex-row justify-between items-center mb-2">
-                  <View>
-                    <Text className="text-themeText font-bold text-sm" style={{ color: colors.text }}>
-                      {rate.placeType === 'STANDING_BAR' ? 'Standing Bar' : (rate.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : rate.placeType)}
-                    </Text>
-                    <Text className="text-muted text-[10px] font-mono mt-0.5">
-                      Zone Key: {rate.placeType}
-                    </Text>
+              <View 
+                key={rate.id || rate.placeType} 
+                className="rounded-xl p-3.5 mb-2.5 border"
+                style={{ 
+                  backgroundColor: colors.card, 
+                  borderColor: colors.border, 
+                  borderWidth: 1.5
+                }}
+              >
+                <View className="flex-row justify-between items-start mb-3">
+                  <View className="flex-row items-center gap-2.5">
+                    <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: isDark ? 'rgba(212, 175, 55, 0.12)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.gold }}>
+                      <Text style={{ fontSize: 14 }}>{rate.placeType === 'PREMIUM_LOUNGE' ? '🛋️' : '🍺'}</Text>
+                    </View>
+                    <View>
+                      <Text className="font-bold text-sm" style={{ color: colors.text }}>
+                        {rate.placeType === 'STANDING_BAR' ? 'Standing Bar' : (rate.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : rate.placeType)}
+                      </Text>
+                      <Text className="text-muted text-[10px] font-mono mt-0.5">
+                        Zone Key: {rate.placeType}
+                      </Text>
+                    </View>
                   </View>
                   <View className="items-end">
                     <Text className="text-gold font-mono font-extrabold text-sm">₹{rate.ratePerPerson}</Text>
@@ -713,7 +737,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 </View>
 
                 {/* Stats & Parameters Grid */}
-                <View className="flex-row justify-between items-center mt-2 border-t pt-2" style={{ borderTopColor: colors.divider }}>
+                <View className="flex-row justify-between items-center mt-2 border-t pt-2" style={{ borderTopColor: colors.divider, borderTopWidth: 1 }}>
                   <View className="flex-row gap-4">
                     <View>
                       <Text className="text-muted text-[8px] uppercase tracking-wider font-bold">Duration</Text>
@@ -726,7 +750,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   </View>
 
                   <TouchableOpacity
-                    className="px-3 py-1.5 rounded-lg bg-gold"
+                    style={{ backgroundColor: colors.gold, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5, borderColor: colors.gold }}
                     onPress={() => {
                       setSelectedRate(rate);
                       setEditRateName(rate.placeType);
@@ -736,7 +760,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                       setIsEditRateOpen(true);
                     }}
                   >
-                    <Text className="text-[10px] font-extrabold" style={{ color: colors.primaryButtonText }}>Edit Rate</Text>
+                    <Text style={{ color: colors.goldButtonText, fontSize: 10, fontWeight: 'bold' }}>Edit Rate</Text>
                   </TouchableOpacity>
                 </View>
               </View>
