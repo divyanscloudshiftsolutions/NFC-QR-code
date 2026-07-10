@@ -6,7 +6,7 @@ import {
 import { isTableExpiring } from './nfc_bar_utils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { Platform } from 'react-native';
+import { Platform, DeviceEventEmitter } from 'react-native';
 
 interface NfcBarContextType {
   // Authentication & Screen States
@@ -176,6 +176,14 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [swipeLocked, setSwipeLocked] = useState(false);
   const [preselectedTableNumber, setPreselectedTableNumber] = useState<string | null>(null);
   const [notifiedTokens, setNotifiedTokens] = useState<string[]>([]);
+
+  // Listen for global horizontal scroll lock events
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('lockSwipe', (locked: boolean) => {
+      setSwipeLocked(locked);
+    });
+    return () => sub.remove();
+  }, []);
 
   // 30-second active session expiration monitor (warnings at 15 minutes remaining)
   useEffect(() => {
