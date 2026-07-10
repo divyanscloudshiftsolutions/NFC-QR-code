@@ -13,7 +13,7 @@ import { useResponsive } from '../../../utils/responsive';
 import { AlertModal } from '../../../components/common/AlertModal';
 import { useActionProgress } from '../../../utils/actionProgress';
 
-export const TablesPortal: React.FC = () => {
+export const TablesPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
   const { tables, sessions, extendSessionTime, closeGuestSession, user, setOverlayActive, setPreselectedTableNumber, setTab, rates } = useNfcBar();
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
@@ -37,9 +37,9 @@ export const TablesPortal: React.FC = () => {
   const [isExtendingLoading, setIsExtendingLoading] = useState(false);
 
   useEffect(() => {
-    setOverlayActive(isBottomSheetOpen);
+    setOverlayActive(isActive && isBottomSheetOpen);
     return () => setOverlayActive(false);
-  }, [isBottomSheetOpen, setOverlayActive]);
+  }, [isBottomSheetOpen, isActive, setOverlayActive]);
 
   // Automatically sync local selectedSession state with global sessions context updates
   useEffect(() => {
@@ -54,11 +54,12 @@ export const TablesPortal: React.FC = () => {
   const [timeTick, setTimeTick] = useState(0);
 
   useEffect(() => {
+    if (!isActive) return;
     const timer = setInterval(() => {
       setTimeTick(t => t + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isActive]);
 
   // Stats
   const placeTables = tables.filter(t => t.placeType === selectedPlace);

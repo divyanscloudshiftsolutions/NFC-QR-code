@@ -10,7 +10,7 @@ import { AlertModal } from '../../../components/common/AlertModal';
 import { SkeletonLoader } from '../../../components/common/SkeletonLoader';
 import { useActionProgress } from '../../../utils/actionProgress';
 
-export const AdminPortal: React.FC = () => {
+export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
   const { colors, isDark } = useTheme();
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { 
@@ -18,7 +18,7 @@ export const AdminPortal: React.FC = () => {
     registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard, fetchUsers,
     salesSummary, tableUtilization, hourlyBreakdown, fetchReports, showToast,
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
-    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV
+    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('live');
   const [isTabLoading, setIsTabLoading] = useState(false);
@@ -86,11 +86,12 @@ export const AdminPortal: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isActive) return;
     const timer = setInterval(() => {
       setTimeTick(t => t + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isActive]);
 
   useEffect(() => {
     let active = true;
@@ -124,7 +125,7 @@ export const AdminPortal: React.FC = () => {
 
   // 5-second periodic background polling for active admin subtabs
   useEffect(() => {
-    if (systemMode === 'offline') return;
+    if (systemMode === 'offline' || !isActive) return;
 
     const syncTimer = setInterval(() => {
       if (adminSubTab === 'cards') {
@@ -141,7 +142,12 @@ export const AdminPortal: React.FC = () => {
     }, 5000);
 
     return () => clearInterval(syncTimer);
-  }, [adminSubTab, reportFilter, startDateStr, endDateStr, systemMode]);
+  }, [adminSubTab, reportFilter, startDateStr, endDateStr, systemMode, isActive]);
+
+  useEffect(() => {
+    setOverlayActive(isActive && isProcessing);
+    return () => setOverlayActive(false);
+  }, [isActive, isProcessing, setOverlayActive]);
 
   // Sync selectedAdminSession details whenever global adminSessions array updates
   useEffect(() => {

@@ -20,12 +20,12 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-export const CheckInWizard: React.FC = () => {
+export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
   const { 
     tables, sessions, rates, checkInGuest, showToast, 
     preselectedTableNumber, setPreselectedTableNumber, tokenType, 
     nfcEnabled, emailQrEnabled,
-    createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, setTab
+    createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, setTab, setOverlayActive
   } = useNfcBar();
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
@@ -149,6 +149,11 @@ export const CheckInWizard: React.FC = () => {
   // Android hardware back button handler for CheckInWizard
   useEffect(() => {
     const handleWizardBack = () => {
+      // 0. Only intercept if this tab screen is active
+      if (!isActive) {
+        return false;
+      }
+
       // 1. Block back press if NFC card is writing
       if (isNfcWriting) {
         return true; // Consume event (block)
@@ -198,7 +203,12 @@ export const CheckInWizard: React.FC = () => {
         subscription.remove();
       }
     };
-  }, [stepState, fullName, phone, email, isNfcWriting]);
+  }, [stepState, fullName, phone, email, isNfcWriting, isActive]);
+
+  useEffect(() => {
+    setOverlayActive(isActive && (isNfcWriting || isProcessing));
+    return () => setOverlayActive(false);
+  }, [isActive, isNfcWriting, isProcessing, setOverlayActive]);
 
   useEffect(() => {
     if (rates.length > 0) {

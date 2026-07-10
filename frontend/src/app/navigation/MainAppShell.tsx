@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, ScrollView, 
-  Platform, StatusBar, BackHandler, Alert, Animated, Easing
+  Platform, StatusBar, BackHandler, Alert, Animated, Easing, useWindowDimensions
 } from 'react-native';
 import { AnimatedToast } from '../../components/common/AnimatedToast';
 import { AlertModal } from '../../components/common/AlertModal';
@@ -27,10 +27,16 @@ export const MainAppShell: React.FC = () => {
   const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, fetchLatestState, showToast } = useNfcBar();
   const { isTablet, isLargeScreen } = useResponsive();
   const isCentered = isTablet || isLargeScreen;
+  const { width } = useWindowDimensions();
   
   const [showSplash, setShowSplash] = useState(true);
   const [isNotifsOpen, setIsNotifsOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+
+  // References for Scroll Paging
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const lastBackPressTime = React.useRef<number>(0);
+  const isTransitioning = React.useRef<boolean>(false);
 
   // Sync state with backend on tab changes
   React.useEffect(() => {
@@ -38,9 +44,85 @@ export const MainAppShell: React.FC = () => {
       fetchLatestState().catch(err => console.log('Failed to refresh state on tab change:', err));
     }
   }, [activeTab, currentScreen, user]);
-  
-  const lastBackPressTime = React.useRef<number>(0);
-  const isTransitioning = React.useRef<boolean>(false);
+
+  // Construct allowed tabs list based on user roles
+  const isUserRecep = user?.role === UserRole.RECEPTIONIST;
+  const isUserAdmin = user?.role === UserRole.ADMIN;
+  const isUserManager = user?.role === UserRole.MANAGER;
+  const isUserBartender = user?.role === UserRole.BARTENDER;
+
+  const allowedTabs = React.useMemo(() => {
+    const tabs: ('checkin' | 'bartender' | 'tables' | 'admin')[] = [];
+    if (isUserAdmin || isUserRecep) tabs.push('checkin');
+    if (isUserAdmin || isUserBartender || isUserRecep) tabs.push('bartender');
+    if (isUserAdmin || isUserRecep || isUserManager) tabs.push('tables');
+    if (isUserAdmin || isUserManager) tabs.push('admin');
+    return tabs;
+  }, [user]);
+
+  // Track visited/adjacent tabs for smart lazy loading
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    if (user && activeTab) {
+      setVisitedTabs(new Set([activeTab]));
+    }
+  }, [user]);
+
+  React.useEffect(() => {
+    if (activeTab && allowedTabs.length > 0) {
+      setVisitedTabs(prev => {
+        const next = new Set(prev);
+        next.add(activeTab);
+
+        const activeIndex = allowedTabs.indexOf(activeTab);
+        if (activeIndex !== -1) {
+          if (activeIndex > 0) {
+            next.add(allowedTabs[activeIndex - 1]);
+          }
+          if (activeIndex < allowedTabs.length - 1) {
+            next.add(allowedTabs[activeIndex + 1]);
+          }
+        }
+        return next;
+      });
+    }
+  }, [activeTab, allowedTabs]);
+
+  // Unique Navigation History stack (MRU order)
+  const [navHistory, setNavHistory] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (user) {
+      let defaultTab: 'checkin' | 'bartender' | 'tables' | 'admin' = 'checkin';
+      if (user.role === UserRole.BARTENDER) {
+        defaultTab = 'bartender';
+      } else if (user.role === UserRole.MANAGER) {
+        defaultTab = 'tables';
+      }
+      setNavHistory([defaultTab]);
+    }
+  }, [user]);
+
+  React.useEffect(() => {
+    if (activeTab && user) {
+      setNavHistory(prev => {
+        if (prev[prev.length - 1] === activeTab) {
+          return prev;
+        }
+        const filtered = prev.filter(t => t !== activeTab);
+        return [...filtered, activeTab];
+      });
+    }
+  }, [activeTab, user]);
+
+  // Synchronize ScrollView offset when activeTab changes programmatically (e.g. from tab bar taps or history rollback)
+  React.useEffect(() => {
+    const index = allowedTabs.indexOf(activeTab);
+    if (index !== -1 && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ x: index * width, animated: true });
+    }
+  }, [activeTab, allowedTabs, width]);
 
   // Android hardware back button handler
   React.useEffect(() => {
@@ -59,26 +141,23 @@ export const MainAppShell: React.FC = () => {
         return true;
       }
 
-      // 3. Handle non-default tab redirection dynamically based on role
-      if (currentScreen === 'app' && user) {
-        let defaultTab: 'checkin' | 'bartender' | 'tables' | 'admin' = 'checkin';
-        if (user.role === UserRole.BARTENDER) {
-          defaultTab = 'bartender';
-        } else if (user.role === UserRole.MANAGER) {
-          defaultTab = 'tables';
-        }
+      // 3. Rollback tab history if length > 1
+      if (navHistory.length > 1) {
+        const updatedHistory = [...navHistory];
+        updatedHistory.pop(); // Remove current active tab
+        const previousTab = updatedHistory[updatedHistory.length - 1];
 
-        if (activeTab !== defaultTab) {
-          isTransitioning.current = true;
-          setTab(defaultTab);
-          setTimeout(() => {
-            isTransitioning.current = false;
-          }, 350); // Throttle lock during animation
-          return true;
-        }
+        isTransitioning.current = true;
+        setTab(previousTab as any);
+        setNavHistory(updatedHistory);
+
+        setTimeout(() => {
+          isTransitioning.current = false;
+        }, 350);
+        return true;
       }
 
-      // 4. Handle exit on root screen (login or default tab)
+      // 4. Handle exit on root screen
       if (currentScreen === 'login' || currentScreen === 'app') {
         const now = Date.now();
         if (now - lastBackPressTime.current < 2000) {
@@ -102,7 +181,18 @@ export const MainAppShell: React.FC = () => {
         subscription.remove();
       }
     };
-  }, [currentScreen, activeTab, isNotifsOpen, isReturnModalOpen, user]);
+  }, [currentScreen, navHistory, isNotifsOpen, isReturnModalOpen, user]);
+
+  const handleScrollEnd = (e: any) => {
+    const contentOffset = e.nativeEvent.contentOffset.x;
+    const index = Math.round(contentOffset / width);
+    if (index >= 0 && index < allowedTabs.length) {
+      const targetTab = allowedTabs[index];
+      if (activeTab !== targetTab) {
+        setTab(targetTab);
+      }
+    }
+  };
 
   // safe area offsets
   const insets = useSafeAreaInsets();
@@ -112,23 +202,18 @@ export const MainAppShell: React.FC = () => {
     setIsNotifsOpen(true);
   };
 
-  const getActiveTabContent = () => {
-    switch (activeTab) {
-      case 'checkin': return <CheckInWizard />;
-      case 'bartender': return <BartenderPortal />;
-      case 'tables': return <TablesPortal />;
-      case 'admin': return <AdminPortal />;
+  const renderTabContent = (tab: 'checkin' | 'bartender' | 'tables' | 'admin', isSelected: boolean) => {
+    switch (tab) {
+      case 'checkin': return <CheckInWizard isActive={isSelected} />;
+      case 'bartender': return <BartenderPortal isActive={isSelected} />;
+      case 'tables': return <TablesPortal isActive={isSelected} />;
+      case 'admin': return <AdminPortal isActive={isSelected} />;
     }
   };
 
   if (showSplash && currentScreen === 'splash') {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
-
-  const isUserRecep = user?.role === UserRole.RECEPTIONIST;
-  const isUserAdmin = user?.role === UserRole.ADMIN;
-  const isUserManager = user?.role === UserRole.MANAGER;
-  const isUserBartender = user?.role === UserRole.BARTENDER;
 
   const getToastBg = (type: string) => {
     switch (type) {
@@ -152,7 +237,31 @@ export const MainAppShell: React.FC = () => {
 
           {/* CORE APP VIEWS SWITCHER */}
           <View className="flex-1">
-            {getActiveTabContent()}
+            <ScrollView
+              ref={scrollViewRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              bounces={false}
+              onMomentumScrollEnd={handleScrollEnd}
+              scrollEnabled={allowedTabs.length > 1 && !isOverlayActive && !isReturnModalOpen && !isNotifsOpen}
+              contentContainerStyle={{ width: width * allowedTabs.length }}
+            >
+              {allowedTabs.map((tab) => {
+                const isSelected = activeTab === tab;
+                const isMounted = visitedTabs.has(tab);
+
+                return (
+                  <View key={tab} style={{ width: width, flex: 1 }}>
+                    {isMounted ? (
+                      renderTabContent(tab, isSelected)
+                    ) : (
+                      <View style={{ flex: 1 }} />
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
           </View>
 
 

@@ -27,8 +27,8 @@ const formatRedemptionTime = (timestampStr: string) => {
   return `${strHours}:${strMinutes}:${strSeconds} ${ampm}`;
 };
 
-export const BartenderPortal: React.FC = () => {
-  const { sessions, redeemDrinkForCard, undoDrinkRedemption, tokenType, nfcEnabled, emailQrEnabled, fetchLatestState, showToast } = useNfcBar();
+export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
+  const { sessions, redeemDrinkForCard, undoDrinkRedemption, tokenType, nfcEnabled, emailQrEnabled, fetchLatestState, showToast, setOverlayActive } = useNfcBar();
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
   const [bartenderState, setBartenderState] = useState<'idle' | 'scanning' | 'scanned' | 'depleted' | 'error'>('idle');
@@ -141,11 +141,17 @@ export const BartenderPortal: React.FC = () => {
   const [timeTick, setTimeTick] = useState(0);
 
   React.useEffect(() => {
+    if (!isActive) return;
     const timer = setInterval(() => {
       setTimeTick(t => t + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isActive]);
+
+  React.useEffect(() => {
+    setOverlayActive(isActive && isProcessing);
+    return () => setOverlayActive(false);
+  }, [isActive, isProcessing, setOverlayActive]);
 
   // Sync activeSession details whenever global sessions array refreshes (e.g. from background polling sync)
   React.useEffect(() => {
