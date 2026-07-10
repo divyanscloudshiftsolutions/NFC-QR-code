@@ -467,9 +467,17 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             return (
               <View 
                 key={session.id} 
-                className={`flex-row justify-between items-center bg-transparent border border-transparent rounded-xl p-3.5 mb-2
-                  ${(isExpiring || isExpired) ? 'border-red/25 bg-red/5' : ''}
-                `}
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: colors.card,
+                  borderWidth: 1.5,
+                  borderColor: (isExpiring || isExpired) ? 'rgba(239, 68, 68, 0.45)' : colors.border,
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 8
+                }}
               >
                 <View className="flex-1">
                   <Text className="text-themeText font-bold text-xs" style={{ color: colors.text }}>{session.customerName}</Text>
@@ -488,23 +496,23 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
           {/* Quick Management shortcuts */}
           <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-3 mt-4">Operational Registries</Text>
-          <View className="bg-transparent border border-transparent rounded-xl p-2.5 mb-4">
+          <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 4, marginBottom: 16 }}>
             <TouchableOpacity 
-              className="flex-row justify-between items-center py-2.5 border-b border-transparent bg-transparent"
+              style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }}
               onPress={() => setAdminSubTab('rates')}
             >
               <Text className="text-themeText font-semibold text-xs" style={{ color: colors.text }}>Rate Card Management</Text>
               <Text style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1, color: colors.gold, fontFamily: 'monospace', fontSize: 9, fontWeight: 'bold', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>{rates.length} Zones</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              className="flex-row justify-between items-center py-2.5 border-b border-transparent"
+              style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }}
               onPress={() => setAdminSubTab('cards')}
             >
               <Text className="text-themeText font-semibold text-xs" style={{ color: colors.text }}>Smart Card Inventory</Text>
               <Text style={{ backgroundColor: colors.input, borderColor: colors.border, borderWidth: 1, color: colors.gold, fontFamily: 'monospace', fontSize: 9, fontWeight: 'bold', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>{cards.length} Cards</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              className="flex-row justify-between items-center py-2.5"
+              style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 }}
               onPress={() => setAdminSubTab('staff')}
             >
               <Text className="text-themeText font-semibold text-xs" style={{ color: colors.text }}>Staff User Management</Text>
@@ -607,67 +615,67 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                             <Text style={{ color: colors.muted, fontSize: 8.5, marginTop: 2 }}>
                               Writes: <Text style={{ color: colors.text, fontWeight: 'bold' }}>{card.writeCycles}</Text>
                             </Text>
-                          </View>
 
-                          {/* Actions */}
-                          <View style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 8 }}>
-                            <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
-                              {isAvailable && (
-                                <>
+                            {/* Actions */}
+                            <View style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 8, marginTop: 8 }}>
+                              <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
+                                {isAvailable && (
+                                  <>
+                                    <TouchableOpacity
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(167, 139, 250, 0.1)' : '#F5F3FF', borderWidth: 1.5, borderColor: isDark ? 'rgba(167, 139, 250, 0.35)' : '#D8B4FE' }}
+                                      onPress={() => updateCardStatus(card.cardUid, 'inactive')}
+                                    >
+                                      <Text style={{ color: '#A78BFA', fontSize: 8.5, fontWeight: 'bold' }}>Deact</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
+                                      onPress={() => updateCardStatus(card.cardUid, 'lost')}
+                                    >
+                                      <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
+                                    </TouchableOpacity>
+                                  </>
+                                )}
+                                {isAssigned && (
+                                  <>
+                                    <TouchableOpacity
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
+                                      onPress={() => updateCardStatus(card.cardUid, 'lost')}
+                                    >
+                                      <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border }}
+                                      onPress={() => updateCardStatus(card.cardUid, 'damaged')}
+                                    >
+                                      <Text style={{ color: colors.text, fontSize: 8.5, fontWeight: 'bold' }}>Dmg</Text>
+                                    </TouchableOpacity>
+                                  </>
+                                )}
+                                {isInactive && (
+                                  <>
+                                    <TouchableOpacity
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
+                                      onPress={() => updateCardStatus(card.cardUid, 'available')}
+                                    >
+                                      <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Activ</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
+                                      onPress={() => updateCardStatus(card.cardUid, 'lost')}
+                                    >
+                                      <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
+                                    </TouchableOpacity>
+                                  </>
+                                )}
+                                {(isLost || isDamaged) && (
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border }}
-                                    onPress={() => updateCardStatus(card.cardUid, 'inactive')}
-                                  >
-                                    <Text style={{ color: '#A78BFA', fontSize: 8.5, fontWeight: 'bold' }}>Deact</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
-                                    onPress={() => updateCardStatus(card.cardUid, 'lost')}
-                                  >
-                                    <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
-                                  </TouchableOpacity>
-                                </>
-                              )}
-                              {isAssigned && (
-                                <>
-                                  <TouchableOpacity
-                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
-                                    onPress={() => updateCardStatus(card.cardUid, 'lost')}
-                                  >
-                                    <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border }}
-                                    onPress={() => updateCardStatus(card.cardUid, 'damaged')}
-                                  >
-                                    <Text style={{ color: colors.text, fontSize: 8.5, fontWeight: 'bold' }}>Dmg</Text>
-                                  </TouchableOpacity>
-                                </>
-                              )}
-                              {isInactive && (
-                                <>
-                                  <TouchableOpacity
-                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
                                     onPress={() => updateCardStatus(card.cardUid, 'available')}
                                   >
-                                    <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Activ</Text>
+                                    <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Available</Text>
                                   </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
-                                    onPress={() => updateCardStatus(card.cardUid, 'lost')}
-                                  >
-                                    <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
-                                  </TouchableOpacity>
-                                </>
-                              )}
-                              {(isLost || isDamaged) && (
-                                <TouchableOpacity
-                                  style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
-                                  onPress={() => updateCardStatus(card.cardUid, 'available')}
-                                >
-                                  <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Available</Text>
-                                </TouchableOpacity>
-                              )}
+                                )}
+                              </View>
                             </View>
                           </View>
                         </View>
@@ -750,7 +758,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   </View>
 
                   <TouchableOpacity
-                    style={{ backgroundColor: colors.gold, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5, borderColor: colors.gold }}
+                    style={{
+                      backgroundColor: colors.secondarySurface,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      borderWidth: 1.5,
+                      borderColor: colors.border
+                    }}
                     onPress={() => {
                       setSelectedRate(rate);
                       setEditRateName(rate.placeType);
@@ -760,7 +775,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                       setIsEditRateOpen(true);
                     }}
                   >
-                    <Text style={{ color: colors.goldButtonText, fontSize: 10, fontWeight: 'bold' }}>Edit Rate</Text>
+                    <Text style={{ color: colors.gold, fontSize: 10, fontWeight: 'bold' }}>Edit Rate</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -946,41 +961,71 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           {/* Timeframe selector */}
           <View className="mb-4">
             <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Timeframe Filter</Text>
-            <View className="flex-row bg-transparent rounded-xl p-1 border border-transparent gap-1 flex-wrap">
-              {(['day', 'week', 'month', 'custom'] as const).map(f => (
-                <TouchableOpacity
-                  key={f}
-                  className={`flex-1 min-w-[20%] py-2 items-center rounded-lg ${reportFilter === f ? 'bg-transparent border-[0.5px] border-gold/20' : ''}`}
-                  onPress={() => {
-                    setReportFilter(f);
-                    if (f !== 'custom') {
-                      setStartDateStr('');
-                      setEndDateStr('');
-                    }
-                  }}
-                >
-                  <Text className={`text-[10px] font-bold capitalize ${reportFilter === f ? 'text-gold' : 'text-muted'}`}>{f}</Text>
-                </TouchableOpacity>
-              ))}
+            <View className="flex-row rounded-xl p-1 gap-1 flex-wrap" style={{ backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border }}>
+              {(['day', 'week', 'month', 'custom'] as const).map(f => {
+                const isActive = reportFilter === f;
+                return (
+                  <TouchableOpacity
+                    key={f}
+                    style={{
+                      flex: 1,
+                      minWidth: '20%',
+                      paddingVertical: 8,
+                      alignItems: 'center',
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: isActive ? colors.gold : 'transparent',
+                      backgroundColor: isActive ? (isDark ? 'rgba(245,166,35,0.08)' : 'rgba(212,175,55,0.08)') : 'transparent'
+                    }}
+                    onPress={() => {
+                      setReportFilter(f);
+                      if (f !== 'custom') {
+                        setStartDateStr('');
+                        setEndDateStr('');
+                      }
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: 'bold', color: isActive ? colors.gold : colors.muted, textTransform: 'capitalize' }}>{f}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
           {/* Custom Date range input form */}
           {reportFilter === 'custom' && (
-            <View className="bg-transparent border border-transparent rounded-xl p-3 mb-4">
+            <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, padding: 16, marginBottom: 16 }}>
               <Text className="text-gold text-[10px] font-bold uppercase tracking-wider mb-2">Custom Date Range (YYYY-MM-DD)</Text>
               <View className="flex-row gap-2 mb-2">
                 <TextInput
-                  className="flex-1 bg-themeInput text-themeText text-xs px-3 py-2 border border-transparent rounded-lg"
-                  style={{ color: colors.text , backgroundColor: colors.themeInput}}
+                  style={{
+                    flex: 1,
+                    backgroundColor: colors.input,
+                    borderColor: colors.border,
+                    borderWidth: 1.5,
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    color: colors.text,
+                    fontSize: 12
+                  }}
                   placeholder="Start: 2026-06-01"
                   placeholderTextColor={colors.placeholder}
                   value={customStart}
                   onChangeText={setCustomStart}
                 />
                 <TextInput
-                  className="flex-1 bg-themeInput text-themeText text-xs px-3 py-2 border border-transparent rounded-lg"
-                  style={{ color: colors.text , backgroundColor: colors.themeInput}}
+                  style={{
+                    flex: 1,
+                    backgroundColor: colors.input,
+                    borderColor: colors.border,
+                    borderWidth: 1.5,
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    color: colors.text,
+                    fontSize: 12
+                  }}
                   placeholder="End: 2026-06-20"
                   placeholderTextColor={colors.placeholder}
                   value={customEnd}
@@ -988,7 +1033,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 />
               </View>
               <TouchableOpacity
-                className="bg-gold py-2 rounded-lg items-center"
+                style={{
+                  backgroundColor: colors.gold,
+                  borderWidth: 1.5,
+                  borderColor: colors.gold,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  alignItems: 'center'
+                }}
                 onPress={() => {
                   if (!customStart.trim() || !customEnd.trim()) {
                     showToast('Please enter both start and end dates', 'danger');
@@ -1005,7 +1057,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   showToast('Custom date filter applied', 'success');
                 }}
               >
-                <Text className="text-themeBg text-xs font-bold">Apply Date Range</Text>
+                <Text style={{ color: colors.goldButtonText, fontSize: 12, fontWeight: 'bold' }}>Apply Date Range</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1021,7 +1073,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 16 }}>
                 {/* Revenue */}
                 <View style={{ width: '33.33%', padding: 4 }}>
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                     <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Revenue</Text>
                     <Text className="font-mono text-gold text-xs font-bold mt-1">₹{(salesSummary?.todaySales || 0).toLocaleString()}</Text>
                   </View>
@@ -1029,7 +1081,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
                 {/* Turnover */}
                 <View style={{ width: '33.33%', padding: 4 }}>
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                     <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Turnover</Text>
                     <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>{salesSummary?.checkoutCount || 0} groups</Text>
                   </View>
@@ -1037,7 +1089,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
                 {/* Avg Stay */}
                 <View style={{ width: '33.33%', padding: 4 }}>
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                     <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Avg Stay</Text>
                     <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>
                       {(() => {
@@ -1052,7 +1104,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
                 {/* Occupancy Rate */}
                 <View style={{ width: '33.33%', padding: 4 }}>
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                     <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Occupancy Rate</Text>
                     <Text className="font-mono text-themeText text-xs font-bold mt-1" style={{ color: colors.text }}>
                       {Math.round((tableUtilization?.summary?.averageOccupancyRate || 0) * 100)}%
@@ -1062,7 +1114,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
                 {/* Redemptions */}
                 <View style={{ width: '33.33%', padding: 4 }}>
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                     <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Redemptions</Text>
                     <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.success }}>{salesSummary?.todayRedemptions || 0} drinks</Text>
                   </View>
@@ -1070,7 +1122,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
                 {/* Peak hour */}
                 <View style={{ width: '33.33%', padding: 4 }}>
-                  <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, padding: 10, borderRadius: 12, alignItems: 'center' }}>
                     <Text className="text-muted text-[8px] font-bold uppercase tracking-wider">Peak hour</Text>
                     <Text className="font-mono text-xs font-bold mt-1" style={{ color: colors.teal }}>
                       {(() => {
@@ -1085,42 +1137,42 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
               {/* SVG Bar Chart section */}
               <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Hourly Redemption Frequency</Text>
-              <View className="bg-transparent border border-transparent rounded-2xl p-4 mb-4">
+              <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, padding: 16, marginBottom: 16 }}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-3">
                   <View className="flex-row items-end h-40 pb-3 border-b" style={{ gap: 8, paddingHorizontal: 5, borderBottomColor: colors.chartGrid }}>
                     {(() => {
-                      const displayHours = hourlyBreakdown?.hourlyData || [];
-                      const maxVal = Math.max(...displayHours.map((d: any) => d.redemptions || 0), 5);
-                      const peakH = hourlyBreakdown?.peakHour;
+                       const displayHours = hourlyBreakdown?.hourlyData || [];
+                       const maxVal = Math.max(...displayHours.map((d: any) => d.redemptions || 0), 5);
+                       const peakH = hourlyBreakdown?.peakHour;
 
-                      return displayHours.map((hourData: any) => {
-                        const isPeak = hourData.hour === peakH;
-                        const barHeight = Math.round((hourData.redemptions / maxVal) * 110) + 10;
-                        const formattedHour = hourData.hour === 0 ? '12a' : (hourData.hour < 12 ? `${hourData.hour}a` : (hourData.hour === 12 ? '12p' : `${hourData.hour - 12}p`));
+                       return displayHours.map((hourData: any) => {
+                         const isPeak = hourData.hour === peakH;
+                         const barHeight = Math.round((hourData.redemptions / maxVal) * 110) + 10;
+                         const formattedHour = hourData.hour === 0 ? '12a' : (hourData.hour < 12 ? `${hourData.hour}a` : (hourData.hour === 12 ? '12p' : `${hourData.hour - 12}p`));
 
-                        return (
-                          <View key={hourData.hour} className="items-center" style={{ width: 24 }}>
-                            <View 
-                              style={{ 
-                                height: barHeight, 
-                                width: 14, 
-                                backgroundColor: isPeak ? colors.gold : (isDark ? '#27272A' : '#E4E4E7'),
-                                borderTopLeftRadius: 4, 
-                                borderTopRightRadius: 4,
-                                borderBottomLeftRadius: 0,
-                                borderBottomRightRadius: 0
-                              }} 
-                            />
-                            <Text className="text-[8px] text-muted font-bold mt-1.5">{formattedHour}</Text>
-                          </View>
-                        );
-                      });
+                         return (
+                           <View key={hourData.hour} className="items-center" style={{ width: 24 }}>
+                             <View 
+                               style={{ 
+                                 height: barHeight, 
+                                 width: 14, 
+                                 backgroundColor: isPeak ? colors.gold : (isDark ? '#27272A' : '#E4E4E7'),
+                                 borderTopLeftRadius: 4, 
+                                 borderTopRightRadius: 4,
+                                 borderBottomLeftRadius: 0,
+                                 borderBottomRightRadius: 0
+                               }} 
+                             />
+                             <Text className="text-[8px] text-muted font-bold mt-1.5">{formattedHour}</Text>
+                           </View>
+                         );
+                       });
                     })()}
                   </View>
                 </ScrollView>
 
                 {/* Busiest hour description */}
-                <View className="border-t border-transparent pt-3">
+                <View className="border-t pt-3" style={{ borderTopColor: colors.divider }}>
                   {(() => {
                     const pkH = hourlyBreakdown?.peakHour;
                     const pkR = hourlyBreakdown?.peakRedemptions || 0;
@@ -1144,12 +1196,12 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
               {/* Table Utilization Report */}
               <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Table Utilization Report</Text>
-              <View className="bg-transparent border border-transparent rounded-xl p-3.5">
+              <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, padding: 16, marginBottom: 16 }}>
                 {(!tableUtilization || !tableUtilization.tables || tableUtilization.tables.length === 0) ? (
                   <Text className="text-muted text-xs text-center py-4">No table utilization data found</Text>
                 ) : (
                   <View style={{ gap: 8 }}>
-                    <View className="flex-row border-b border-transparent pb-1.5">
+                    <View className="flex-row border-b pb-1.5" style={{ borderBottomColor: colors.divider }}>
                       <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted">Table</Text>
                       <Text className="flex-1.5 text-[8px] uppercase tracking-wider font-bold text-muted">Zone</Text>
                       <Text className="flex-1.5 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Occ Hrs/Day</Text>
@@ -1157,7 +1209,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                       <Text className="flex-1 text-[8px] uppercase tracking-wider font-bold text-muted text-right">Avg Stay</Text>
                     </View>
                     {tableUtilization.tables.map((t: any) => (
-                      <View key={t.tableNumber} className="flex-row items-center border-b border-transparent py-1">
+                      <View key={t.tableNumber} className="flex-row items-center border-b py-2" style={{ borderBottomColor: colors.divider }}>
                         <Text className="flex-1 text-themeText font-mono text-xs font-bold" style={{ color: colors.text }}>{t.tableNumber}</Text>
                         <Text className="flex-1.5 text-muted text-[10px] truncate">{t.placeType === 'STANDING_BAR' ? 'Standing Bar' : (t.placeType === 'PREMIUM_LOUNGE' ? 'Premium Lounge' : t.placeType)}</Text>
                         <Text className="flex-1.5 text-themeText text-xs font-semibold text-right" style={{ color: colors.text }}>{t.averageOccupancyPerDay}h</Text>
@@ -1333,7 +1385,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-[11px] font-bold text-muted uppercase tracking-wider">Staff Management</Text>
             <TouchableOpacity 
-              className="bg-gold px-3 py-1.5 rounded-lg flex-row items-center gap-1"
+              style={{
+                backgroundColor: colors.secondarySurface,
+                borderWidth: 1.5,
+                borderColor: colors.border,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8
+              }}
               onPress={() => {
                 setNewStaffUsername('');
                 setNewStaffFullName('');
@@ -1342,7 +1401,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 setIsAddStaffOpen(true);
               }}
             >
-              <Text className="text-themeBg text-[10px] font-extrabold">+ Add Staff</Text>
+              <Text style={{ color: colors.gold, fontSize: 10, fontWeight: 'bold' }}>+ Add Staff</Text>
             </TouchableOpacity>
           </View>
 
@@ -1357,7 +1416,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               else if (staff.role.name === 'manager') roleBadgeStyle = { color: '#3b82f6', borderColor: 'rgba(59,130,246,0.2)', backgroundColor: 'rgba(59,130,246,0.05)' };
 
               return (
-                <View key={staff.id} className="border rounded-xl p-3.5 mb-2.5" style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}>
+                <View key={staff.id} style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, borderRadius: 16, padding: 14, marginBottom: 10 }}>
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-1 mr-2">
                       <View className="flex-row items-center gap-2">
@@ -1373,7 +1432,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                       </Text>
                     </View>
                     <View className="items-end">
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: roleBadgeStyle.borderColor, backgroundColor: roleBadgeStyle.backgroundColor }}>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1.5, borderColor: roleBadgeStyle.borderColor, backgroundColor: roleBadgeStyle.backgroundColor }}>
                         <Text style={{ fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: roleBadgeStyle.color }}>{staff.role.name}</Text>
                       </View>
                       <Text style={{ fontSize: 9, fontWeight: 'semibold', marginTop: 4, color: staff.isActive ? colors.success : colors.red }}>
@@ -1383,13 +1442,20 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   </View>
 
                   {/* Staff Actions */}
-                  <View className="flex-row justify-between items-center mt-2 border-t border-transparent pt-2">
+                  <View className="flex-row justify-between items-center mt-2 border-t pt-3" style={{ borderTopColor: colors.divider, borderTopWidth: 1 }}>
                     <View>
                       {isSelf ? (
                         <Text className="text-muted text-[9px] font-semibold italic">Cannot deactivate self</Text>
                       ) : (
                         <TouchableOpacity
-                          className="px-2.5 py-1 rounded border" style={{ borderColor: staff.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)', backgroundColor: staff.isActive ? 'rgba(239,68,68,0.05)' : 'rgba(34,197,94,0.05)' }}
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 6,
+                            borderWidth: 1.5,
+                            borderColor: staff.isActive ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)',
+                            backgroundColor: staff.isActive ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)') : (isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(34, 197, 94, 0.05)')
+                          }}
                           onPress={() => updateStaffStatus(staff.id, !staff.isActive)}
                         >
                           <Text style={{ fontSize: 9, fontWeight: 'bold', color: staff.isActive ? colors.red : colors.success }}>
@@ -1400,7 +1466,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                     </View>
 
                     <TouchableOpacity
-                      className="px-2.5 py-1 rounded border" style={{ backgroundColor: colors.input, borderColor: colors.border }}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 6,
+                        borderWidth: 1.5,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondarySurface
+                      }}
                       onPress={() => {
                         setSelectedStaff(staff);
                         setEditStaffUsername(staff.username);
@@ -1411,7 +1484,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                         setIsEditStaffOpen(true);
                       }}
                     >
-                      <Text className="text-themeText text-[9px] font-bold" style={{ color: colors.text }}>Edit Profile</Text>
+                      <Text style={{ color: colors.text, fontSize: 9, fontWeight: 'bold' }}>Edit Profile</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1426,7 +1499,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
         <ScrollView className="flex-grow" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
           <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-4">System Settings</Text>
           
-          <View className="border rounded-2xl p-5 mb-6" style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }}>
+          <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, borderRadius: 16, padding: 20, marginBottom: 24 }}>
             <View className="flex-row items-center mb-3">
               <Text className="text-gold text-lg mr-2">⚙️</Text>
               <Text className="text-themeText text-sm font-bold" style={{ color: colors.text }}>Token Delivery Methods</Text>
@@ -1444,7 +1517,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 </Text>
               </View>
               <TouchableOpacity
-                className="px-4 py-2 rounded-xl border" style={{ borderColor: localNfcEnabled ? colors.success : 'transparent', backgroundColor: localNfcEnabled ? (isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)') : colors.themeInput }}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 7,
+                  borderRadius: 10,
+                  borderWidth: 1.5,
+                  borderColor: localNfcEnabled ? colors.success : colors.border,
+                  backgroundColor: localNfcEnabled ? (isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)') : colors.input
+                }}
                 onPress={() => {
                   if (localNfcEnabled && !localEmailQrEnabled) {
                     showToast('At least one token delivery method must remain active.', 'warning');
@@ -1453,8 +1533,8 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   setLocalNfcEnabled(!localNfcEnabled);
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: 'bold', color: localNfcEnabled ? colors.success : colors.muted }}>
-                  {localNfcEnabled ? 'Enabled' : 'Disabled'}
+                <Text style={{ fontSize: 10, fontWeight: 'bold', color: localNfcEnabled ? colors.success : colors.muted }}>
+                  {localNfcEnabled ? 'ENABLED' : 'DISABLED'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1468,7 +1548,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 </Text>
               </View>
               <TouchableOpacity
-                className="px-4 py-2 rounded-xl border" style={{ borderColor: localEmailQrEnabled ? colors.success : 'transparent', backgroundColor: localEmailQrEnabled ? (isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)') : colors.themeInput }}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 7,
+                  borderRadius: 10,
+                  borderWidth: 1.5,
+                  borderColor: localEmailQrEnabled ? colors.success : colors.border,
+                  backgroundColor: localEmailQrEnabled ? (isDark ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.05)') : colors.input
+                }}
                 onPress={() => {
                   if (localEmailQrEnabled && !localNfcEnabled) {
                     showToast('At least one token delivery method must remain active.', 'warning');
@@ -1477,8 +1564,8 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   setLocalEmailQrEnabled(!localEmailQrEnabled);
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: 'bold', color: localEmailQrEnabled ? colors.success : colors.muted }}>
-                  {localEmailQrEnabled ? 'Enabled' : 'Disabled'}
+                <Text style={{ fontSize: 10, fontWeight: 'bold', color: localEmailQrEnabled ? colors.success : colors.muted }}>
+                  {localEmailQrEnabled ? 'ENABLED' : 'DISABLED'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1486,9 +1573,18 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
           {/* Save Button */}
           <TouchableOpacity
-            className={`w-full py-4 rounded-xl items-center justify-center min-h-[50px]
-              ${(isSavingSettings || isProcessing) ? 'opacity-65' : 'active:opacity-90'}`}
-            style={{ backgroundColor: (isSavingSettings || isProcessing) ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+            style={{
+              width: '100%',
+              paddingVertical: 14,
+              borderRadius: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 50,
+              borderWidth: 1.5,
+              borderColor: (isSavingSettings || isProcessing) ? colors.border : colors.gold,
+              backgroundColor: (isSavingSettings || isProcessing) ? colors.input : colors.gold,
+              opacity: (isSavingSettings || isProcessing) ? 0.65 : 1
+            }}
             disabled={isSavingSettings || isProcessing}
             onPress={async () => {
               if (!startAction('save_settings')) return;
@@ -2118,9 +2214,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <View className="mb-4">
             <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Place Type / Zone Name</Text>
             <TextInput
-              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                ${editRateName.trim().length > 0 ? (isEditRateNameValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-              style={{ color: colors.text }}
+              style={{
+                backgroundColor: colors.input,
+                borderColor: editRateName.trim().length > 0 ? (isEditRateNameValid ? 'rgba(20,184,166,0.3)' : 'rgba(239,68,68,0.45)') : colors.border,
+                borderWidth: 1.5,
+                color: colors.text,
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                fontSize: 14
+              }}
               placeholder="e.g. VIP Lounge"
               placeholderTextColor={colors.placeholder}
               value={editRateName}
@@ -2135,9 +2238,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <View className="mb-4">
             <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Base Price (₹ per Guest)</Text>
             <TextInput
-              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                ${editRatePrice.trim().length > 0 ? (isEditRatePriceValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-              style={{ color: colors.text }}
+              style={{
+                backgroundColor: colors.input,
+                borderColor: editRatePrice.trim().length > 0 ? (isEditRatePriceValid ? 'rgba(20,184,166,0.3)' : 'rgba(239,68,68,0.45)') : colors.border,
+                borderWidth: 1.5,
+                color: colors.text,
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                fontSize: 14
+              }}
               placeholder="500"
               placeholderTextColor={colors.placeholder}
               keyboardType="numeric"
@@ -2153,9 +2263,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <View className="mb-4">
             <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Duration (Hours)</Text>
             <TextInput
-              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                ${editRateDuration.trim().length > 0 ? (isEditRateDurationValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-              style={{ color: colors.text }}
+              style={{
+                backgroundColor: colors.input,
+                borderColor: editRateDuration.trim().length > 0 ? (isEditRateDurationValid ? 'rgba(20,184,166,0.3)' : 'rgba(239,68,68,0.45)') : colors.border,
+                borderWidth: 1.5,
+                color: colors.text,
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                fontSize: 14
+              }}
               placeholder="2"
               placeholderTextColor={colors.placeholder}
               keyboardType="numeric"
@@ -2171,9 +2288,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <View className="mb-6">
             <Text className="text-themeText text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Drinks Allowance (Per Guest)</Text>
             <TextInput
-              className={`bg-themeInput text-themeText border rounded-xl py-2.5 px-4 text-sm
-                ${editRateAllowance.trim().length > 0 ? (isEditRateAllowanceValid ? 'border-teal/30' : 'border-red/45') : 'border-transparent'}`}
-              style={{ color: colors.text }}
+              style={{
+                backgroundColor: colors.input,
+                borderColor: editRateAllowance.trim().length > 0 ? (isEditRateAllowanceValid ? 'rgba(20,184,166,0.3)' : 'rgba(239,68,68,0.45)') : colors.border,
+                borderWidth: 1.5,
+                color: colors.text,
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                fontSize: 14
+              }}
               placeholder="2"
               placeholderTextColor={colors.placeholder}
               keyboardType="numeric"
@@ -2187,27 +2311,32 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           </View>
 
           <View className="flex-row justify-end gap-2.5">
-            <TouchableOpacity className="py-2.5 px-4 rounded-xl" style={{ backgroundColor: colors.themeInput }} onPress={() => setIsEditRateOpen(false)}>
-              <Text className="text-xs font-bold" style={{ color: colors.muted }}>Cancel</Text>
+            <TouchableOpacity 
+              style={{ backgroundColor: colors.secondarySurface, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border }} 
+              onPress={() => setIsEditRateOpen(false)}
+            >
+              <Text className="text-xs font-bold" style={{ color: colors.text }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              className={`py-2.5 px-4 rounded-xl ${(isProcessing || !isEditRateFormValid) ? 'opacity-50' : 'active:opacity-90'}`}
-              style={{ backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold }}
+              style={{ 
+                backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold, 
+                paddingVertical: 10, 
+                paddingHorizontal: 16, 
+                borderRadius: 12, 
+                borderWidth: 1.5, 
+                borderColor: isProcessing ? colors.border : colors.gold,
+                opacity: (isProcessing || !isEditRateFormValid) ? 0.5 : 1
+              }}
               disabled={!isEditRateFormValid || isProcessing}
               onPress={async () => {
                 if (!selectedRate || !selectedRate.id || !isEditRateFormValid) return;
                 if (!startAction('update_rates')) return;
                 try {
-                  const priceNum = parseFloat(editRatePrice);
-                  const durNum = parseFloat(editRateDuration);
-                  const drinksNum = parseInt(editRateAllowance, 10);
-
                   const success = await updateRateCard(
                     selectedRate.id,
-                    priceNum,
-                    durNum,
-                    drinksNum,
-                    editRateName.trim()
+                    parseFloat(editRatePrice),
+                    parseFloat(editRateDuration),
+                    parseInt(editRateAllowance)
                   );
                   stopAction();
                   if (success) {
