@@ -319,14 +319,23 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!activeToken || systemMode === 'offline') return;
 
     try {
-      const [occupancyRes, tokensRes] = await Promise.all([
+      const [occupancyRes, tokensRes, configRes] = await Promise.all([
         fetch(`${BACKEND_URL}/tables/occupancy`, {
           headers: { 'Authorization': `Bearer ${activeToken}` }
         }),
         fetch(`${BACKEND_URL}/tokens/active`, {
           headers: { 'Authorization': `Bearer ${activeToken}` }
-        })
+        }),
+        fetch(`${BACKEND_URL}/config`).catch(() => null)
       ]);
+
+      if (configRes && configRes.ok) {
+        const configData = await configRes.json().catch(() => null);
+        if (configData && configData.success) {
+          if (typeof configData.nfcEnabled === 'boolean') setNfcEnabled(configData.nfcEnabled);
+          if (typeof configData.emailQrEnabled === 'boolean') setEmailQrEnabled(configData.emailQrEnabled);
+        }
+      }
 
       if (occupancyRes.ok) {
         const resData = await occupancyRes.json();
