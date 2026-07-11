@@ -757,6 +757,16 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           fetchLatestState(data.token || data.accessToken);
           return true;
         }
+      } else {
+        try {
+          const errorData = await res.json();
+          if (errorData && errorData.error && errorData.error.message) {
+            showToast(`Login failed: ${errorData.error.message}`, 'danger');
+            return false;
+          }
+        } catch (jsonErr) {
+          // Ignore json parse error and let fallback handle it
+        }
       }
     } catch (err) {
       console.log('Online login failed, trying fallback:', err);
