@@ -53,6 +53,7 @@ interface NfcBarContextType {
   updateDeliveryAvailability: (nfcEnabled: boolean, emailQrEnabled: boolean) => Promise<boolean>;
   simulateSync: () => void;
   fetchLatestState: (token?: string) => Promise<void>;
+  fetchSystemConfig: (token?: string) => Promise<void>;
   
   // Business logic mutations
   checkInGuest: (guestData: Omit<SessionToken, 'id' | 'tokenNumber' | 'startTime' | 'endTime' | 'status' | 'redemptionCount' | 'createdAt'>) => Promise<SessionToken | null>;
@@ -219,13 +220,13 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(timer);
   }, [sessions, notifiedTokens]);
 
-  // 3-second periodic background state synchronization (polling)
+  // 15-second periodic background state synchronization (polling)
   useEffect(() => {
     if (!userToken || systemMode === 'offline') return;
 
     const syncTimer = setInterval(() => {
       fetchLatestState().catch(err => console.log('Periodic state sync failed:', err));
-    }, 3000);
+    }, 15000);
 
     return () => clearInterval(syncTimer);
   }, [userToken, systemMode]);
@@ -314,19 +315,16 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     redemptions: t.redemptions
   });
 
-  const fetchLatestState = async (token?: string) => {
+  const fetchSystemConfig = async (token?: string) => {
     const activeToken = token || userToken;
     if (!activeToken || systemMode === 'offline') return;
 
     try {
-      const [occupancyRes, tokensRes, configRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/tables/occupancy`, {
+      const [configRes, ratesRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/config`).catch(() => null),
+        fetch(`${BACKEND_URL}/rate-cards`, {
           headers: { 'Authorization': `Bearer ${activeToken}` }
-        }),
-        fetch(`${BACKEND_URL}/tokens/active`, {
-          headers: { 'Authorization': `Bearer ${activeToken}` }
-        }),
-        fetch(`${BACKEND_URL}/config`).catch(() => null)
+        }).catch(() => null)
       ]);
 
       if (configRes && configRes.ok) {
@@ -336,6 +334,39 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (typeof configData.emailQrEnabled === 'boolean') setEmailQrEnabled(configData.emailQrEnabled);
         }
       }
+
+      if (ratesRes && ratesRes.ok) {
+        const ratesData = await ratesRes.json().catch(() => null);
+        if (ratesData && ratesData.success && ratesData.data && ratesData.data.placeTypes) {
+          const formattedRates: RateCard[] = ratesData.data.placeTypes.map((r: any) => ({
+            id: r.id,
+            placeType: r.name,
+            ratePerPerson: parseFloat(r.ratePerPerson.toString()),
+            durationHours: Math.round(r.baseTimeMinutes / 60),
+            maxDrinks: r.redemptionsPerPerson
+          }));
+          setRates(formattedRates);
+          await AsyncStorage.setItem('nfc_bar_cached_rates', JSON.stringify(formattedRates)).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.log('Failed to fetch system config:', err);
+    }
+  };
+
+  const fetchLatestState = async (token?: string) => {
+    const activeToken = token || userToken;
+    if (!activeToken || systemMode === 'offline') return;
+
+    try {
+      const [occupancyRes, tokensRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/tables/occupancy`, {
+          headers: { 'Authorization': `Bearer ${activeToken}` }
+        }),
+        fetch(`${BACKEND_URL}/tokens/active`, {
+          headers: { 'Authorization': `Bearer ${activeToken}` }
+        })
+      ]);
 
       if (occupancyRes.ok) {
         const resData = await occupancyRes.json();
@@ -377,90 +408,6 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSessions(fetchedSessions);
         await AsyncStorage.setItem('nfc_bar_cached_sessions', JSON.stringify(fetchedSessions)).catch(() => {});
       }
-
-      // Fetch users if user is admin
-      const savedUserStr = await AsyncStorage.getItem('nfc_bar_user');
-      const currentUser = savedUserStr ? JSON.parse(savedUserStr) : user;
-      if (currentUser && currentUser.role === 'admin') {
-        try {
-          const usersRes = await fetch(`${BACKEND_URL}/users`, {
-            headers: { 'Authorization': `Bearer ${activeToken}` }
-          });
-          if (usersRes.ok) {
-            const usersData = await usersRes.json();
-            if (usersData.success && usersData.data) {
-              setUsers(usersData.data);
-            }
-          }
-        } catch (usersErr) {
-          console.log('Failed to fetch users inside fetchLatestState:', usersErr);
-        }
-
-        try {
-          const cardsRes = await fetch(`${BACKEND_URL}/cards`, {
-            headers: { 'Authorization': `Bearer ${activeToken}` }
-          });
-          if (cardsRes.ok) {
-            const cardsData = await cardsRes.json();
-            setCards(cardsData);
-          }
-        } catch (cardsErr) {
-          console.log('Failed to fetch cards inside fetchLatestState:', cardsErr);
-        }
-
-        try {
-          const adminSessionsRes = await fetch(`${BACKEND_URL}/admin/sessions`, {
-            headers: { 'Authorization': `Bearer ${activeToken}` }
-          });
-          if (adminSessionsRes.ok) {
-            const adminSessionsData = await adminSessionsRes.json();
-            const mapped = adminSessionsData.map(mapBackendToken);
-            setAdminSessions(mapped);
-          }
-        } catch (adminErr) {
-          console.log('Failed to fetch admin sessions inside fetchLatestState:', adminErr);
-        }
-
-        try {
-          const dashRes = await fetch(`${BACKEND_URL}/reports/dashboard?filter=day`, {
-            headers: { 'Authorization': `Bearer ${activeToken}` }
-          });
-          if (dashRes.ok) {
-            const dashData = await dashRes.json();
-            if (dashData.success && dashData.data) {
-              const { salesSummary: sSum, tableUtilization: tUtil, hourlyBreakdown: hBreak } = dashData.data;
-              setSalesSummary(sSum);
-              setTableUtilization(tUtil);
-              setHourlyBreakdown(hBreak);
-            }
-          }
-        } catch (dashErr) {
-          console.log('Failed to fetch consolidated dashboard reports inside fetchLatestState:', dashErr);
-        }
-      }
-
-      // Fetch rates (for check-in / extensions)
-      try {
-        const ratesRes = await fetch(`${BACKEND_URL}/rate-cards`, {
-          headers: { 'Authorization': `Bearer ${activeToken}` }
-        });
-        if (ratesRes.ok) {
-          const ratesData = await ratesRes.json();
-          if (ratesData && ratesData.success && ratesData.data && ratesData.data.placeTypes) {
-            const formattedRates: RateCard[] = ratesData.data.placeTypes.map((r: any) => ({
-              id: r.id,
-              placeType: r.name,
-              ratePerPerson: parseFloat(r.ratePerPerson.toString()),
-              durationHours: Math.round(r.baseTimeMinutes / 60),
-              maxDrinks: r.redemptionsPerPerson
-            }));
-            setRates(formattedRates);
-            await AsyncStorage.setItem('nfc_bar_cached_rates', JSON.stringify(formattedRates)).catch(() => {});
-          }
-        }
-      } catch (ratesErr) {
-        console.log('Failed to fetch rates inside fetchLatestState:', ratesErr);
-      }
     } catch (err) {
       console.log('Failed to fetch latest server state:', err);
       if ((systemMode as any) !== 'offline') {
@@ -468,6 +415,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
   };
+
 
   const queueOperation = async (type: string, payload: any) => {
     const op = {
@@ -581,6 +529,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (savedToken) {
           setUserToken(savedToken);
           fetchLatestState(savedToken);
+          fetchSystemConfig(savedToken);
         }
         const queueStr = await AsyncStorage.getItem('nfc_bar_offline_queue');
         if (queueStr) {
@@ -751,6 +700,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
 
           // Fetch latest state immediately
+          fetchSystemConfig(data.token || data.accessToken);
           fetchLatestState(data.token || data.accessToken);
           return true;
         }
@@ -2101,7 +2051,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       preselectedTableNumber, setPreselectedTableNumber,
       salesSummary, tableUtilization, hourlyBreakdown,
       login, logout, setTab, showToast, triggerNotification, markNotificationsAsRead,
-      setMode, updateDeliveryAvailability, simulateSync, fetchLatestState,
+      setMode, updateDeliveryAvailability, simulateSync, fetchLatestState, fetchSystemConfig,
       checkInGuest, createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, redeemDrinkForCard, undoDrinkRedemption, extendSessionTime, closeGuestSession,
       addTable, editTable, updateTableStatus, deleteTable,
       fetchUsers, registerStaff, updateStaff, updateStaffStatus,

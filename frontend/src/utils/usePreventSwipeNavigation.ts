@@ -4,8 +4,8 @@ import { Platform } from 'react-native';
 /**
  * A hook that prevents horizontal swipe gestures in specific horizontal ScrollViews
  * from triggering the browser/app level back/forward swipe history navigation.
- * It binds listeners directly inside the callback ref to ensure immediate active
- * event interception on the very first touch/swipe, avoiding React lifecycle lags.
+ * It intercepts horizontal moves, calls preventDefault to block page-level swipe navigation,
+ * and manually scrolls the DOM container with momentum physics for smooth responsiveness.
  */
 export const usePreventSwipeNavigation = () => {
   const elementRef = useRef<HTMLElement | null>(null);
@@ -13,15 +13,18 @@ export const usePreventSwipeNavigation = () => {
     el: HTMLElement;
     touchStart: (e: TouchEvent) => void;
     touchMove: (e: TouchEvent) => void;
+    touchEnd: () => void;
   } | null>(null);
 
   const setRef = useCallback((node: any) => {
     // 1. Clean up existing listeners on element change or unmount
     if (listenersRef.current) {
       try {
-        const { el, touchStart, touchMove } = listenersRef.current;
+        const { el, touchStart, touchMove, touchEnd } = listenersRef.current;
         el.removeEventListener('touchstart', touchStart);
         el.removeEventListener('touchmove', touchMove);
+        el.removeEventListener('touchend', touchEnd);
+        el.removeEventListener('touchcancel', touchEnd);
       } catch (e) {
         // ignore
       }
@@ -51,13 +54,24 @@ export const usePreventSwipeNavigation = () => {
     if (domEl instanceof HTMLElement) {
       elementRef.current = domEl;
 
-      let touchStartX = 0;
-      let touchStartY = 0;
+      let lastTouchX = 0;
+      let lastTouchY = 0;
+      let lastTouchTime = 0;
+      let velocityX = 0;
+      let isScrollingHorizontal = false;
+      let animationFrameId: number | null = null;
 
       const handleTouchStart = (e: TouchEvent) => {
         if (e.touches.length > 0) {
-          touchStartX = e.touches[0].clientX;
-          touchStartY = e.touches[0].clientY;
+          lastTouchX = e.touches[0].clientX;
+          lastTouchY = e.touches[0].clientY;
+          lastTouchTime = Date.now();
+          velocityX = 0;
+          isScrollingHorizontal = false;
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
         }
       };
 
@@ -65,49 +79,68 @@ export const usePreventSwipeNavigation = () => {
         if (e.touches.length === 0) return;
         const touchX = e.touches[0].clientX;
         const touchY = e.touches[0].clientY;
-        const deltaX = touchX - touchStartX;
-        const deltaY = touchY - touchStartY;
+        const deltaX = touchX - lastTouchX;
+        const deltaY = touchY - lastTouchY;
+        const now = Date.now();
+        const timeDelta = now - lastTouchTime;
 
-        // Check if the gesture is primarily horizontal
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-          const scrollLeft = domEl.scrollLeft;
-          const maxScroll = domEl.scrollWidth - domEl.clientWidth;
-
-          // Check if container is not scrollable (or has negligible scroll width)
-          if (maxScroll <= 2) {
-            if (e.cancelable) {
-              e.preventDefault();
-            }
-          } else {
-            // At left boundary swiping right (back swipe navigation gesture)
-            // Use 2px tolerance for high-DPI decimal scroll boundaries
-            if (scrollLeft <= 2 && deltaX > 0) {
-              if (e.cancelable) {
-                e.preventDefault();
-              }
-            }
-            // At right boundary swiping left (forward swipe navigation gesture)
-            else if (scrollLeft >= maxScroll - 2 && deltaX < 0) {
-              if (e.cancelable) {
-                e.preventDefault();
-              }
-            }
+        if (!isScrollingHorizontal) {
+          // On first movement, determine if swipe is horizontal
+          if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 2) {
+            isScrollingHorizontal = true;
           }
         }
+
+        if (isScrollingHorizontal) {
+          // Cancel browser-level page navigation (peel transition)
+          if (e.cancelable) {
+            e.preventDefault();
+          }
+          // Perform manual horizontal scroll
+          domEl.scrollLeft -= deltaX;
+          if (timeDelta > 0) {
+            velocityX = deltaX / timeDelta; // velocity in px/ms
+          }
+        }
+
+        lastTouchX = touchX;
+        lastTouchY = touchY;
+        lastTouchTime = now;
       };
 
-      // Set CSS style for overscroll
+      const handleTouchEnd = () => {
+        if (!isScrollingHorizontal || Math.abs(velocityX) < 0.1) return;
+
+        let speed = velocityX;
+        const friction = 0.95; // smooth friction coefficient
+
+        const step = () => {
+          if (Math.abs(speed) < 0.05) {
+            animationFrameId = null;
+            return;
+          }
+          domEl.scrollLeft -= speed * 16; // approximate distance per frame
+          speed *= friction;
+          animationFrameId = requestAnimationFrame(step);
+        };
+        animationFrameId = requestAnimationFrame(step);
+      };
+
+      // Set CSS style for overscroll as fallback safety
       domEl.style.overscrollBehaviorX = 'none';
 
-      // Bind listeners (non-passive for touchmove to allow preventDefault)
+      // Bind listeners (non-passive touchmove is mandatory to call preventDefault)
       domEl.addEventListener('touchstart', handleTouchStart, { passive: true });
       domEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+      domEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+      domEl.addEventListener('touchcancel', handleTouchEnd, { passive: true });
 
       // Save references for clean removal
       listenersRef.current = {
         el: domEl,
         touchStart: handleTouchStart,
-        touchMove: handleTouchMove
+        touchMove: handleTouchMove,
+        touchEnd: handleTouchEnd
       };
     } else {
       elementRef.current = null;
@@ -116,5 +149,6 @@ export const usePreventSwipeNavigation = () => {
 
   return setRef;
 };
+
 
 

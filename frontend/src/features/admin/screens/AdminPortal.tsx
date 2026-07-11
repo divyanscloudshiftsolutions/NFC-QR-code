@@ -171,7 +171,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     };
   }, [adminSubTab, reportFilter, startDateStr, endDateStr]);
 
-  // 5-second periodic background polling for active admin subtabs
+  // 15-second periodic background polling for active admin subtabs
   useEffect(() => {
     if (systemMode === 'offline' || !isActive) return;
 
@@ -187,7 +187,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       } else if (adminSubTab === 'live') {
         fetchReports('day').catch(() => {});
       }
-    }, 5000);
+    }, 15000);
 
     return () => clearInterval(syncTimer);
   }, [adminSubTab, reportFilter, startDateStr, endDateStr, systemMode, isActive]);
