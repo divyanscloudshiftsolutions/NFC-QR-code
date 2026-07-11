@@ -30,7 +30,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "npx expo export --platform web --clear",
+    "build": "node -e \"const fs = require('fs'); fs.writeFileSync('src/utils/buildTime.ts', 'export const BUILD_TIME = ' + Date.now() + ';\\n');\" && npx expo export --platform web --clear",
     "postinstall": "node -e \"const fs = require('fs'); fs.rmSync('.expo', { recursive: true, force: true }); fs.rmSync('node_modules/.cache/metro', { recursive: true, force: true });\""
   },
   "private": true

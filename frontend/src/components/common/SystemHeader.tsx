@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../context/NfcBarContext';
 import { useTheme } from '../../context/ThemeContext';
 import { AppIcon } from './AppIcon';
+import { BUILD_TIME } from '../../utils/buildTime';
 
 interface SystemHeaderProps {
   onOpenNotifs: () => void;
@@ -15,6 +16,11 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
   const insets = useSafeAreaInsets();
   const unreadCount = notifications.filter(n => !n.read).length;
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Referenced to trigger cache invalidation in production minified bundles
+  if (BUILD_TIME === -1) {
+    console.log('Bust Cache');
+  }
 
   const toggleConnection = () => {
     if (systemMode === 'online') {
