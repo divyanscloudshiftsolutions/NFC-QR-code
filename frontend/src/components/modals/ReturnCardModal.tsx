@@ -76,6 +76,20 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
   }, [returnStep, isSanitizing, onClose]);
 
   const getBackendUrl = () => {
+    if (Platform.OS === 'web') {
+      const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (envApiUrl && envApiUrl.trim().length > 0) {
+        let cleaned = envApiUrl.trim();
+        if (cleaned.endsWith('/')) {
+          cleaned = cleaned.slice(0, -1);
+        }
+        if (!cleaned.endsWith('/api')) {
+          cleaned = `${cleaned}/api`;
+        }
+        return cleaned;
+      }
+      return 'https://nfc-qr-code-production.up.railway.app/api';
+    }
     const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (envApiUrl && envApiUrl.trim().length > 0) {
       return envApiUrl.trim();

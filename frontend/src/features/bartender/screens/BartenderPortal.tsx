@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
-  ActivityIndicator, StyleSheet, Modal
+  ActivityIndicator, StyleSheet, Modal, Platform
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
@@ -168,6 +168,20 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
   }, [sessions]);
 
   const getBackendUrl = () => {
+    if (Platform.OS === 'web') {
+      const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (envApiUrl && envApiUrl.trim().length > 0) {
+        let cleaned = envApiUrl.trim();
+        if (cleaned.endsWith('/')) {
+          cleaned = cleaned.slice(0, -1);
+        }
+        if (!cleaned.endsWith('/api')) {
+          cleaned = `${cleaned}/api`;
+        }
+        return cleaned;
+      }
+      return 'https://nfc-qr-code-production.up.railway.app/api';
+    }
     const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (envApiUrl && envApiUrl.trim().length > 0) {
       return envApiUrl.trim();

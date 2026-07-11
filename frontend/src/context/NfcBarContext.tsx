@@ -131,12 +131,27 @@ const generateUUID = () => {
 import { NativeModules } from 'react-native';
 
 const getBackendUrl = () => {
+  if (Platform.OS === 'web') {
+    const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (envApiUrl && envApiUrl.trim().length > 0) {
+      let cleaned = envApiUrl.trim();
+      if (cleaned.endsWith('/')) {
+        cleaned = cleaned.slice(0, -1);
+      }
+      if (!cleaned.endsWith('/api')) {
+        cleaned = `${cleaned}/api`;
+      }
+      return cleaned;
+    }
+    // Web fallback pointing to Railway backend production URL
+    return 'https://nfc-qr-code-production.up.railway.app/api';
+  }
+
+  // Non-web platforms use the existing logic exactly as before
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envApiUrl && envApiUrl.trim().length > 0) {
     return envApiUrl.trim();
   }
-
-  // Production Railway fallback (localhost/local IP network fallbacks removed)
   return 'https://nfc-qr-code-production.up.railway.app/api';
 };
 
