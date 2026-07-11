@@ -18,7 +18,7 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Referenced to trigger cache invalidation in production minified bundles
-  if (BUILD_TIME === -1) {
+  if ((BUILD_TIME as number) === -1) {
     console.log('Bust Cache');
   }
 

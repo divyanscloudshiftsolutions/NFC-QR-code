@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator, Image, Share, Alert
+  View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator, Image, Share, Alert, Platform
 } from 'react-native';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard, SessionToken } from '../../../types/nfc_bar';
@@ -21,7 +21,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
     fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive, setSwipeLocked
   } = useNfcBar();
-  const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('live');
+  const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('tables');
   const [isTabLoading, setIsTabLoading] = useState(false);
 
   // Card inventory search & filter state
@@ -39,6 +39,46 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
   const [deactivateTargetSession, setDeactivateTargetSession] = useState<{ tokenNumber: string; status: TokenStatus; customerName: string } | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [forceRelease, setForceRelease] = useState(false);
+
+  const handleUpdateTableStatus = async (tableId: string, status: string) => {
+    if (!startAction(`table_status_${tableId}`)) return;
+    showToast('Updating data...', 'info');
+    try {
+      await updateTableStatus(tableId, status);
+    } finally {
+      stopAction();
+    }
+  };
+
+  const handleDeleteTable = async (tableId: string) => {
+    if (!startAction(`delete_table_${tableId}`)) return;
+    showToast('Updating data...', 'info');
+    try {
+      await deleteTable(tableId);
+    } finally {
+      stopAction();
+    }
+  };
+
+  const handleUpdateCardStatus = async (cardUid: string, status: string) => {
+    if (!startAction(`card_status_${cardUid}`)) return;
+    showToast('Updating data...', 'info');
+    try {
+      await updateCardStatus(cardUid, status);
+    } finally {
+      stopAction();
+    }
+  };
+
+  const handleUpdateStaffStatus = async (staffId: string, isActive: boolean) => {
+    if (!startAction(`staff_status_${staffId}`)) return;
+    showToast('Updating data...', 'info');
+    try {
+      await updateStaffStatus(staffId, isActive);
+    } finally {
+      stopAction();
+    }
+  };
 
   useEffect(() => {
     setVisibleSessionsCount(10);
@@ -372,7 +412,6 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
           >
             {[
-              { tab: 'live', label: 'Tokens', icon: '📱' },
               { tab: 'tables', label: 'Tables', icon: '🪑' },
               { tab: 'cards', label: 'Cards', icon: '💳' },
               { tab: 'rates', label: 'Rates', icon: '💰' },
@@ -630,14 +669,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                                 {isAvailable && (
                                   <>
                                     <TouchableOpacity
-                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(167, 139, 250, 0.1)' : '#F5F3FF', borderWidth: 1.5, borderColor: isDark ? 'rgba(167, 139, 250, 0.35)' : '#D8B4FE' }}
-                                      onPress={() => updateCardStatus(card.cardUid, 'inactive')}
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(167, 139, 250, 0.1)' : '#F5F3FF', borderWidth: 1.5, borderColor: isDark ? 'rgba(167, 139, 250, 0.35)' : '#D8B4FE', opacity: isProcessing ? 0.6 : 1 }}
+                                      disabled={isProcessing}
+                                      onPress={() => handleUpdateCardStatus(card.cardUid, 'inactive')}
                                     >
                                       <Text style={{ color: '#A78BFA', fontSize: 8.5, fontWeight: 'bold' }}>Deact</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
-                                      onPress={() => updateCardStatus(card.cardUid, 'lost')}
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5', opacity: isProcessing ? 0.6 : 1 }}
+                                      disabled={isProcessing}
+                                      onPress={() => handleUpdateCardStatus(card.cardUid, 'lost')}
                                     >
                                       <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
                                     </TouchableOpacity>
@@ -646,14 +687,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                                 {isAssigned && (
                                   <>
                                     <TouchableOpacity
-                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
-                                      onPress={() => updateCardStatus(card.cardUid, 'lost')}
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5', opacity: isProcessing ? 0.6 : 1 }}
+                                      disabled={isProcessing}
+                                      onPress={() => handleUpdateCardStatus(card.cardUid, 'lost')}
                                     >
                                       <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border }}
-                                      onPress={() => updateCardStatus(card.cardUid, 'damaged')}
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.secondarySurface, borderWidth: 1.5, borderColor: colors.border, opacity: isProcessing ? 0.6 : 1 }}
+                                      disabled={isProcessing}
+                                      onPress={() => handleUpdateCardStatus(card.cardUid, 'damaged')}
                                     >
                                       <Text style={{ color: colors.text, fontSize: 8.5, fontWeight: 'bold' }}>Dmg</Text>
                                     </TouchableOpacity>
@@ -662,14 +705,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                                 {isInactive && (
                                   <>
                                     <TouchableOpacity
-                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
-                                      onPress={() => updateCardStatus(card.cardUid, 'available')}
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC', opacity: isProcessing ? 0.6 : 1 }}
+                                      disabled={isProcessing}
+                                      onPress={() => handleUpdateCardStatus(card.cardUid, 'available')}
                                     >
                                       <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Activ</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5' }}
-                                      onPress={() => updateCardStatus(card.cardUid, 'lost')}
+                                      style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', borderWidth: 1.5, borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5', opacity: isProcessing ? 0.6 : 1 }}
+                                      disabled={isProcessing}
+                                      onPress={() => handleUpdateCardStatus(card.cardUid, 'lost')}
                                     >
                                       <Text style={{ color: colors.red, fontSize: 8.5, fontWeight: 'bold' }}>Lost</Text>
                                     </TouchableOpacity>
@@ -677,8 +722,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                                 )}
                                 {(isLost || isDamaged) && (
                                   <TouchableOpacity
-                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC' }}
-                                    onPress={() => updateCardStatus(card.cardUid, 'available')}
+                                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', borderWidth: 1.5, borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#86EFAC', opacity: isProcessing ? 0.6 : 1 }}
+                                    disabled={isProcessing}
+                                    onPress={() => handleUpdateCardStatus(card.cardUid, 'available')}
                                   >
                                     <Text style={{ color: colors.success, fontSize: 8.5, fontWeight: 'bold' }}>Available</Text>
                                   </TouchableOpacity>
@@ -868,9 +914,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                               borderRadius: 6, 
                               borderWidth: 1.5, 
                               borderColor: table.status === TableStatus.AVAILABLE ? colors.success : colors.border, 
-                              backgroundColor: table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4') : colors.secondarySurface 
+                              backgroundColor: table.status === TableStatus.AVAILABLE ? (isDark ? 'rgba(34,197,94,0.12)' : '#F0FDF4') : colors.secondarySurface,
+                              opacity: isProcessing ? 0.6 : 1
                             }}
-                            onPress={() => updateTableStatus(table.id, 'available')}
+                            disabled={isProcessing}
+                            onPress={() => handleUpdateTableStatus(table.id, 'available')}
                           >
                             <Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.AVAILABLE ? colors.success : colors.muted }}>Available</Text>
                           </TouchableOpacity>
@@ -881,9 +929,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                               borderRadius: 6, 
                               borderWidth: 1.5, 
                               borderColor: table.status === TableStatus.RESERVED ? '#3B82F6' : colors.border, 
-                              backgroundColor: table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.12)' : '#EFF6FF') : colors.secondarySurface 
+                              backgroundColor: table.status === TableStatus.RESERVED ? (isDark ? 'rgba(59,130,246,0.12)' : '#EFF6FF') : colors.secondarySurface,
+                              opacity: isProcessing ? 0.6 : 1
                             }}
-                            onPress={() => updateTableStatus(table.id, 'reserved')}
+                            disabled={isProcessing}
+                            onPress={() => handleUpdateTableStatus(table.id, 'reserved')}
                           >
                             <Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.RESERVED ? '#3B82F6' : colors.muted }}>Reserve</Text>
                           </TouchableOpacity>
@@ -894,9 +944,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                               borderRadius: 6, 
                               borderWidth: 1.5, 
                               borderColor: table.status === TableStatus.MAINTENANCE ? colors.red : colors.border, 
-                              backgroundColor: table.status === TableStatus.MAINTENANCE ? (isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2') : colors.secondarySurface 
+                              backgroundColor: table.status === TableStatus.MAINTENANCE ? (isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2') : colors.secondarySurface,
+                              opacity: isProcessing ? 0.6 : 1
                             }}
-                            onPress={() => updateTableStatus(table.id, 'maintenance')}
+                            disabled={isProcessing}
+                            onPress={() => handleUpdateTableStatus(table.id, 'maintenance')}
                           >
                             <Text style={{ fontSize: 9, fontWeight: 'bold', color: table.status === TableStatus.MAINTENANCE ? colors.red : colors.muted }}>Maint</Text>
                           </TouchableOpacity>
@@ -941,15 +993,15 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                           borderWidth: 1.5, 
                           borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : '#FCA5A5', 
                           backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2', 
-                          opacity: isOccupied ? 0.5 : 1 
+                          opacity: (isOccupied || isProcessing) ? 0.5 : 1 
                         }}
-                        disabled={isOccupied}
+                        disabled={isOccupied || isProcessing}
                         onPress={() => {
                           if (isOccupied) {
                             showToast('Cannot delete an occupied table', 'danger');
                             return;
                           }
-                          deleteTable(table.id);
+                          handleDeleteTable(table.id);
                         }}
                       >
                         <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.red }}>Delete</Text>
@@ -1476,9 +1528,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                             borderRadius: 6,
                             borderWidth: 1.5,
                             borderColor: staff.isActive ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)',
-                            backgroundColor: staff.isActive ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)') : (isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(34, 197, 94, 0.05)')
+                            backgroundColor: staff.isActive ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)') : (isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(34, 197, 94, 0.05)'),
+                            opacity: isProcessing ? 0.6 : 1
                           }}
-                          onPress={() => updateStaffStatus(staff.id, !staff.isActive)}
+                          disabled={isProcessing}
+                          onPress={() => handleUpdateStaffStatus(staff.id, !staff.isActive)}
                         >
                           <Text style={{ fontSize: 9, fontWeight: 'bold', color: staff.isActive ? colors.red : colors.success }}>
                             {staff.isActive ? 'Deactivate' : 'Activate'}
@@ -1494,8 +1548,10 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                         borderRadius: 6,
                         borderWidth: 1.5,
                         borderColor: colors.border,
-                        backgroundColor: colors.secondarySurface
+                        backgroundColor: colors.secondarySurface,
+                        opacity: isProcessing ? 0.6 : 1
                       }}
+                      disabled={isProcessing}
                       onPress={() => {
                         setSelectedStaff(staff);
                         setEditStaffUsername(staff.username);
