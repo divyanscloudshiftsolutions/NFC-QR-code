@@ -135,7 +135,7 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
           <Text style={{ fontSize: 16 }}>{isDark ? '☀️' : '🌙'}</Text>
         </TouchableOpacity>
 
-        {/* Refresh Button */}
+        {/* Shared manual Refresh Button next to Theme Toggle */}
         <TouchableOpacity 
           className="w-10 h-10 rounded-full justify-center items-center border"
           style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, opacity: isRefreshing ? 0.6 : 1 }}
