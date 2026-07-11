@@ -52,7 +52,7 @@ const isValidUUID = (uuid: string): boolean => {
 export const validateEmail = (value?: string | null): boolean => {
   if (!value || !value.trim()) return true;
 
-  const email = value.trim();
+  const email = value.trim().toLowerCase();
 
   const regex = /^(?!.*\.\.)(?!\.)(?!.*\.$)[a-z0-9]+(\.[a-z0-9]+)*@gmail\.com$/;
 

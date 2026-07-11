@@ -202,7 +202,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const diff = new Date(session.endTime).getTime() - now;
           if (diff > 0 && diff <= 15 * 60 * 1000) {
             if (!notifiedTokens.includes(session.tokenNumber)) {
-              showToast(`Table ${session.tableNumber || 'N/A'} is expiring soon!`, 'warning', 6000);
+              showToast(`Table ${session.tableNumber || 'N/A'} session is expiring soon.`, 'warning', 6000);
               triggerNotification(
                 'Session Expiring',
                 `Session for ${session.customerName} at Table ${session.tableNumber || 'N/A'} has only ${Math.round(diff / 60000)} minutes remaining.`,
@@ -238,7 +238,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setTimeout(() => {
       setCurrentScreen('login');
     }, 100);
-    showToast('Session expired. Please log in again.', 'warning', 4000);
+    showToast('Your session has expired. Please log in again.', 'warning', 4000);
     await AsyncStorage.removeItem('nfc_bar_user');
     await AsyncStorage.removeItem('nfc_bar_user_token');
   };
@@ -411,7 +411,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (err) {
       console.log('Failed to fetch latest server state:', err);
       if ((systemMode as any) !== 'offline') {
-        showToast('Server unreachable', 'danger');
+        showToast('Unable to connect to the server. Please check your internet connection.', 'danger');
       }
     }
   };
@@ -433,7 +433,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (systemMode !== 'offline') {
       await syncQueuedOperations(newQueue);
     } else {
-      showToast('Saved offline', 'warning');
+      showToast('Changes saved offline. They will sync when your connection is restored.', 'warning');
     }
   };
 
@@ -472,19 +472,19 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         if (conflicts.length > 0) {
           conflicts.forEach((c: any) => {
-            showToast(`Sync issue: ${c.error.message}`, 'danger');
+            showToast(`Synchronization conflict: ${c.error?.message || 'A data conflict occurred.'}`, 'danger');
             triggerNotification('Sync Conflict Resolution', `Operation failed: ${c.error.message}`, 'nfc_fail');
           });
         }
         if (errors.length > 0) {
           errors.forEach((e: any) => {
-            showToast(`Sync issue: ${e.error.message}`, 'danger');
+            showToast(`Synchronization error: ${e.error?.message || 'An error occurred during synchronization.'}`, 'danger');
           });
         }
 
         const successCount = data.results.filter((r: any) => r.status === 'SUCCESS').length;
         if (successCount > 0) {
-          showToast('Offline data synced', 'success');
+          showToast('Offline data synchronized successfully.', 'success');
           const now = new Date();
           setLastSyncTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
           triggerNotification('Offline Sync Completed', `All queued actions synchronized successfully.`, 'sync_complete');
@@ -502,12 +502,12 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Server responded with an error (e.g. 400, 401, 500)
         // We remain ONLINE because the server was reached successfully.
         const errData = await res.json().catch(() => null);
-        showToast('Sync failed. Please try again.', 'danger');
+        showToast('Unable to synchronize data. Please try again.', 'danger');
         setSystemMode('online');
       }
     } catch (e) {
       console.log('Sync failed, network unreachable:', e);
-      showToast('Sync failed. Server unreachable.', 'danger');
+      showToast('Synchronization failed. The server is currently unreachable.', 'danger');
       setSystemMode('online');
     }
   };
@@ -585,9 +585,9 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       if (prevOnlineState !== null && prevOnlineState !== isOnline) {
         if (isOnline) {
-          showToast('Connection restored. Back online.', 'success', 3000);
+          showToast('Connection restored. You are now back online.', 'success', 3000);
         } else {
-          showToast('Connection lost. Working offline.', 'warning', 3000);
+          showToast('Connection lost. Switching to offline mode.', 'warning', 3000);
         }
       }
       prevOnlineState = isOnline;
@@ -597,7 +597,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         AsyncStorage.getItem('nfc_bar_user_token').then(tok => {
           if (tok && tok.startsWith('offline-mock-')) {
             forceLogoutForExpiredSession();
-            showToast('Connection restored. Please log in.', 'info', 5000);
+            showToast('Connection restored. Please log in to continue.', 'info', 5000);
           } else {
             // trigger auto-sync
             syncQueuedOperations();
@@ -708,7 +708,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
           const errorData = await res.json();
           if (errorData && errorData.error && errorData.error.message) {
-            showToast(`Login failed: ${errorData.error.message}`, 'danger');
+            showToast(errorData.error.message, 'danger');
             return false;
           }
         } catch (jsonErr) {
@@ -734,7 +734,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             await AsyncStorage.setItem('nfc_bar_user', JSON.stringify(savedUser));
             await AsyncStorage.setItem('nfc_bar_user_token', offlineToken);
             setCurrentScreen('app');
-            showToast(`Welcome back, ${savedUser.name} (Offline)!`, 'success');
+            showToast(`Welcome back, ${savedUser.name} (Offline Mode)!`, 'success');
             
             if (savedUser.role === UserRole.BARTENDER) {
               setActiveTab('bartender');
@@ -747,7 +747,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         }
       } else {
-        showToast('Login failed: Backend server unreachable.', 'danger');
+        showToast('Login failed. Unable to reach the server. Please try again.', 'danger');
       }
     } catch (cacheErr) {
       console.log('Offline login fallback failed:', cacheErr);
@@ -762,7 +762,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentScreen('login');
     setReturnCardStep('idle');
     setReturnCardUid(null);
-    showToast('Logged out', 'info');
+    showToast('You have been logged out successfully.', 'success');
     await AsyncStorage.removeItem('nfc_bar_user');
     await AsyncStorage.removeItem('nfc_bar_user_token');
   };
@@ -771,11 +771,11 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Permission checks
     if (!user) return;
     if (user.role === UserRole.BARTENDER && tab !== 'bartender') {
-      showToast('Access denied', 'danger');
+      showToast('Access denied. You do not have permission to perform this action.', 'danger');
       return;
     }
     if (user.role === UserRole.MANAGER && (tab === 'checkin' || tab === 'bartender')) {
-      showToast('Access denied', 'danger');
+      showToast('Access denied. You do not have permission to perform this action.', 'danger');
       return;
     }
     setActiveTab(tab);
@@ -790,19 +790,19 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setPendingSyncCount(0);
         const now = new Date();
         setLastSyncTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
-        showToast('Offline data synced', 'success');
+        showToast('Offline data synchronized successfully.', 'success');
       }, 1500);
     } else {
       setSystemMode(mode);
       if (mode === 'offline') {
-        showToast('Saved offline', 'warning');
+        showToast('Saved offline. Changes will sync when connection is restored.', 'warning');
       }
     }
   };
 
   const updateDeliveryAvailability = async (nfc: boolean, emailQr: boolean): Promise<boolean> => {
     if (systemMode === 'offline') {
-      showToast('Cannot change settings offline', 'danger');
+      showToast('This action is unavailable offline. Please check your connection.', 'danger');
       return false;
     }
     try {
@@ -819,14 +819,14 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const data = await res.json();
         setNfcEnabled(data.nfcEnabled);
         setEmailQrEnabled(data.emailQrEnabled);
-        showToast('Settings saved', 'success');
+        showToast('Configuration saved successfully.', 'success');
         return true;
       } else {
         const data = await res.json().catch(() => null);
-        showToast('Failed to save settings', 'danger');
+        showToast('Failed to save settings. Please try again.', 'danger');
       }
     } catch (err: any) {
-      showToast('Server unreachable. Settings not saved.', 'danger');
+      showToast('Unable to save settings. Server is currently unreachable.', 'danger');
     }
     return false;
   };
@@ -884,11 +884,11 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           fetchLatestState().catch(() => {});
           fetchReports('day').catch(() => {});
 
-          showToast('Check-in Completed', 'success');
+          showToast('Customer checked in successfully.', 'success');
           return mapped;
         } else {
           const errData = await res.json().catch(() => ({}));
-          showToast(errData.error?.message || 'Check-in failed', 'danger');
+          showToast(errData.error?.message || 'Unable to complete the check-in. Please try again.', 'danger');
           return null;
         }
       } catch (err) {
@@ -900,7 +900,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Validation: Check if table is occupied
     const tableIndex = tables.findIndex(t => t.number === guestData.tableNumber);
     if (tableIndex === -1 || tables[tableIndex].status === TableStatus.OCCUPIED || tables[tableIndex].status === TableStatus.MAINTENANCE) {
-      showToast('Table unavailable', 'danger');
+      showToast('This table is no longer available. Please choose another table.', 'danger');
       return null;
     }
 
@@ -959,7 +959,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       deliveryMode: guestData.deliveryMode
     });
 
-    showToast('Check-in Completed', 'success');
+    showToast('Customer checked in successfully.', 'success');
     return newSession;
   };
 
@@ -989,7 +989,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const mapped = mapBackendToken(data);
         setSessions(prev => [mapped, ...prev]);
         setAdminSessions(prev => [mapped, ...prev]);
-        showToast('Check-in Completed', 'success');
+        showToast('Customer checked in successfully.', 'success');
         return mapped;
       } else {
         const errData = await res.json().catch(() => null);
@@ -999,13 +999,13 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           customErr.tokenNumber = errData.tokenNumber;
           throw customErr;
         }
-        showToast('Check-in failed', 'danger');
+        showToast(errData?.error?.message || 'Unable to complete the check-in. Please try again.', 'danger');
       }
     } catch (err: any) {
       if (err.code === 'PENDING_SESSION_EXISTS') {
         throw err;
       }
-      showToast('Check-in failed. Server unreachable.', 'danger');
+      showToast('Unable to complete the check-in. Server is currently unreachable.', 'danger');
     }
     return null;
   };
@@ -1025,10 +1025,10 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return mapBackendToken(data);
       } else {
         const errData = await res.json().catch(() => null);
-        showToast('Invalid or expired QR code', 'danger');
+        showToast(errData?.error?.message || 'This QR code is invalid or has expired. Please check and try again.', 'danger');
       }
     } catch (err: any) {
-      showToast('Validation failed. Server unreachable.', 'danger');
+      showToast('QR verification failed. Server is currently unreachable.', 'danger');
     }
     return null;
   };
@@ -1074,19 +1074,19 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           occupiedSeats: mapped.persons,
           availableSeats: t.allowSharedSeating ? (t.totalCapacity - mapped.persons) : 0
         } : t));
-        showToast('Check-in Completed', 'success');
+        showToast('Customer checked in successfully.', 'success');
         return mapped;
       } else {
         const errData = await res.json().catch(() => null);
-        const errMsg = errData?.error?.message || 'Failed to activate session.';
+        const errMsg = errData?.error?.message || 'Unable to activate the session. Please try again.';
         showToast(errMsg, 'danger');
         throw new Error(errMsg);
       }
     } catch (err: any) {
-      if (err.message && err.message !== 'Failed to activate session.') {
+      if (err.message && err.message !== 'Unable to activate the session. Please try again.') {
         throw err;
       }
-      showToast('Activation failed. Server unreachable.', 'danger');
+      showToast('Session activation failed. Server is currently unreachable.', 'danger');
       throw new Error('Network error activating session. Please check connection and try again.');
     }
   };
@@ -1113,14 +1113,14 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           ...s,
           status: TokenStatus.CANCELLED
         } : s));
-        showToast('Check-in cancelled', 'info');
+        showToast('The check-in has been cancelled.', 'info');
         return true;
       } else {
         const errData = await res.json().catch(() => null);
-        showToast('Cancellation failed', 'danger');
+        showToast('Unable to cancel the check-in. Please try again.', 'danger');
       }
     } catch (err: any) {
-      showToast('Cancellation failed. Server unreachable.', 'danger');
+      showToast('Unable to cancel the check-in. The server is currently unreachable.', 'danger');
     }
     return false;
   };
@@ -1133,20 +1133,20 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       s.paymentVerified === true
     );
     if (sessionIndex === -1) {
-      showToast('No active session found', 'danger');
+      showToast('No active session was found for this card or code.', 'danger');
       return { success: false, error: 'Invalid card or token' };
     }
 
     const session = sessions[sessionIndex];
     if (session.redemptionCount >= session.redemptionLimit) {
-      showToast('Drink limit reached', 'danger');
+      showToast('This customer has reached their complimentary drink limit.', 'danger');
       return { success: false, remaining: 0, error: 'Drink limit reached' };
     }
 
     // Check expiration
     const now = new Date();
     if (now > new Date(session.endTime)) {
-      showToast('Session has expired', 'danger');
+      showToast('This session has expired.', 'danger');
       return { success: false, remaining: 0, error: 'Expired session' };
     }
 
@@ -1178,11 +1178,11 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           fetchLatestState().catch(() => {});
           fetchReports('day').catch(() => {});
 
-          showToast('Drink Served Successfully', 'success');
+          showToast('Drink served successfully.', 'success');
           return { success: true, remaining: data.remaining };
         } else {
           const errData = await res.json().catch(() => ({}));
-          showToast(errData.error || 'Redemption blocked', 'danger');
+          showToast(errData.error?.message || 'Unable to redeem the drink. Please try again.', 'danger');
           return { success: false, error: errData.error || 'Redemption blocked' };
         }
       } catch (err) {
@@ -1201,7 +1201,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       bartenderId: user?.id || 'staff-uuid'
     });
 
-    showToast('Drink Served Successfully', 'success');
+    showToast('Drink served successfully.', 'success');
     return { success: true, remaining: session.redemptionLimit - newCount };
   };
 
@@ -1212,13 +1212,13 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       s.status === TokenStatus.ACTIVE
     );
     if (sessionIndex === -1) {
-      showToast('No active check-in session found!', 'danger');
+      showToast('No active session was found for this card or code.', 'danger');
       return { success: false, error: 'Invalid card or token' };
     }
 
     const session = sessions[sessionIndex];
     if (session.redemptionCount <= 0) {
-      showToast('No redemptions to undo', 'danger');
+      showToast('No drinks have been redeemed yet for this session.', 'danger');
       return { success: false, error: 'No redemptions to undo' };
     }
 
@@ -1249,11 +1249,11 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           fetchLatestState().catch(() => {});
           fetchReports('day').catch(() => {});
 
-          showToast('Redemption undone', 'success');
+          showToast('Drink redemption undone.', 'success');
           return { success: true, remaining: data.remaining };
         } else {
           const errData = await res.json().catch(() => ({}));
-          showToast(errData.error || 'Undo blocked', 'danger');
+          showToast(errData.error?.message || 'Unable to undo the drink redemption. Please try again.', 'danger');
           return { success: false, error: errData.error || 'Undo blocked' };
         }
       } catch (err) {
@@ -1271,7 +1271,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       cardUid: session.cardUid || null
     });
 
-    showToast('Redemption undone', 'success');
+    showToast('Drink redemption undone.', 'success');
     return { success: true, remaining: session.redemptionLimit - newCount };
   };
 
@@ -1331,11 +1331,11 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           fetchAdminSessions().catch(() => {});
           fetchReports('day').catch(() => {});
 
-          showToast('Session Extended Successfully', 'success');
+          showToast('Session extended successfully.', 'success');
           return true;
         } else {
           const errData = await res.json().catch(() => ({}));
-          showToast('Failed to extend session', 'danger');
+          showToast(errData.error?.message || 'Unable to extend the session. Please try again.', 'danger');
           return false;
         }
       } catch (err) {
@@ -1370,7 +1370,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       approvedBy: user?.id || 'staff-uuid',
       additionalPersons: 0
     });
-    showToast('Session Extended Successfully', 'success');
+    showToast('Session extended successfully.', 'success');
     return true;
   };
 
@@ -1383,7 +1383,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Prevent closing unpaid pending QR sessions
     if (session.deliveryMode === 'EMAIL_QR' && session.paymentVerified !== true) {
-      showToast('Payment must be completed first', 'warning');
+      showToast('The outstanding payment must be completed before closing the session.', 'warning');
       return false;
     }
 
@@ -1420,11 +1420,11 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           fetchLatestState().catch(() => {});
           fetchReports('day').catch(() => {});
 
-          showToast('Session closed', 'success');
+          showToast('Session closed successfully.', 'success');
           return true;
         } else {
           const errData = await res.json().catch(() => ({}));
-          showToast(errData.error || 'Failed to close session', 'danger');
+          showToast(errData.error?.message || 'Unable to close the session. Please try again.', 'danger');
           return false;
         }
       } catch (err) {
@@ -1453,7 +1453,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       eraseCard: true
     });
 
-    showToast('Session closed', 'success');
+    showToast('Session closed successfully.', 'success');
     return true;
   };
 
@@ -1480,12 +1480,12 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           body: JSON.stringify({ tableNumber, placeType, capacity })
         });
         if (res.ok) {
-          showToast('Table added', 'success');
+          showToast('Table added successfully.', 'success');
           await fetchLatestState();
           return true;
         } else {
           const errData = await res.json();
-          showToast('Failed to add table', 'danger');
+          showToast('Unable to add the table. Please try again.', 'danger');
           return false;
         }
       } catch (err: any) {
@@ -1507,7 +1507,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           allowSharedSeating: false
         };
         setTables(prev => [...prev, newTable]);
-        showToast('Table added offline', 'success');
+        showToast('Table added successfully offline.', 'success');
         return true;
       }
     } else {
@@ -1524,7 +1524,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         allowSharedSeating: false
       };
       setTables(prev => [...prev, newTable]);
-      showToast('Table added offline', 'success');
+      showToast('Table added successfully offline.', 'success');
       return true;
     }
   };
@@ -1541,16 +1541,16 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           body: JSON.stringify({ tableNumber, placeType, capacity })
         });
         if (res.ok) {
-          showToast('Table updated', 'success');
+          showToast('Table updated successfully.', 'success');
           await fetchLatestState();
           return true;
         } else {
           const errData = await res.json();
-          showToast('Failed to update table', 'danger');
+          showToast('Unable to update the table. Please try again.', 'danger');
           return false;
         }
       } catch (err: any) {
-        showToast('Connection failed', 'danger');
+        showToast('Connection failed. Please check your network and try again.', 'danger');
         return false;
       }
     } else {
@@ -1563,7 +1563,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         totalCapacity: capacity,
         availableSeats: t.status === TableStatus.AVAILABLE ? capacity : t.availableSeats
       } : t));
-      showToast('Table updated offline', 'success');
+      showToast('Table updated successfully offline.', 'success');
       return true;
     }
   };
@@ -1580,16 +1580,16 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           body: JSON.stringify({ status })
         });
         if (res.ok) {
-          showToast('Table updated', 'success');
+          showToast('Table status updated successfully.', 'success');
           await fetchLatestState();
           return true;
         } else {
           const errData = await res.json();
-          showToast('Failed to update table', 'danger');
+          showToast('Unable to update the table. Please try again.', 'danger');
           return false;
         }
       } catch (err: any) {
-        showToast(`Failed to connect to backend: ${err.message}`, 'danger');
+        showToast('Connection failed. Please check your network and try again.', 'danger');
         return false;
       }
     } else {
@@ -1598,7 +1598,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...t,
         status: status.toLowerCase() as TableStatus
       } : t));
-      showToast('Table updated offline', 'success');
+      showToast('Table status updated successfully offline.', 'success');
       return true;
     }
   };
@@ -1613,22 +1613,22 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         });
         if (res.ok) {
-          showToast('Table deleted', 'success');
+          showToast('Table deleted successfully.', 'success');
           await fetchLatestState();
           return true;
         } else {
           const errData = await res.json();
-          showToast('Failed to delete table', 'danger');
+          showToast('Unable to delete the table. Please try again.', 'danger');
           return false;
         }
       } catch (err: any) {
-        showToast(`Failed to connect to backend: ${err.message}`, 'danger');
+        showToast('Connection failed. Please check your network and try again.', 'danger');
         return false;
       }
     } else {
       // Offline fallback
       setTables(prev => prev.filter(t => t.id !== tableId));
-      showToast('Table deleted offline', 'success');
+      showToast('Table deleted successfully offline.', 'success');
       return true;
     }
   };
@@ -1658,7 +1658,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const registerStaff = async (username: string, password: string, fullName: string, role: string): Promise<boolean> => {
     if (systemMode === 'offline') {
-      showToast('Cannot add staff offline', 'danger');
+      showToast('This action is unavailable while offline. Please connect to a network.', 'danger');
       return false;
     }
 
@@ -1673,23 +1673,23 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       if (res.ok) {
-        showToast('Staff added', 'success');
+        showToast('Staff registered successfully.', 'success');
         await fetchUsers();
         return true;
       } else {
         const errData = await res.json();
-        showToast('Failed to add staff', 'danger');
+        showToast('Unable to register staff. Please check the details and try again.', 'danger');
         return false;
       }
     } catch (err: any) {
-      showToast('Connection failed', 'danger');
+      showToast('Connection failed. Please check your network and try again.', 'danger');
       return false;
     }
   };
 
   const updateStaff = async (id: string, username: string, fullName: string, role: string, isActive: boolean, password?: string): Promise<boolean> => {
     if (systemMode === 'offline') {
-      showToast('Cannot edit staff offline', 'danger');
+      showToast('This action is unavailable while offline. Please connect to a network.', 'danger');
       return false;
     }
 
@@ -1704,7 +1704,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       if (res.ok) {
-        showToast('Staff updated', 'success');
+        showToast('Staff member updated successfully.', 'success');
         await fetchUsers();
         if (user && user.id === id) {
           const updatedLoggedUser = {
@@ -1718,18 +1718,18 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return true;
       } else {
         const errData = await res.json();
-        showToast('Failed to update staff', 'danger');
+        showToast('Unable to update staff. Please check the details and try again.', 'danger');
         return false;
       }
     } catch (err: any) {
-      showToast(`Connection failed: ${err.message}`, 'danger');
+      showToast('Connection failed. Please check your network and try again.', 'danger');
       return false;
     }
   };
 
   const updateStaffStatus = async (id: string, isActive: boolean): Promise<boolean> => {
     if (systemMode === 'offline') {
-      showToast('Cannot edit staff offline', 'danger');
+      showToast('This action is unavailable while offline. Please connect to a network.', 'danger');
       return false;
     }
 
@@ -1744,16 +1744,16 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       if (res.ok) {
-        showToast('Staff updated', 'success');
+        showToast('Staff member updated successfully.', 'success');
         await fetchUsers();
         return true;
       } else {
         const errData = await res.json();
-        showToast('Failed to update staff', 'danger');
+        showToast('Unable to update staff. Please check the details and try again.', 'danger');
         return false;
       }
     } catch (err: any) {
-      showToast(`Connection failed: ${err.message}`, 'danger');
+      showToast('Connection failed. Please check your network and try again.', 'danger');
       return false;
     }
   };
@@ -1803,7 +1803,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const exportSessionsCSV = async (status: string): Promise<string | null> => {
     if (systemMode === 'offline') {
-      showToast('Cannot export offline', 'danger');
+      showToast('Export is unavailable while offline. Please connect to a network.', 'danger');
       return null;
     }
     const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
@@ -1826,7 +1826,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const adminDeactivateSession = async (tokenNumber: string, status: TokenStatus, force: boolean = false): Promise<boolean> => {
     if (systemMode === 'offline') {
-      showToast('Cannot close session offline', 'danger');
+      showToast('This action is unavailable while offline. Please connect to a network.', 'danger');
       return false;
     }
     const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
@@ -1861,24 +1861,24 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       if (res.ok) {
-        showToast('Session closed', 'success');
+        showToast('Session closed successfully.', 'success');
         await Promise.all([fetchLatestState(), fetchAdminSessions()]);
         return true;
       } else {
         const errorData = await res.json();
-        showToast('Failed to close session', 'danger');
+        showToast(errorData?.error?.message || errorData?.message || 'Unable to close the session. Please try again.', 'danger');
         return false;
       }
     } catch (err) {
       console.log('Failed to deactivate session:', err);
-      showToast('Connection failed', 'danger');
+      showToast('Unable to connect to the server. Please check your connection and try again.', 'danger');
       return false;
     }
   };
 
   const updateCardStatus = async (cardUid: string, status: string): Promise<boolean> => {
     if (systemMode === 'offline') {
-      showToast('Cannot update card offline', 'danger');
+      showToast('This action is unavailable while offline. Please connect to a network.', 'danger');
       return false;
     }
 
@@ -1893,16 +1893,16 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       if (res.ok) {
-        showToast('Card updated', 'success');
+        showToast('Card status updated successfully.', 'success');
         await fetchCards();
         return true;
       } else {
         const errData = await res.json();
-        showToast('Failed to update card', 'danger');
+        showToast(errData?.error?.message || errData?.message || 'Unable to update the card. Please try again.', 'danger');
         return false;
       }
     } catch (err: any) {
-      showToast(`Connection failed: ${err.message}`, 'danger');
+      showToast('Unable to connect to the server. Please check your connection and try again.', 'danger');
       return false;
     }
   };
@@ -1946,7 +1946,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         maxDrinks
       } : r));
       queueOperation('UPDATE_RATE_CARD', { id, ratePerPerson, durationHours, maxDrinks, placeType });
-      showToast('Rates saved offline', 'success');
+      showToast('Rate settings saved offline.', 'success');
       return true;
     }
 
@@ -1976,11 +1976,11 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Background fetch (non-awaited!)
         fetchRates().catch(() => {});
         
-        showToast('Rates saved', 'success');
+        showToast('Rate settings saved successfully.', 'success');
         return true;
       } else {
         const errData = await res.json();
-        showToast('Failed to save rates', 'danger');
+        showToast(errData?.error?.message || errData?.message || 'Unable to save rate settings. Please try again.', 'danger');
         return false;
       }
     } catch (err: any) {
@@ -1996,7 +1996,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         maxDrinks
       } : r));
       queueOperation('UPDATE_RATE_CARD', { id, ratePerPerson, durationHours, maxDrinks, placeType });
-      showToast('Rates saved offline', 'success');
+      showToast('Rate settings saved offline.', 'success');
       return true;
     }
   };

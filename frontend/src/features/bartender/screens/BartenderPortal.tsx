@@ -65,18 +65,18 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
       const data = await res.json();
       stopAction();
       if (res.ok) {
-        showToast('Section successfully closed', 'success');
+        showToast('Session closed successfully.', 'success');
         setShowCloseConfirm(false);
         setTokenToClose(null);
         setBartenderState('idle');
         setActiveSession(null);
         await fetchLatestState();
       } else {
-        showToast(data.error || 'Failed to close section', 'danger');
+        showToast(data.error?.message || data.error || 'Unable to close the session. Please try again.', 'danger');
       }
     } catch (err: any) {
       stopAction();
-      showToast(err.message || 'Error occurred', 'danger');
+      showToast('An error occurred while trying to close the session. Please try again.', 'danger');
     } finally {
       setIsClosingSession(false);
     }
@@ -104,16 +104,16 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
       const data = await res.json();
       stopAction();
       if (res.ok) {
-        showToast('Section successfully closed via QR scan', 'success');
+        showToast('Session closed successfully via QR scan.', 'success');
         setBartenderState('idle');
         setActiveSession(null);
         await fetchLatestState();
       } else {
-        showToast(data.error || 'Failed to close section via QR', 'danger');
+        showToast(data.error?.message || data.error || 'Unable to close the session. Please try again.', 'danger');
       }
     } catch (err: any) {
       stopAction();
-      showToast(err.message || 'Error occurred', 'danger');
+      showToast('An error occurred while trying to close the session. Please try again.', 'danger');
     } finally {
       setIsClosingSession(false);
     }

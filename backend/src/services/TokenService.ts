@@ -332,7 +332,7 @@ export class TokenService {
       );
 
       return token;
-    });
+    }, { timeout: 15000 });
 
     if (deliveryMode === 'EMAIL_QR' && request.email) {
       emailNotificationService.enqueueEmailJob(request.email.trim().toLowerCase(), token.tokenNumber, request.customerName);
@@ -448,7 +448,7 @@ export class TokenService {
       }
 
       return updatedToken;
-    });
+    }, { timeout: 15000 });
   }
 
   async reconcileSystemState(): Promise<void> {
@@ -480,7 +480,7 @@ export class TokenService {
             await redisService.del(`table:${table.id}:status`);
           }
         }
-      });
+      }, { timeout: 15000 });
       await redisService.del('table:available:all');
     }
 
@@ -563,7 +563,7 @@ export class TokenService {
             }
           }
         }
-      });
+      }, { timeout: 15000 });
       await redisService.del('table:available:all');
     }
   }
@@ -715,7 +715,7 @@ export class TokenService {
           timeExtensionMinutes: totalExtensionMinutes
         }
       };
-    });
+    }, { timeout: 15000 });
   }
 
   async closeToken(
@@ -904,7 +904,7 @@ export class TokenService {
       }
 
       return token;
-    });
+    }, { timeout: 15000 });
   }
 
   async activatePendingSession(
@@ -1061,7 +1061,7 @@ export class TokenService {
       );
 
       return updatedToken;
-    });
+    }, { timeout: 15000 });
   }
 
   async cancelPendingSession(
@@ -1097,7 +1097,7 @@ export class TokenService {
       await redisService.del(`token:${tokenNumber}`);
 
       return updatedToken;
-    });
+    }, { timeout: 15000 });
   }
 }
 

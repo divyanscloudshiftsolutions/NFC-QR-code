@@ -42,9 +42,9 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
     setIsRefreshing(true);
     try {
       await fetchLatestState();
-      showToast('Data refreshed successfully', 'success');
+      showToast('Data refreshed successfully.', 'success');
     } catch (err) {
-      showToast('Failed to refresh data', 'danger');
+      showToast('Unable to refresh data. Please try again.', 'danger');
     } finally {
       setIsRefreshing(false);
     }

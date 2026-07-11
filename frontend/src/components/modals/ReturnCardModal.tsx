@@ -147,11 +147,11 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
         setSessionDetails(activeSession);
         setReturnStep(2);
       } else {
-        showToast('No active session found', 'danger');
+        showToast('No active check-in session was found for this card.', 'danger');
       }
     } catch (error: any) {
       console.error('Return Card NFC Scan error:', error);
-      showToast('NFC scan failed', 'danger');
+      showToast('The card scan failed. Please reposition the card and try again.', 'danger');
     } finally {
       setIsScanning(false);
     }
@@ -168,7 +168,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
       setSessionDetails(activeSession);
       setReturnStep(2);
     } else {
-      showToast('No active session found', 'danger');
+      showToast('No active check-in session was found for this card.', 'danger');
       setSelectedCardId(null);
     }
   };
@@ -192,7 +192,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
         await nfcService.initialize();
         const eraseSuccess = await nfcService.eraseCard();
         if (!eraseSuccess) {
-          showToast('Card erase failed, closing session anyway', 'warning');
+          showToast('The card could not be cleared, but the check-in session has been closed successfully.', 'warning');
         }
       } catch (err) {
         console.error('NFC erase error on checkout:', err);
@@ -207,7 +207,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
       }
     } catch (e) {
       stopAction();
-      showToast('An error occurred during checkout', 'danger');
+      showToast('Unable to complete the check-out. Please try again.', 'danger');
     }
   };
 

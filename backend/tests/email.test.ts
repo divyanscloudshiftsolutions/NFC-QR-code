@@ -2,7 +2,6 @@ import assert from 'assert';
 import { validateEmail } from '../src/routes';
 
 const invalidEmails = [
-  'Divyan@gmail.com',
   'divyan_stony@gmail.com',
   'divyan-stony@gmail.com',
   'divyan+test@gmail.com',
@@ -17,6 +16,7 @@ const invalidEmails = [
 
 const validEmails = [
   'divyan@gmail.com',
+  'Divyan@gmail.com',
   'divyan123@gmail.com',
   'divyan.stony@gmail.com',
   'a.b.c.123@gmail.com',

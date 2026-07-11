@@ -337,7 +337,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
   const handlePaymentCollected = async () => {
     if (selectedDeliveryMode === 'EMAIL_QR') {
       if (!pendingToken || !selectedTableNum) {
-        showToast('Session token or table selection is missing.', 'danger');
+        showToast('Unable to complete the check-in. The selected table or session information is missing.', 'danger');
         return;
       }
       if (!startAction('activate_pending')) return;
@@ -362,8 +362,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
         console.error('Activation error:', error);
         setNfcWriteState('error');
         setStep(4);
-        setActivationError(error.message || 'Activation failed.');
-        showToast(error.message || 'Activation failed.', 'danger');
+        setActivationError(error.message || 'Unable to activate the session. Please try again.');
+        showToast(error.message || 'Unable to activate the session. Please try again.', 'danger');
       }
     } else {
       setCardUid('');
@@ -380,7 +380,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
       await nfcService.initialize();
       
       // 1. Scan card to get physical UID
-      showToast('Scan NFC card to fetch Card UID...', 'info');
+      showToast('Hold the smart card near the device to scan.', 'info');
       const details = await nfcService.readCardDetails();
       if (!details || !details.nfcUid) {
         throw new Error('Failed to read Card UID from NFC tag.');
@@ -408,7 +408,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
       }
 
       // 3. Write token number back to physical card NDEF record
-      showToast('Writing token to physical NFC card...', 'info');
+      showToast('Writing data to the smart card... Please keep it close to the device.', 'info');
       const writeSuccess = await nfcService.writeToCard(token.tokenNumber);
       if (!writeSuccess) {
         throw new Error('Failed to write NDEF token number onto tag.');
@@ -417,12 +417,22 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
       stopAction();
       setCreatedSession(token);
       setNfcWriteState('success');
-      showToast('NFC card programmed successfully!', 'success');
+      showToast('Customer checked in successfully.', 'success');
     } catch (error: any) {
       stopAction();
       console.error('NFC Write process error:', error);
       setNfcWriteState('error');
-      showToast(error.message || 'NFC program failed.', 'danger');
+      let friendlyMsg = 'Unable to complete the check-in. Please try again.';
+      if (error.message?.includes('Failed to read Card UID')) {
+        friendlyMsg = 'Could not read the smart card. Please check the placement and try again.';
+      } else if (error.message?.includes('Database registration failed')) {
+        friendlyMsg = 'Unable to complete the check-in. Please check your connection and try again.';
+      } else if (error.message?.includes('Failed to write NDEF')) {
+        friendlyMsg = 'Could not register the check-in on the smart card. Please try scanning again.';
+      } else if (error.message) {
+        friendlyMsg = error.message;
+      }
+      showToast(friendlyMsg, 'danger');
     } finally {
       setIsNfcWriting(false);
     }
@@ -1815,7 +1825,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                 setSelectedTableNum(null);
                 setIsTablePreselected(false);
                 setGuestCount(c => Math.min(20, c + 1));
-                showToast("Table selection reset. Please select a matching table.", "info");
+                showToast("Table selection reset. Please select an available table matching your seating options.", "info");
               }}
             >
               <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Increase</Text>

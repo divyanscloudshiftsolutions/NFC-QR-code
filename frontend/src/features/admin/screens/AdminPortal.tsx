@@ -49,7 +49,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
   const handleUpdateTableStatus = async (tableId: string, status: string) => {
     if (!startAction(`table_status_${tableId}`)) return;
-    showToast('Updating data...', 'info');
+    showToast('Updating table status...', 'info');
     try {
       await updateTableStatus(tableId, status);
     } finally {
@@ -59,7 +59,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
   const handleDeleteTable = async (tableId: string) => {
     if (!startAction(`delete_table_${tableId}`)) return;
-    showToast('Updating data...', 'info');
+    showToast('Removing table...', 'info');
     try {
       await deleteTable(tableId);
     } finally {
@@ -69,7 +69,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
   const handleUpdateCardStatus = async (cardUid: string, status: string) => {
     if (!startAction(`card_status_${cardUid}`)) return;
-    showToast('Updating data...', 'info');
+    showToast('Updating smart card status...', 'info');
     try {
       await updateCardStatus(cardUid, status);
     } finally {
@@ -79,7 +79,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
   const handleUpdateStaffStatus = async (staffId: string, isActive: boolean) => {
     if (!startAction(`staff_status_${staffId}`)) return;
-    showToast('Updating data...', 'info');
+    showToast('Updating staff status...', 'info');
     try {
       await updateStaffStatus(staffId, isActive);
     } finally {
@@ -120,16 +120,16 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       showToast('Preparing CSV export...', 'info');
       const csvContent = await exportSessionsCSV(customerStatusFilter);
       if (!csvContent) {
-        showToast('Export failed or returned empty', 'danger');
+        showToast('Export failed. No data was found for this period.', 'danger');
         return;
       }
       await Share.share({
         message: csvContent,
         title: `Sessions Export (${customerStatusFilter})`
       });
-      showToast('CSV export shared!', 'success');
+      showToast('Reports exported successfully.', 'success');
     } catch (error: any) {
-      showToast(`Export error: ${error.message}`, 'danger');
+      showToast('Unable to export reports. Please try again.', 'danger');
     }
   };
 
@@ -984,7 +984,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                         disabled={isOccupied}
                         onPress={() => {
                           if (isOccupied) {
-                            showToast('Cannot edit an occupied table', 'danger');
+                            showToast('This table is currently occupied by a customer and cannot be edited.', 'danger');
                             return;
                           }
                           setSelectedTable(table);
@@ -1007,7 +1007,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                         disabled={isOccupied || isProcessing}
                         onPress={() => {
                           if (isOccupied) {
-                            showToast('Cannot delete an occupied table', 'danger');
+                            showToast('This table is currently occupied by a customer and cannot be deleted.', 'danger');
                             return;
                           }
                           handleDeleteTable(table.id);
@@ -1112,18 +1112,18 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 }}
                 onPress={() => {
                   if (!customStart.trim() || !customEnd.trim()) {
-                    showToast('Please enter both start and end dates', 'danger');
+                    showToast('Please select both start and end dates to apply the filter.', 'danger');
                     return;
                   }
                   // simple YYYY-MM-DD validation
                   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
                   if (!dateRegex.test(customStart.trim()) || !dateRegex.test(customEnd.trim())) {
-                    showToast('Invalid date format. Use YYYY-MM-DD', 'danger');
+                    showToast('Please enter valid dates using the YYYY-MM-DD format.', 'danger');
                     return;
                   }
                   setStartDateStr(customStart.trim());
                   setEndDateStr(customEnd.trim());
-                  showToast('Custom date filter applied', 'success');
+                  showToast('Date filter applied successfully.', 'success');
                 }}
               >
                 <Text style={{ color: colors.goldButtonText, fontSize: 12, fontWeight: 'bold' }}>Apply Date Range</Text>

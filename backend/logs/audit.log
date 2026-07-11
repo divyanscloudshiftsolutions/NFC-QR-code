@@ -1,0 +1,10 @@
+{"timestamp":"2026-07-11T12:06:24.232Z","tokenNumber":"BAR-20260711-00003","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:06:26.450Z","tokenNumber":"BAR-20260711-00003","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: MANUAL","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:06:34.460Z","tokenNumber":"BAR-20260711-00004","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:06:37.495Z","tokenNumber":"BAR-20260711-00004","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: QR_SCAN","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:07:42.416Z","tokenNumber":"BAR-20260711-00001","oldStatus":"EXPIRED","newStatus":"CLOSED","reason":"session closed: CHECKOUT","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:17:41.881Z","tokenNumber":"BAR-20260711-00001","oldStatus":"EXPIRED","newStatus":"CLOSED","reason":"session closed: CHECKOUT","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:18:47.344Z","tokenNumber":"BAR-20260711-00003","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:18:49.447Z","tokenNumber":"BAR-20260711-00003","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: MANUAL","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:18:56.147Z","tokenNumber":"BAR-20260711-00004","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}
+{"timestamp":"2026-07-11T12:18:58.041Z","tokenNumber":"BAR-20260711-00004","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: QR_SCAN","initiatedBy":"4bbf2f3f-c98c-4d4f-a1f3-b17434650986"}

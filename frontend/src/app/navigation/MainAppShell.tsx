@@ -165,7 +165,7 @@ export const MainAppShell: React.FC = () => {
           return true;
         }
         lastBackPressTime.current = now;
-        showToast('Press back again to exit', 'info');
+        showToast('Press back again to exit the application.', 'info');
         return true;
       }
 
