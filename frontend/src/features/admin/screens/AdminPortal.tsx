@@ -10,6 +10,7 @@ import { AlertModal } from '../../../components/common/AlertModal';
 import { SkeletonLoader } from '../../../components/common/SkeletonLoader';
 import { useActionProgress } from '../../../utils/actionProgress';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { usePreventSwipeNavigation } from '../../../utils/usePreventSwipeNavigation';
 
 export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
   const { colors, isDark } = useTheme();
@@ -23,6 +24,12 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('tables');
   const [isTabLoading, setIsTabLoading] = useState(false);
+
+  const kpiScrollRef = usePreventSwipeNavigation();
+  const tabsScrollRef = usePreventSwipeNavigation();
+  const chartScrollRef = usePreventSwipeNavigation();
+  const statusScrollRef = usePreventSwipeNavigation();
+  const sortScrollRef = usePreventSwipeNavigation();
 
   // Card inventory search & filter state
   const [cardSearch, setCardSearch] = useState('');
@@ -349,6 +356,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
 
         {/* Horizontally scrollable KPI summary cards */}
         <ScrollView 
+          ref={kpiScrollRef}
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 10, paddingVertical: 2, paddingHorizontal: 2 }}
@@ -402,6 +410,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
         {/* Horizontally scrollable row of tabs */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
           <ScrollView 
+            ref={tabsScrollRef}
             horizontal 
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 6, paddingRight: 8 }}
@@ -1199,6 +1208,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               <Text className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">Hourly Redemption Frequency</Text>
               <View style={{ backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border, borderRadius: 16, padding: 16, marginBottom: 16 }}>
                 <ScrollView 
+                  ref={chartScrollRef}
                   horizontal 
                   showsHorizontalScrollIndicator={false} 
                   className="flex-row mb-3"
@@ -1688,6 +1698,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
         <ScrollView className="flex-grow" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
           {/* Status Filter Badges */}
           <ScrollView 
+            ref={statusScrollRef}
             horizontal 
             showsHorizontalScrollIndicator={false} 
             style={[{ flexGrow: 0, marginBottom: 12 }, Platform.OS === 'web' && ({ overscrollBehaviorX: 'contain' } as any)]}
@@ -1724,6 +1735,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <View style={{ marginBottom: 12 }}>
             <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.muted, textTransform: 'uppercase', marginBottom: 6, paddingLeft: 2 }}>Sort By:</Text>
             <ScrollView 
+              ref={sortScrollRef}
               horizontal 
               showsHorizontalScrollIndicator={false} 
               style={Platform.OS === 'web' ? ({ overscrollBehaviorX: 'contain' } as any) : undefined}
