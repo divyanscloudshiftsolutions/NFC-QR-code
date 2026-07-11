@@ -1322,6 +1322,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   stopAction();
                   if (success) {
                     setIsAddModalOpen(false);
+                    setNewTableNumber('');
+                    setNewCapacity('');
+                    setNewPlaceType('STANDING_BAR');
                   }
                 } catch (e) {
                   stopAction();
@@ -1378,6 +1381,8 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   stopAction();
                   if (success) {
                     setIsEditModalOpen(false);
+                    setEditCapacity('');
+                    setSelectedTable(null);
                   }
                 } catch (e) {
                   stopAction();
@@ -2068,6 +2073,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   stopAction();
                   if (success) {
                     setIsAddStaffOpen(false);
+                    setNewStaffUsername('');
+                    setNewStaffPassword('');
+                    setNewStaffFullName('');
                   }
                 } catch (e) {
                   stopAction();
@@ -2213,6 +2221,10 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   stopAction();
                   if (success) {
                     setIsEditStaffOpen(false);
+                    setEditStaffUsername('');
+                    setEditStaffFullName('');
+                    setEditStaffPassword('');
+                    setSelectedStaff(null);
                   }
                 } catch (e) {
                   stopAction();

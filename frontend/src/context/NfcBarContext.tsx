@@ -219,13 +219,13 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(timer);
   }, [sessions, notifiedTokens]);
 
-  // 5-second periodic background state synchronization (polling)
+  // 3-second periodic background state synchronization (polling)
   useEffect(() => {
     if (!userToken || systemMode === 'offline') return;
 
     const syncTimer = setInterval(() => {
       fetchLatestState().catch(err => console.log('Periodic state sync failed:', err));
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(syncTimer);
   }, [userToken, systemMode]);
@@ -455,13 +455,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (err) {
       console.log('Failed to fetch latest server state:', err);
       if ((systemMode as any) !== 'offline') {
-        const netState = await NetInfo.fetch();
-        if (netState.isConnected === false || netState.isInternetReachable === false) {
-          setSystemMode('offline');
-          showToast('Connection lost. Working offline.', 'warning');
-        } else {
-          showToast('Server unreachable', 'danger');
-        }
+        showToast('Server unreachable', 'danger');
       }
     }
   };
@@ -556,14 +550,8 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     } catch (e) {
       console.log('Sync failed, network unreachable:', e);
-      const netState = await NetInfo.fetch();
-      if (netState.isConnected === false || netState.isInternetReachable === false) {
-        setSystemMode('offline');
-        showToast('Network unreachable. Running in Offline Mode.', 'warning');
-      } else {
-        showToast('Sync failed. Server unreachable.', 'danger');
-        setSystemMode('online');
-      }
+      showToast('Sync failed. Server unreachable.', 'danger');
+      setSystemMode('online');
     }
   };
 

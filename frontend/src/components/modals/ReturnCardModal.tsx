@@ -182,7 +182,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
         const success = await closeGuestSession(sessionDetails.tokenNumber);
         stopAction();
         if (success) {
-          setReturnStep(3);
+          onClose();
         }
         return;
       }
@@ -203,7 +203,7 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
       const success = await closeGuestSession(sessionDetails.tokenNumber);
       stopAction();
       if (success) {
-        setReturnStep(3);
+        onClose();
       }
     } catch (e) {
       stopAction();
