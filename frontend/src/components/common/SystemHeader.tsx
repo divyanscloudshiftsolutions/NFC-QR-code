@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Platform, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNfcBar } from '../../context/NfcBarContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -10,10 +10,11 @@ interface SystemHeaderProps {
 }
 
 export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
-  const { systemMode, pendingSyncCount, lastSyncTime, notifications, setMode, user } = useNfcBar();
+  const { systemMode, pendingSyncCount, lastSyncTime, notifications, setMode, user, fetchLatestState, showToast } = useNfcBar();
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const unreadCount = notifications.filter(n => !n.read).length;
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const toggleConnection = () => {
     if (systemMode === 'online') {
@@ -27,6 +28,19 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
       );
     } else {
       setMode('online');
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await fetchLatestState();
+      showToast('Data refreshed successfully', 'success');
+    } catch (err) {
+      showToast('Failed to refresh data', 'danger');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -119,6 +133,21 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
           activeOpacity={0.8}
         >
           <Text style={{ fontSize: 16 }}>{isDark ? '☀️' : '🌙'}</Text>
+        </TouchableOpacity>
+
+        {/* Refresh Button */}
+        <TouchableOpacity 
+          className="w-10 h-10 rounded-full justify-center items-center border"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, opacity: isRefreshing ? 0.6 : 1 }}
+          onPress={handleRefresh}
+          disabled={isRefreshing}
+          activeOpacity={0.8}
+        >
+          {isRefreshing ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <AppIcon name="refresh" label="Refresh" color={colors.text} size={18} />
+          )}
         </TouchableOpacity>
 
         {/* Notifications Icon Button */}
