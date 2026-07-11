@@ -246,6 +246,7 @@ export const MainAppShell: React.FC = () => {
               onMomentumScrollEnd={handleScrollEnd}
               scrollEnabled={allowedTabs.length > 1 && !isOverlayActive && !isReturnModalOpen && !isNotifsOpen && !swipeLocked}
               contentContainerStyle={{ width: width * allowedTabs.length }}
+              style={Platform.OS === 'web' ? ({ overscrollBehaviorX: 'contain' } as any) : undefined}
             >
               {allowedTabs.map((tab) => {
                 const isSelected = activeTab === tab;

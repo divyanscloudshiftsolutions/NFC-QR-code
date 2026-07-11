@@ -312,10 +312,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 10, paddingVertical: 2, paddingHorizontal: 2 }}
-          style={{ flexGrow: 0, marginVertical: 4 }}
+          style={[{ flexGrow: 0, marginVertical: 4 }, Platform.OS === 'web' && ({ overscrollBehaviorX: 'contain' } as any)]}
           onTouchStart={() => setSwipeLocked(true)}
           onTouchEnd={() => setSwipeLocked(false)}
           onTouchCancel={() => setSwipeLocked(false)}
+          {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
         >
           {/* Card 1: Revenue */}
           <View style={{ width: 145, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, padding: 10, borderRadius: 14, justifyContent: 'center' }}>
@@ -364,10 +365,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             horizontal 
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 6, paddingRight: 8 }}
-            style={{ flex: 1 }}
+            style={[{ flex: 1 }, Platform.OS === 'web' && ({ overscrollBehaviorX: 'contain' } as any)]}
             onTouchStart={() => setSwipeLocked(true)}
             onTouchEnd={() => setSwipeLocked(false)}
             onTouchCancel={() => setSwipeLocked(false)}
+            {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
           >
             {[
               { tab: 'live', label: 'Tokens', icon: '📱' },
@@ -1148,9 +1150,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                   horizontal 
                   showsHorizontalScrollIndicator={false} 
                   className="flex-row mb-3"
+                  style={Platform.OS === 'web' ? ({ overscrollBehaviorX: 'contain' } as any) : undefined}
                   onTouchStart={() => setSwipeLocked(true)}
                   onTouchEnd={() => setSwipeLocked(false)}
                   onTouchCancel={() => setSwipeLocked(false)}
+                  {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
                 >
                   <View className="flex-row items-end h-40 pb-3 border-b" style={{ gap: 8, paddingHorizontal: 5, borderBottomColor: colors.chartGrid }}>
                     {(() => {
@@ -1630,11 +1634,12 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false} 
-            style={{ flexGrow: 0, marginBottom: 12 }}
+            style={[{ flexGrow: 0, marginBottom: 12 }, Platform.OS === 'web' && ({ overscrollBehaviorX: 'contain' } as any)]}
             contentContainerStyle={{ gap: 6, paddingVertical: 2 }}
             onTouchStart={() => setSwipeLocked(true)}
             onTouchEnd={() => setSwipeLocked(false)}
             onTouchCancel={() => setSwipeLocked(false)}
+            {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
           >
             {(['all', 'active', 'extended', 'expired', 'pending_payment', 'closed', 'cancelled'] as const).map((statusVal) => {
               const isActive = customerStatusFilter === statusVal;
@@ -1665,10 +1670,12 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false} 
+              style={Platform.OS === 'web' ? ({ overscrollBehaviorX: 'contain' } as any) : undefined}
               contentContainerStyle={{ gap: 6, paddingVertical: 2 }}
               onTouchStart={() => setSwipeLocked(true)}
               onTouchEnd={() => setSwipeLocked(false)}
               onTouchCancel={() => setSwipeLocked(false)}
+              {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
             >
               {([
                 { value: 'latest_first', label: 'Latest First' },

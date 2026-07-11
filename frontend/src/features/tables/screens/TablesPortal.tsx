@@ -479,9 +479,11 @@ export const TablesPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true
         horizontal 
         showsHorizontalScrollIndicator={false} 
         className="max-h-12 mb-3"
+        style={Platform.OS === 'web' ? ({ overscrollBehaviorX: 'contain' } as any) : undefined}
         onTouchStart={() => setSwipeLocked(true)}
         onTouchEnd={() => setSwipeLocked(false)}
         onTouchCancel={() => setSwipeLocked(false)}
+        {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
       >
         {['all', 'available', 'occupied', 'expiring'].map(f => (
           <TouchableOpacity
