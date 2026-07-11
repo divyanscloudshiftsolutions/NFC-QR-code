@@ -61,10 +61,14 @@ app.use(cors({
     // Check if origin is explicitly allowed
     const isAllowed = allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed));
     
-    // Check if origin is a local dev address
-    const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.startsWith('chrome-extension://');
+    // Check if origin is a local dev address or a Vercel deployment
+    const isLocalOrVercel = origin.includes('localhost') || 
+                            origin.includes('127.0.0.1') || 
+                            origin.startsWith('chrome-extension://') ||
+                            origin.endsWith('.vercel.app') ||
+                            origin.includes('.vercel.app');
     
-    if (isAllowed || isLocal) {
+    if (isAllowed || isLocalOrVercel) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
