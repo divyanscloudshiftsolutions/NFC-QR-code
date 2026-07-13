@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, Animated, Modal, TouchableOpacity, BackHandler,
 import { useTheme } from '../../context/ThemeContext';
 import { ANIMATIONS } from '../../theme/animations';
 import { AppIcon } from './AppIcon';
+import { useNfcBar } from '../../context/NfcBarContext';
+import { AnimatedToast } from './AnimatedToast';
 
 interface AlertModalProps {
   visible: boolean;
@@ -13,6 +15,7 @@ interface AlertModalProps {
 
 export const AlertModal: React.FC<AlertModalProps> = ({ visible, onClose, title, children }) => {
   const { colors } = useTheme();
+  const { toasts, dismissToast } = useNfcBar();
   
   // Animation state values
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -159,6 +162,21 @@ export const AlertModal: React.FC<AlertModalProps> = ({ visible, onClose, title,
             {children}
           </View>
         </Animated.View>
+        
+        {/* TOASTS LAYER ABOVE MODAL CONTENT */}
+        {visible && toasts.length > 0 && (
+          <View style={styles.modalToastContainer}>
+            {toasts.map(toast => (
+              <AnimatedToast
+                key={toast.id}
+                id={toast.id}
+                message={toast.message}
+                type={toast.type}
+                onDismiss={dismissToast}
+              />
+            ))}
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -219,5 +237,16 @@ const styles = StyleSheet.create({
   },
   childrenContainer: {
     width: '100%',
+  },
+  modalToastContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    right: 16,
+    zIndex: 99999,
+    gap: 8,
+    alignSelf: 'center',
+    width: '90%',
+    maxWidth: 380,
   }
 });

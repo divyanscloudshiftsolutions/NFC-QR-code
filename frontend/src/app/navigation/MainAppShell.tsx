@@ -24,7 +24,7 @@ import { useResponsive } from '../../utils/responsive';
 
 export const MainAppShell: React.FC = () => {
   const { colors, isDark } = useTheme();
-  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, swipeLocked, fetchLatestState, showToast } = useNfcBar();
+  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, swipeLocked, fetchLatestState, showToast, dismissToast } = useNfcBar();
   const { isTablet, isLargeScreen } = useResponsive();
   const isCentered = isTablet || isLargeScreen;
   const { width } = useWindowDimensions();
@@ -339,7 +339,7 @@ export const MainAppShell: React.FC = () => {
             id={toast.id}
             message={toast.message}
             type={toast.type}
-            onDismiss={() => {}}
+            onDismiss={dismissToast}
           />
         ))}
       </View>

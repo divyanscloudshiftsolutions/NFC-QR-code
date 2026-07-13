@@ -47,6 +47,7 @@ interface NfcBarContextType {
   logout: () => void;
   setTab: (tab: 'checkin' | 'bartender' | 'tables' | 'admin') => void;
   showToast: (message: string, type?: ToastItem['type']) => void;
+  dismissToast: (id: string) => void;
   triggerNotification: (title: string, message: string, type?: NotificationItem['type']) => void;
   markNotificationsAsRead: () => void;
   setMode: (mode: 'online' | 'syncing' | 'offline') => void;
@@ -704,14 +705,18 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  // Toast manager helper - single active toast to prevent overlapping/stacking
+  // Toast manager helper - stacks toasts for multiple overlays/transient logs
   const showToast = (message: string, type: ToastItem['type'] = 'info', duration = 2000) => {
     const id = Math.random().toString();
-    setToasts([{ id, message, type }]);
+    setToasts(prev => [...prev, { id, message, type }]);
     
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, duration); // dynamic duration (default 2s)
+  };
+
+  const dismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
   };
 
   // Notification triggers
@@ -2173,7 +2178,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       swipeLocked, setSwipeLocked,
       preselectedTableNumber, setPreselectedTableNumber,
       salesSummary, tableUtilization, hourlyBreakdown,
-      login, logout, setTab, showToast, triggerNotification, markNotificationsAsRead,
+      login, logout, setTab, showToast, dismissToast, triggerNotification, markNotificationsAsRead,
       setMode, updateDeliveryAvailability, simulateSync, fetchLatestState, fetchSystemConfig,
       checkInGuest, createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, redeemDrinkForCard, undoDrinkRedemption, extendSessionTime, closeGuestSession,
       addTable, editTable, updateTableStatus, deleteTable,
