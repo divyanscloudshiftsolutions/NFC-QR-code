@@ -1611,6 +1611,37 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
         return res.status(400).json({ success: false, error: { message: `Cannot update token with status ${existingToken.status}` } });
       }
 
+      // Check if this customer already has another active session (by phone or email)
+      const customerRecord = await prisma.customer.findUnique({
+        where: { id: existingToken.customerId }
+      });
+      if (customerRecord) {
+        const orConditions: any[] = [
+          { customer: { phoneNumber: customerRecord.phoneNumber } }
+        ];
+        if (customerRecord.email && customerRecord.email.trim()) {
+          orConditions.push({ customer: { email: customerRecord.email.trim().toLowerCase() } });
+        }
+
+        const otherActiveOrPendingToken = await prisma.token.findFirst({
+          where: {
+            id: { not: existingToken.id },
+            OR: orConditions,
+            status: {
+              in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
+            }
+          }
+        });
+
+        if (otherActiveOrPendingToken) {
+          const isPending = otherActiveOrPendingToken.status === TokenStatus.PENDING_PAYMENT;
+          const msg = isPending
+            ? `A pending payment session already exists for this customer.`
+            : `Customer already has an active session.`;
+          return res.status(400).json({ success: false, error: { message: msg } });
+        }
+      }
+
       // If assigning a table
       let resolvedTableId = existingToken.tableId;
       if (tableNumber) {
