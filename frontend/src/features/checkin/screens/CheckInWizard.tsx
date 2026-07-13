@@ -1985,12 +1985,17 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                 justifyContent: 'center'
               }}
               onPress={() => {
-                setPendingToken(pendingExistsTokenNumber);
-                setScannedToken('');
-                setQrVerificationSuccess(false);
-                setQrVerificationError(null);
                 setShowPendingExistsModal(false);
-                setStep(5);
+                const matchingSession = pendingSessions.find(s => s.tokenNumber === pendingExistsTokenNumber);
+                if (matchingSession) {
+                  handleResumePending(matchingSession);
+                } else {
+                  setPendingToken(pendingExistsTokenNumber);
+                  setScannedToken('');
+                  setQrVerificationSuccess(false);
+                  setQrVerificationError(null);
+                  setStep(5);
+                }
               }}
             >
               <Text style={{ color: colors.goldButtonText, fontSize: 13, fontWeight: '900' }}>Continue Check-in</Text>
