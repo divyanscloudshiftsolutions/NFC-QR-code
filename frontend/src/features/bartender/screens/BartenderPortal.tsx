@@ -5,7 +5,7 @@ import {
   ActivityIndicator, StyleSheet, Modal, Platform
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useNfcBar } from '../../../context/NfcBarContext';
+import { useNfcBar, getFriendlyErrorMessage } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SessionToken, TokenStatus } from '../../../types/nfc_bar';
@@ -72,11 +72,11 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
         setActiveSession(null);
         await fetchLatestState();
       } else {
-        showToast(data.error?.message || data.error || 'Unable to close the session. Please try again.', 'danger');
+        showToast(getFriendlyErrorMessage(data, 'Unable to close the session. Please try again.'), 'danger');
       }
     } catch (err: any) {
       stopAction();
-      showToast('An error occurred while trying to close the session. Please try again.', 'danger');
+      showToast('Unable to close the session. Please check your network connection.', 'danger');
     } finally {
       setIsClosingSession(false);
     }
@@ -104,16 +104,16 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
       const data = await res.json();
       stopAction();
       if (res.ok) {
-        showToast('Session closed successfully via QR scan.', 'success');
+        showToast('Session closed successfully.', 'success');
         setBartenderState('idle');
         setActiveSession(null);
         await fetchLatestState();
       } else {
-        showToast(data.error?.message || data.error || 'Unable to close the session. Please try again.', 'danger');
+        showToast(getFriendlyErrorMessage(data, 'Unable to close the session. Please try again.'), 'danger');
       }
     } catch (err: any) {
       stopAction();
-      showToast('An error occurred while trying to close the session. Please try again.', 'danger');
+      showToast('Unable to close the session. Please check your network connection.', 'danger');
     } finally {
       setIsClosingSession(false);
     }

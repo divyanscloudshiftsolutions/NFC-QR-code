@@ -181,7 +181,7 @@ export class SyncService {
           where: { phoneNumber: cleanPhone },
           include: {
             tokens: {
-              where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.EXPIRED] } },
+              where: { status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED] } },
               take: 1
             }
           }

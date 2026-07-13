@@ -225,14 +225,15 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
   const [nfcWriteState, setNfcWriteState] = useState<'idle' | 'success' | 'error'>('idle');
   const [activationError, setActivationError] = useState<string | null>(null);
 
-  // Business check: Phone and Email active session warning
+  // Business check: Phone active session warning (normalize phone input to start with +91)
+  const normalizedInputPhone = phone.trim().startsWith('+91') ? phone.trim() : `+91${phone.trim()}`;
   const isPhoneActive = sessions.some(s => 
-    s.phoneNumber === phone && 
-    (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED || s.status === TokenStatus.EXPIRED)
+    s.phoneNumber === normalizedInputPhone && 
+    (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED)
   );
   const isEmailActive = (email && email.trim()) ? sessions.some(s => 
     s.email && s.email.trim().toLowerCase() === email.trim().toLowerCase() && 
-    (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED || s.status === TokenStatus.EXPIRED)
+    (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED)
   ) : false;
   const activeRate = rates.find(r => r.placeType === placeType);
 
@@ -319,6 +320,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
         if (err.code === 'PENDING_SESSION_EXISTS') {
           setPendingExistsTokenNumber(err.tokenNumber);
           setShowPendingExistsModal(true);
+        } else {
+          showToast(err.message || 'Unable to complete the check-in. Please try again.', 'danger');
         }
       }
     } else {

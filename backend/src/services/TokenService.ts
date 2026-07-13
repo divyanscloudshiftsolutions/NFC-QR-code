@@ -142,6 +142,9 @@ export class TokenService {
       throw new Error('NFC Card UID is mandatory when system operates in NFC_CARD mode.');
     }
 
+    // Reconcile chronologically expired sessions first
+    await this.reconcileSystemState();
+
     const tokenNumber = await this.generateTokenNumber();
     
     const token = await prisma.$transaction(async (tx) => {
@@ -157,7 +160,7 @@ export class TokenService {
         where: {
           OR: orConditions,
           status: {
-            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT, TokenStatus.EXPIRED]
+            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
           }
         },
         include: { customer: true }
@@ -736,6 +739,9 @@ export class TokenService {
     tableId?: string;
     tableNumber?: string;
   }): Promise<any> {
+    // Reconcile chronologically expired sessions first
+    await this.reconcileSystemState();
+
     const tokenNumber = await this.generateTokenNumber();
     const start = new Date();
 
@@ -752,7 +758,7 @@ export class TokenService {
         where: {
           OR: orConditions,
           status: {
-            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT, TokenStatus.EXPIRED]
+            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
           }
         },
         include: { customer: true }
@@ -967,7 +973,7 @@ export class TokenService {
           id: { not: token.id },
           OR: orConditions,
           status: {
-            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT, TokenStatus.EXPIRED]
+            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
           }
         },
         include: { customer: true }
