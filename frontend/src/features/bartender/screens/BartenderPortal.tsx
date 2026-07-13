@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
-  ActivityIndicator, StyleSheet, Modal, Platform
+  ActivityIndicator, StyleSheet, Modal, Platform, Animated
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar, getFriendlyErrorMessage } from '../../../context/NfcBarContext';
@@ -139,6 +139,57 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
   const [activeSession, setActiveSession] = useState<SessionToken | null>(null);
   const [redemptionsHistory, setRedemptionsHistory] = useState<any[]>([]);
   const [timeTick, setTimeTick] = useState(0);
+
+  // Interactive drink animations and queue management
+  const opQueueRef = React.useRef<{ type: 'SERVE' | 'UNDO'; index: number }[]>([]);
+  const isProcessingQueueRef = React.useRef(false);
+  const animatedValuesRef = React.useRef<{ [key: number]: Animated.Value }>({});
+  
+  const [servingIndices, setServingIndices] = useState<number[]>([]);
+  const [undoingIndices, setUndoingIndices] = useState<number[]>([]);
+  const [queuedIndices, setQueuedIndices] = useState<{ [key: number]: 'SERVE' | 'UNDO' }>({});
+
+  const getAnimValue = (slotIndex: number, initiallyServed: boolean) => {
+    if (!animatedValuesRef.current[slotIndex]) {
+      animatedValuesRef.current[slotIndex] = new Animated.Value(initiallyServed ? 1 : 0);
+    }
+    return animatedValuesRef.current[slotIndex];
+  };
+
+  const updateQueuedState = () => {
+    const queued: { [key: number]: 'SERVE' | 'UNDO' } = {};
+    opQueueRef.current.forEach((op, index) => {
+      if (index > 0) {
+        queued[op.index] = op.type;
+      }
+    });
+    setQueuedIndices(queued);
+  };
+
+  // Reset animations and queue on active session change
+  React.useEffect(() => {
+    opQueueRef.current = [];
+    isProcessingQueueRef.current = false;
+    animatedValuesRef.current = {};
+    setServingIndices([]);
+    setUndoingIndices([]);
+    setQueuedIndices({});
+  }, [activeSession?.tokenNumber]);
+
+  // Keep animations in sync with state updates
+  React.useEffect(() => {
+    if (activeSession) {
+      const used = activeSession.redemptionCount;
+      const limit = activeSession.redemptionLimit;
+      for (let i = 1; i <= limit; i++) {
+        const isRedeemed = i <= used;
+        const anim = animatedValuesRef.current[i];
+        if (anim && !servingIndices.includes(i) && !undoingIndices.includes(i)) {
+          anim.setValue(isRedeemed ? 1 : 0);
+        }
+      }
+    }
+  }, [activeSession?.redemptionCount, servingIndices, undoingIndices]);
 
   React.useEffect(() => {
     if (!isActive) return;
@@ -329,61 +380,172 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
     setBartenderState('scanned');
   };
 
-  const handleServeDrink = async () => {
-    if (!scannedCardUid || !activeSession) return;
-    if (!startAction('serve_drink')) return;
-    
-    try {
-      const res = await redeemDrinkForCard(scannedCardUid);
-      stopAction();
-      if (res.success) {
-        // Refresh current details locally
-        setActiveSession(prev => prev ? {
-          ...prev,
-          redemptionCount: prev.redemptionCount + 1
-        } : null);
-        fetchRedemptionsHistory(activeSession.tokenNumber);
+  const processQueue = async () => {
+    if (isProcessingQueueRef.current || opQueueRef.current.length === 0) return;
+    isProcessingQueueRef.current = true;
 
-        // Transition to depleted if limit is hit
-        if (activeSession.redemptionCount + 1 >= activeSession.redemptionLimit) {
-          setBartenderState('depleted');
+    const op = opQueueRef.current[0];
+    
+    if (op.type === 'SERVE') {
+      const targetIndex = op.index;
+      setServingIndices(prev => [...prev, targetIndex]);
+      updateQueuedState();
+
+      const anim = getAnimValue(targetIndex, false);
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: false,
+      }).start(async (result) => {
+        if (!result.finished) {
+          setServingIndices(prev => prev.filter(i => i !== targetIndex));
+          opQueueRef.current.shift();
+          updateQueuedState();
+          isProcessingQueueRef.current = false;
+          processQueue();
+          return;
         }
-      } else {
-        setBartenderState('error');
-        setErrorMessage(res.error || 'Redemption blocked');
-      }
-    } catch (e) {
-      stopAction();
-      setBartenderState('error');
-      setErrorMessage('Redemption request failed.');
+
+        try {
+          const res = await redeemDrinkForCard(scannedCardUid!);
+          if (res.success) {
+            setActiveSession(prev => {
+              if (!prev) return null;
+              const nextCount = prev.redemptionCount + 1;
+              if (nextCount >= prev.redemptionLimit) {
+                setBartenderState('depleted');
+              } else {
+                setBartenderState('scanned');
+              }
+              return { ...prev, redemptionCount: nextCount };
+            });
+            fetchRedemptionsHistory(activeSession!.tokenNumber);
+            showToast(`Drink #${targetIndex} redeemed successfully!`, 'success');
+          } else {
+            Animated.timing(anim, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: false,
+            }).start();
+            showToast(res.error || 'Redemption blocked', 'danger');
+          }
+        } catch (err) {
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: false,
+          }).start();
+          showToast('Redemption request failed.', 'danger');
+        } finally {
+          setServingIndices(prev => prev.filter(i => i !== targetIndex));
+          opQueueRef.current.shift();
+          updateQueuedState();
+          isProcessingQueueRef.current = false;
+          processQueue();
+        }
+      });
+
+    } else if (op.type === 'UNDO') {
+      const targetIndex = op.index;
+      setUndoingIndices(prev => [...prev, targetIndex]);
+      updateQueuedState();
+
+      const anim = getAnimValue(targetIndex, true);
+      Animated.timing(anim, {
+        toValue: 0,
+        duration: 2000,
+        useNativeDriver: false,
+      }).start(async (result) => {
+        if (!result.finished) {
+          setUndoingIndices(prev => prev.filter(i => i !== targetIndex));
+          opQueueRef.current.shift();
+          updateQueuedState();
+          isProcessingQueueRef.current = false;
+          processQueue();
+          return;
+        }
+
+        try {
+          const res = await undoDrinkRedemption(scannedCardUid!);
+          if (res.success) {
+            setActiveSession(prev => {
+              if (!prev) return null;
+              const nextCount = Math.max(0, prev.redemptionCount - 1);
+              setBartenderState('scanned');
+              return { ...prev, redemptionCount: nextCount };
+            });
+            fetchRedemptionsHistory(activeSession!.tokenNumber);
+            showToast(`Drink #${targetIndex} undone successfully!`, 'success');
+          } else {
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: false,
+            }).start();
+            showToast(res.error || 'Undo blocked', 'danger');
+          }
+        } catch (err) {
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: false,
+          }).start();
+          showToast('Undo request failed.', 'danger');
+        } finally {
+          setUndoingIndices(prev => prev.filter(i => i !== targetIndex));
+          opQueueRef.current.shift();
+          updateQueuedState();
+          isProcessingQueueRef.current = false;
+          processQueue();
+        }
+      });
     }
   };
 
-  const handleUndoServe = async () => {
-    if (!scannedCardUid || !activeSession) return;
-    if (!startAction('undo_serve')) return;
-    
-    try {
-      const res = await undoDrinkRedemption(scannedCardUid);
-      stopAction();
-      if (res.success) {
-        // Refresh current details locally
-        setActiveSession(prev => prev ? {
-          ...prev,
-          redemptionCount: Math.max(0, prev.redemptionCount - 1)
-        } : null);
+  const getQueuedServeCount = () => opQueueRef.current.filter(op => op.type === 'SERVE').length;
+  const getQueuedUndoCount = () => opQueueRef.current.filter(op => op.type === 'UNDO').length;
 
-        // Transition back to scanned state (since we are not depleted anymore)
-        setBartenderState('scanned');
-      } else {
-        setBartenderState('error');
-        setErrorMessage(res.error || 'Undo blocked');
-      }
-    } catch (e) {
-      stopAction();
-      setBartenderState('error');
-      setErrorMessage('Undo request failed.');
+  const enqueueServe = () => {
+    if (!scannedCardUid || !activeSession) return;
+    const used = activeSession.redemptionCount;
+    const limit = activeSession.redemptionLimit;
+    const serves = getQueuedServeCount();
+    const undos = getQueuedUndoCount();
+    
+    if (used + serves - undos >= limit) {
+      showToast('All drinks already redeemed or queued.', 'warning');
+      return;
     }
+
+    const nextIndex = used + serves - undos + 1;
+    opQueueRef.current.push({ type: 'SERVE', index: nextIndex });
+    updateQueuedState();
+    processQueue();
+  };
+
+  const enqueueUndo = () => {
+    if (!scannedCardUid || !activeSession) return;
+    const used = activeSession.redemptionCount;
+    const serves = getQueuedServeCount();
+    const undos = getQueuedUndoCount();
+    
+    const lastServedIndex = used + serves - undos;
+    if (lastServedIndex <= 0) {
+      showToast('No redeemed drinks to undo.', 'warning');
+      return;
+    }
+
+    opQueueRef.current.push({ type: 'UNDO', index: lastServedIndex });
+    updateQueuedState();
+    processQueue();
+  };
+
+  const handleServeDrink = () => {
+    enqueueServe();
+  };
+
+  const handleUndoServe = () => {
+    enqueueUndo();
   };
 
   // Render drinks balance dots/slots using visual card vectors in a 4-column grid
@@ -391,35 +553,122 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
     if (!activeSession) return null;
     const limit = activeSession.redemptionLimit;
     const used = activeSession.redemptionCount;
-    const slots = [];
+    
+    const completedSlots: React.ReactNode[] = [];
+    const remainingSlots: React.ReactNode[] = [];
     
     for (let i = 1; i <= limit; i++) {
       const isRedeemed = i <= used;
-      slots.push(
-        <View 
+      const isServing = servingIndices.includes(i);
+      const isUndoing = undoingIndices.includes(i);
+      const isQueuedServe = queuedIndices[i] === 'SERVE';
+      const isQueuedUndo = queuedIndices[i] === 'UNDO';
+
+      const anim = getAnimValue(i, isRedeemed);
+      const heightInterpolate = anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0%', '100%']
+      });
+
+      const handlePressSlot = () => {
+        const serves = getQueuedServeCount();
+        const undos = getQueuedUndoCount();
+        const lastServedIndex = used + serves - undos;
+
+        if (i <= lastServedIndex) {
+          if (i === lastServedIndex) {
+            enqueueUndo();
+          } else {
+            showToast('Only the latest redeemed drink can be undone first.', 'warning');
+          }
+        } else {
+          enqueueServe();
+        }
+      };
+
+      const slotEl = (
+        <TouchableOpacity
+          key={i}
+          activeOpacity={0.8}
+          onPress={handlePressSlot}
           style={{ 
-            height: 44,
+            height: 48,
             borderColor: isRedeemed ? colors.border : colors.gold, 
-            backgroundColor: isRedeemed ? 'transparent' : (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)')
+            borderWidth: 1.5,
+            position: 'relative',
+            overflow: 'hidden',
           }}
-          className="rounded-xl items-center justify-center border"
+          className="rounded-xl items-center justify-center"
         >
-          {isRedeemed ? (
-            <Text className="text-xs font-bold" style={{ color: colors.muted }}>✓</Text>
-          ) : (
-            <Text className="text-gold text-sm font-bold">🍹</Text>
+          {/* Animated liquid fill */}
+          <Animated.View
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: heightInterpolate,
+              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.25)' : 'rgba(212, 175, 55, 0.2)',
+            }}
+          />
+
+          {/* Queued/Pending state overlay */}
+          {(isQueuedServe || isQueuedUndo) && (
+            <View 
+              style={{ position: 'absolute', top: 2, right: 4 }}
+              className="bg-black/40 rounded-full px-1 py-0.5"
+            >
+              <Text style={{ fontSize: 7, color: 'white', fontWeight: 'bold' }}>QUEUED</Text>
+            </View>
           )}
-        </View>
+
+          {/* Main content label */}
+          {isServing || isQueuedServe ? (
+            <Text className="text-gold text-sm font-bold">🍹 ⏳</Text>
+          ) : isUndoing || isQueuedUndo ? (
+            <Text className="text-xs font-bold" style={{ color: colors.muted }}>✓ ⏳</Text>
+          ) : isRedeemed ? (
+            <Text className="text-xs font-bold" style={{ color: colors.muted }}>✓ Served</Text>
+          ) : (
+            <Text className="text-gold text-sm font-bold">🍹 Serve</Text>
+          )}
+        </TouchableOpacity>
       );
+
+      if (isRedeemed && !isUndoing) {
+        completedSlots.push(slotEl);
+      } else {
+        remainingSlots.push(slotEl);
+      }
     }
-    
+
     return (
-      <View className="flex-row flex-wrap mt-3" style={{ marginHorizontal: -6 }}>
-        {slots.map((slot, index) => (
-          <View key={index} style={{ width: '25%', padding: 6 }}>
-            {slot}
+      <View className="mt-3">
+        {completedSlots.length > 0 && (
+          <View className="mb-4">
+            <Text className="text-[9px] uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Served Drinks</Text>
+            <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
+              {completedSlots.map((slot, index) => (
+                <View key={index} style={{ width: '25%', padding: 6 }}>
+                  {slot}
+                </View>
+              ))}
+            </View>
           </View>
-        ))}
+        )}
+        
+        {remainingSlots.length > 0 && (
+          <View>
+            <Text className="text-[9px] uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Available Drinks</Text>
+            <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
+              {remainingSlots.map((slot, index) => (
+                <View key={index} style={{ width: '25%', padding: 6 }}>
+                  {slot}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
     );
   };
@@ -848,12 +1097,12 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
               <TouchableOpacity 
                 className="py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px] border" 
                 onPress={handleUndoServe}
-                disabled={isProcessing}
+                disabled={false}
                 style={{ 
                   backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
                   borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
                   borderWidth: 1.5,
-                  opacity: isProcessing ? 0.5 : 1 
+                  opacity: 1 
                 }}
                 activeOpacity={0.8}
               >
@@ -964,12 +1213,12 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
               <TouchableOpacity 
                 className="py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px] border" 
                 onPress={handleUndoServe}
-                disabled={isProcessing}
+                disabled={false}
                 style={{ 
                   backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
                   borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
                   borderWidth: 1.5,
-                  opacity: isProcessing ? 0.5 : 1 
+                  opacity: 1 
                 }}
                 activeOpacity={0.8}
               >
