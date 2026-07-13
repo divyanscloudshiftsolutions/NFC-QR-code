@@ -498,17 +498,47 @@ export class TokenService {
     });
 
     if (expiredPendingTokens.length > 0) {
-      await prisma.token.updateMany({
-        where: {
-          id: { in: expiredPendingTokens.map(t => t.id) }
-        },
-        data: {
-          status: TokenStatus.EXPIRED
+      await prisma.$transaction(async (tx) => {
+        for (const token of expiredPendingTokens) {
+          await tx.token.update({
+            where: { id: token.id },
+            data: {
+              status: TokenStatus.EXPIRED
+            }
+          });
+
+          logStateTransition(token.tokenNumber, token.status, TokenStatus.EXPIRED, 'chronological pending auto-expiration', 'system_reconciler');
+
+          if (token.tableId) {
+            const table = await tx.table.findUnique({ where: { id: token.tableId } });
+            if (table && table.currentTokenId === token.id) {
+              await tx.table.update({
+                where: { id: token.tableId },
+                data: {
+                  status: 'available',
+                  currentTokenId: null,
+                  occupiedSince: null,
+                  maintenanceStart: null,
+                  maintenanceEnd: null
+                }
+              });
+
+              await tx.tableOccupancyLog.updateMany({
+                where: {
+                  tableId: token.tableId,
+                  tokenId: token.id,
+                  vacatedAt: null
+                },
+                data: { vacatedAt: now }
+              });
+
+              await redisService.del(`table:${token.tableId}:status`);
+            }
+          }
+
+          await redisService.del(`token:${token.tokenNumber}`);
         }
-      });
-      for (const t of expiredPendingTokens) {
-        await redisService.del(`token:${t.tokenNumber}`);
-      }
+      }, { timeout: 15000 });
     }
 
     // 3. Reconcile expired active/extended sessions
@@ -537,27 +567,30 @@ export class TokenService {
             logStateTransition(token.tokenNumber, token.status, TokenStatus.EXPIRED, 'chronological auto-expiration', 'system_reconciler');
 
             if (token.tableId) {
-              await tx.table.update({
-                where: { id: token.tableId },
-                data: {
-                  status: 'available',
-                  currentTokenId: null,
-                  occupiedSince: null,
-                  maintenanceStart: null,
-                  maintenanceEnd: null
-                }
-              });
+              const table = await tx.table.findUnique({ where: { id: token.tableId } });
+              if (table && table.currentTokenId === token.id) {
+                await tx.table.update({
+                  where: { id: token.tableId },
+                  data: {
+                    status: 'available',
+                    currentTokenId: null,
+                    occupiedSince: null,
+                    maintenanceStart: null,
+                    maintenanceEnd: null
+                  }
+                });
 
-              await tx.tableOccupancyLog.updateMany({
-                where: {
-                  tableId: token.tableId,
-                  tokenId: token.id,
-                  vacatedAt: null
-                },
-                data: { vacatedAt: now }
-              });
+                await tx.tableOccupancyLog.updateMany({
+                  where: {
+                    tableId: token.tableId,
+                    tokenId: token.id,
+                    vacatedAt: null
+                  },
+                  data: { vacatedAt: now }
+                });
 
-              await redisService.del(`table:${token.tableId}:status`);
+                await redisService.del(`table:${token.tableId}:status`);
+              }
             }
 
             await redisService.del(`token:${token.tokenNumber}`);
@@ -659,20 +692,23 @@ export class TokenService {
 
       // Update table status
       if (token.tableId) {
-        const maintenanceDurationMs = 5 * 60000;
-        const maintenanceStart = now;
-        const maintenanceEnd = new Date(now.getTime() + maintenanceDurationMs);
+        const table = await tx.table.findUnique({ where: { id: token.tableId } });
+        if (table && table.currentTokenId === token.id) {
+          const maintenanceDurationMs = 5 * 60000;
+          const maintenanceStart = now;
+          const maintenanceEnd = new Date(now.getTime() + maintenanceDurationMs);
 
-        await tx.table.update({
-          where: { id: token.tableId },
-          data: {
-            status: force ? 'available' : 'maintenance',
-            currentTokenId: null,
-            occupiedSince: null,
-            maintenanceStart: force ? null : maintenanceStart,
-            maintenanceEnd: force ? null : maintenanceEnd
-          }
-        });
+          await tx.table.update({
+            where: { id: token.tableId },
+            data: {
+              status: force ? 'available' : 'maintenance',
+              currentTokenId: null,
+              occupiedSince: null,
+              maintenanceStart: force ? null : maintenanceStart,
+              maintenanceEnd: force ? null : maintenanceEnd
+            }
+          });
+        }
       }
 
       // Update occupancy logs
@@ -1098,6 +1134,33 @@ export class TokenService {
       });
 
       logStateTransition(tokenNumber, token.status, TokenStatus.CANCELLED, `cancelled: ${cancelReason}`, cancelledBy);
+
+      if (token.tableId) {
+        const table = await tx.table.findUnique({ where: { id: token.tableId } });
+        if (table && table.currentTokenId === token.id) {
+          await tx.table.update({
+            where: { id: token.tableId },
+            data: {
+              status: 'available',
+              currentTokenId: null,
+              occupiedSince: null,
+              maintenanceStart: null,
+              maintenanceEnd: null
+            }
+          });
+
+          await tx.tableOccupancyLog.updateMany({
+            where: {
+              tableId: token.tableId,
+              tokenId: token.id,
+              vacatedAt: null
+            },
+            data: { vacatedAt: now }
+          });
+
+          await redisService.del(`table:${token.tableId}:status`);
+        }
+      }
 
       // Invalidate cache
       await redisService.del(`token:${tokenNumber}`);

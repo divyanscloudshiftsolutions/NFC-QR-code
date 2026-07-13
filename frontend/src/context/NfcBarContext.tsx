@@ -66,6 +66,7 @@ interface NfcBarContextType {
     placeTypeId?: string;
     tableId?: string;
     tableNumber?: string;
+    tokenNumber?: string;
   }) => Promise<SessionToken | null>;
   verifyQrCode: (tokenNumber: string) => Promise<SessionToken | null>;
   activatePendingSession: (
@@ -118,6 +119,10 @@ interface NfcBarContextType {
   fetchAdminSessions: () => Promise<boolean>;
   adminDeactivateSession: (tokenNumber: string, status: TokenStatus, force?: boolean) => Promise<boolean>;
   exportSessionsCSV: (status: string) => Promise<string | null>;
+
+  // Pending Sessions management
+  pendingSessions: SessionToken[];
+  fetchPendingSessions: () => Promise<boolean>;
 }
 
 const NfcBarContext = createContext<NfcBarContextType | undefined>(undefined);
@@ -240,6 +245,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [tables, setTables] = useState<Table[]>([]);
   const [sessions, setSessions] = useState<SessionToken[]>([]);
   const [adminSessions, setAdminSessions] = useState<SessionToken[]>([]);
+  const [pendingSessions, setPendingSessions] = useState<SessionToken[]>([]);
   const [users, setUsers] = useState<StaffMember[]>([]);
   const [cards, setCards] = useState<InventoryCard[]>([]);
   const [rates, setRates] = useState<RateCard[]>([]);
@@ -381,6 +387,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     createdAt: t.createdAt,
     deliveryMode: t.deliveryMode,
     paymentVerified: t.paymentVerified,
+    emailSent: t.emailSent,
     // Audit logs & history metadata mapping
     createdBy: t.createdBy,
     closedBy: t.closedBy,
@@ -488,6 +495,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSessions(fetchedSessions);
         await AsyncStorage.setItem('nfc_bar_cached_sessions', JSON.stringify(fetchedSessions)).catch(() => {});
       }
+      await fetchPendingSessions();
     } catch (err) {
       console.log('Failed to fetch latest server state:', err);
       if ((systemMode as any) !== 'offline') {
@@ -1059,6 +1067,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     placeTypeId?: string;
     tableId?: string;
     tableNumber?: string;
+    tokenNumber?: string;
   }): Promise<SessionToken | null> => {
     try {
       const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
@@ -1893,6 +1902,28 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const fetchPendingSessions = async (): Promise<boolean> => {
+    if (systemMode === 'offline') return false;
+    const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');
+    if (!activeToken) return false;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/check-in/pending-list`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map(mapBackendToken);
+        setPendingSessions(mapped);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.log('Failed to fetch pending sessions:', err);
+      return false;
+    }
+  };
+
   const exportSessionsCSV = async (status: string): Promise<string | null> => {
     if (systemMode === 'offline') {
       showToast('Exporting data requires an active network connection.', 'danger');
@@ -2151,7 +2182,8 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       fetchRates, updateRateCard,
       fetchReports,
       startReturnCardFlow, setReturnCardStep, setReturnCardUid, cancelReturnCardFlow,
-      fetchAdminSessions, adminDeactivateSession, exportSessionsCSV
+      fetchAdminSessions, adminDeactivateSession, exportSessionsCSV,
+      pendingSessions, fetchPendingSessions
     }}>
       {children}
     </NfcBarContext.Provider>

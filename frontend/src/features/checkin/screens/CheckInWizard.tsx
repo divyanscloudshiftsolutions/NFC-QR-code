@@ -25,7 +25,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
     tables, sessions, rates, checkInGuest, showToast, 
     preselectedTableNumber, setPreselectedTableNumber, tokenType, 
     nfcEnabled, emailQrEnabled,
-    createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, setTab, setOverlayActive
+    createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, setTab, setOverlayActive,
+    pendingSessions, fetchPendingSessions
   } = useNfcBar();
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
@@ -219,6 +220,11 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
       }
     }
   }, [rates, placeType]);
+  useEffect(() => {
+    if (isActive && step === 1) {
+      fetchPendingSessions().catch(() => {});
+    }
+  }, [isActive, step]);
   
   // Simulated outputs
   const [createdSession, setCreatedSession] = useState<SessionToken | null>(null);
@@ -299,7 +305,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
           personsCount: guestCount,
           placeType,
           placeTypeId: rates.find(r => r.placeType === placeType)?.id,
-          tableNumber: selectedTableNum || undefined
+          tableNumber: selectedTableNum || undefined,
+          tokenNumber: pendingToken || undefined
         });
         stopAction();
         setIsActivating(false);
@@ -439,6 +446,61 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
     } finally {
       setIsNfcWriting(false);
     }
+  };
+
+  const handleResumePending = (pending: SessionToken) => {
+    setFullName(pending.customerName);
+    setPhone(pending.phoneNumber);
+    setEmail(pending.email || '');
+    setGuestCount(pending.persons);
+    setPlaceType(pending.placeType);
+    setSelectedTableNum(pending.tableNumber || null);
+    setPendingToken(pending.tokenNumber);
+    setScannedToken('');
+    setQrVerificationSuccess(false);
+    setQrVerificationError(null);
+
+    // Determine the resume step:
+    if (!pending.tableNumber) {
+      // 1. Pending at table selection
+      setStep(2);
+    } else if (pending.emailSent === false) {
+      // 2. Pending at QR generation
+      setStep(5);
+    } else {
+      // 3. Pending at payment
+      setStep(3);
+    }
+  };
+
+  const handleClosePending = (pending: SessionToken) => {
+    Alert.alert(
+      'Close Pending Check-in',
+      `Are you sure you want to permanently close the pending check-in for ${pending.customerName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Close Session', 
+          style: 'destructive',
+          onPress: async () => {
+            if (!startAction('cancel_pending')) return;
+            try {
+              const success = await cancelPendingSession(pending.tokenNumber, 'USER_CANCELLED');
+              stopAction();
+              if (success) {
+                showToast('Pending check-in closed successfully.', 'success');
+                await fetchPendingSessions();
+              } else {
+                showToast('Failed to close pending check-in.', 'danger');
+              }
+            } catch (err: any) {
+              stopAction();
+              showToast(err.message || 'Error closing pending session.', 'danger');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const resetWizard = () => {
@@ -1007,6 +1069,54 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                 Continue  ➔
               </Text>
             </TouchableOpacity>
+            
+            {pendingSessions.length > 0 && (
+              <View 
+                className="rounded-[20px] p-5 shadow-xl border mt-4"
+                style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1.5 }}
+              >
+                <Text className="text-[11px] font-bold uppercase tracking-wider mb-3.5" style={{ color: colors.gold }}>
+                  ⏳ Pending Payment Check-ins ({pendingSessions.length})
+                </Text>
+                
+                {pendingSessions.map((pending) => (
+                  <View 
+                    key={pending.id} 
+                    className="border rounded-xl p-3 mb-3"
+                    style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}
+                  >
+                    <View className="flex-row justify-between items-center mb-1.5">
+                      <Text className="text-[13px] font-bold" style={{ color: colors.text }}>
+                        {pending.customerName}
+                      </Text>
+                      <View className="flex-row gap-2">
+                        <TouchableOpacity 
+                          className="px-3 py-1.5 rounded-lg bg-teal items-center justify-center"
+                          onPress={() => handleResumePending(pending)}
+                          activeOpacity={0.8}
+                        >
+                          <Text className="text-[10px] font-bold text-white">Resume</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          className="px-3 py-1.5 rounded-lg bg-red/10 border border-red/35 items-center justify-center"
+                          onPress={() => handleClosePending(pending)}
+                          activeOpacity={0.8}
+                        >
+                          <Text className="text-[10px] font-bold text-red" style={{ color: colors.red }}>Close</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    
+                    <Text className="text-[11px] mb-1" style={{ color: colors.muted }}>
+                      📞 {pending.phoneNumber} {pending.email ? `• ✉️ ${pending.email}` : ''}
+                    </Text>
+                    <Text className="text-[10px] font-bold uppercase" style={{ color: colors.gold }}>
+                      {pending.placeType.replace('_', ' ')} • {pending.persons} Pax • {pending.tableNumber ? `Table ${pending.tableNumber}` : 'Waiting List'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 

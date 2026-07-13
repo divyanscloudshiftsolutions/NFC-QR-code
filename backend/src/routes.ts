@@ -1598,6 +1598,106 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Invalid seating selection. Please select a valid seating option.' } });
     }
 
+    // If resuming/updating an existing pending token
+    const { tokenNumber } = req.body;
+    if (tokenNumber) {
+      const existingToken = await prisma.token.findUnique({
+        where: { tokenNumber }
+      });
+      if (!existingToken) {
+        return res.status(404).json({ success: false, error: { message: 'Pending token not found' } });
+      }
+      if (existingToken.status !== TokenStatus.PENDING_PAYMENT) {
+        return res.status(400).json({ success: false, error: { message: `Cannot update token with status ${existingToken.status}` } });
+      }
+
+      // If assigning a table
+      let resolvedTableId = existingToken.tableId;
+      if (tableNumber) {
+        const table = await prisma.table.findFirst({
+          where: { tableNumber: tableNumber, placeTypeId: finalPlaceTypeId }
+        });
+        if (!table) {
+          return res.status(404).json({ success: false, error: { message: `Table ${tableNumber} not found` } });
+        }
+        if (table.status !== 'available' && table.currentTokenId !== existingToken.id) {
+          return res.status(400).json({ success: false, error: { message: `Table ${tableNumber} is not available.` } });
+        }
+        resolvedTableId = table.id;
+
+        // Update table to occupied
+        await prisma.table.update({
+          where: { id: table.id },
+          data: {
+            status: 'occupied',
+            currentTokenId: existingToken.id,
+            occupiedSince: new Date(),
+            lastAssignedAt: new Date()
+          }
+        });
+
+        // Create table occupancy log
+        const logExists = await prisma.tableOccupancyLog.findFirst({
+          where: { tableId: table.id, tokenId: existingToken.id, vacatedAt: null }
+        });
+        if (!logExists) {
+          await prisma.tableOccupancyLog.create({
+            data: {
+              tableId: table.id,
+              tokenId: existingToken.id,
+              occupiedAt: new Date()
+            }
+          });
+        }
+      }
+
+      // Update token tableId and check-in details
+      const updatedToken = await prisma.token.update({
+        where: { id: existingToken.id },
+        data: {
+          tableId: resolvedTableId,
+          personsCount: finalPersonsCount,
+          placeTypeId: finalPlaceTypeId,
+        },
+        include: { customer: true, placeType: true, table: true }
+      });
+
+      // Send email if table is assigned now and email wasn't sent
+      if (resolvedTableId && !existingToken.emailSent) {
+        await prisma.token.update({
+          where: { id: existingToken.id },
+          data: { emailSent: true, emailDeliveryStatus: 'SENT', emailSentAt: new Date() }
+        });
+        emailNotificationService.enqueueEmailJob(finalEmail, existingToken.tokenNumber, customerName);
+      }
+
+      // Sync Redis cache
+      await redisService.setex(`token:${tokenNumber}`, 86400, JSON.stringify(updatedToken));
+
+      const responseData = {
+        id: updatedToken.id,
+        tokenNumber: updatedToken.tokenNumber,
+        phoneNumber: updatedToken.customer.phoneNumber,
+        customerName: updatedToken.customer.name,
+        email: updatedToken.customer.email,
+        persons: updatedToken.personsCount,
+        placeType: updatedToken.placeType.name,
+        tableId: updatedToken.tableId,
+        tableNumber: updatedToken.table?.tableNumber || null,
+        amountPaid: parseFloat(updatedToken.amountPaid.toString()),
+        paymentVerified: updatedToken.paymentVerified,
+        emailSent: updatedToken.emailSent,
+        startTime: updatedToken.startTime.toISOString(),
+        endTime: updatedToken.endTime.toISOString(),
+        redemptionLimit: updatedToken.totalRedemptionsAllowed,
+        redemptionCount: updatedToken.redemptionsUsed,
+        status: updatedToken.status.toUpperCase(),
+        createdAt: updatedToken.issuedAt.toISOString(),
+      };
+
+      return res.status(200).json(responseData);
+    }
+
     let finalIssuedBy = req.user?.id || '';
     if (finalIssuedBy) {
       const userExists = await prisma.user.findUnique({ where: { id: finalIssuedBy } });
@@ -1785,6 +1885,42 @@ const cancelSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
 router.post('/check-in', authenticate, authorize(['receptionist', 'admin']), checkInHandler);
 router.post('/tokens/create', authenticate, authorize(['receptionist', 'admin']), checkInHandler);
 router.post('/check-in/pending', authenticate, authorize(['receptionist', 'admin']), checkInPendingHandler);
+router.get('/check-in/pending-list', authenticate, authorize(['receptionist', 'admin']), async (req: Request, res: Response) => {
+  try {
+    await tokenService.reconcileSystemState();
+    const pendingTokens = await prisma.token.findMany({
+      where: { status: TokenStatus.PENDING_PAYMENT },
+      include: { customer: true, placeType: true, table: true },
+      orderBy: { issuedAt: 'desc' },
+    });
+    
+    // Map response keys for old client compatibility
+    const oldTokens = pendingTokens.map((t: any) => ({
+      id: t.id,
+      tokenNumber: t.tokenNumber,
+      phoneNumber: t.customer.phoneNumber,
+      customerName: t.customer.name,
+      email: t.customer.email,
+      persons: t.personsCount,
+      placeType: t.placeType.name,
+      tableId: t.tableId,
+      tableNumber: t.table?.tableNumber || null,
+      amountPaid: parseFloat(t.amountPaid.toString()),
+      paymentVerified: t.paymentVerified,
+      emailSent: t.emailSent,
+      startTime: t.startTime.toISOString(),
+      endTime: t.endTime.toISOString(),
+      redemptionLimit: t.totalRedemptionsAllowed,
+      redemptionCount: t.redemptionsUsed,
+      status: t.status.toUpperCase(),
+      createdAt: t.issuedAt.toISOString(),
+    }));
+
+    return res.json(oldTokens);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
 router.get('/check-in/verify-qr/:tokenNumber', authenticate, authorize(['receptionist', 'admin']), verifyQrHandler);
 router.post('/check-in/activate', authenticate, authorize(['receptionist', 'admin']), activateSessionHandler);
 router.post('/check-in/cancel', authenticate, authorize(['receptionist', 'admin']), cancelSessionHandler);

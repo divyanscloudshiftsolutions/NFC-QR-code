@@ -93,6 +93,7 @@ export interface SessionToken {
   cardUid: string;
   deliveryMode?: 'NFC_CARD' | 'EMAIL_QR';
   paymentVerified?: boolean;
+  emailSent?: boolean;
   createdAt: string;
 
   // Audit, history and timeline properties
