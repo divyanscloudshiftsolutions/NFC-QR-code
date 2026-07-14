@@ -449,27 +449,38 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
   };
 
   const handleResumePending = (pending: SessionToken) => {
+    // 1. Check if the table is still available:
+    const selectedTable = tables.find(t => t.number === pending.tableNumber);
+    const isAvailable = selectedTable ? (selectedTable.status === 'available') : false;
+
     setFullName(pending.customerName);
     setPhone(pending.phoneNumber);
     setEmail(pending.email || '');
     setGuestCount(pending.persons);
     setPlaceType(pending.placeType);
-    setSelectedTableNum(pending.tableNumber || null);
     setPendingToken(pending.tokenNumber);
     setScannedToken('');
     setQrVerificationSuccess(false);
     setQrVerificationError(null);
 
-    // Determine the resume step:
-    if (!pending.tableNumber) {
-      // 1. Pending at table selection
+    if (pending.tableNumber && !isAvailable) {
+      // Clear selected table and redirect to table selection (Step 2)
+      setSelectedTableNum(null);
       setStep(2);
-    } else if (pending.emailSent === false) {
-      // 2. Pending at QR generation
-      setStep(5);
+      showToast(`Table ${pending.tableNumber} is no longer available. Please select another table.`, 'warning');
     } else {
-      // 3. Pending at payment
-      setStep(3);
+      setSelectedTableNum(pending.tableNumber || null);
+      // Determine the resume step:
+      if (!pending.tableNumber) {
+        // 1. Pending at table selection
+        setStep(2);
+      } else if (pending.emailSent === false) {
+        // 2. Pending at QR generation
+        setStep(5);
+      } else {
+        // 3. Pending at payment
+        setStep(3);
+      }
     }
   };
 

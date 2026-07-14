@@ -454,8 +454,70 @@ export class TokenService {
     }, { timeout: 15000 });
   }
 
+  async cleanupOrphanedTables(): Promise<void> {
+    const now = new Date();
+    try {
+      const occupiedTables = await prisma.table.findMany({
+        where: { status: 'occupied' }
+      });
+
+      if (occupiedTables.length > 0) {
+        await prisma.$transaction(async (tx) => {
+          for (const table of occupiedTables) {
+            if (!table.currentTokenId) {
+              await tx.table.update({
+                where: { id: table.id },
+                data: {
+                  status: 'available',
+                  occupiedSince: null,
+                  currentTokenId: null
+                }
+              });
+              await redisService.del(`table:${table.id}:status`);
+              continue;
+            }
+
+            const token = await tx.token.findUnique({
+              where: { id: table.currentTokenId }
+            });
+
+            if (!token || token.status === TokenStatus.EXPIRED || token.status === TokenStatus.CLOSED || token.status === TokenStatus.CANCELLED) {
+              await tx.table.update({
+                where: { id: table.id },
+                data: {
+                  status: 'available',
+                  occupiedSince: null,
+                  currentTokenId: null,
+                  maintenanceStart: null,
+                  maintenanceEnd: null
+                }
+              });
+
+              await tx.tableOccupancyLog.updateMany({
+                where: {
+                  tableId: table.id,
+                  tokenId: table.currentTokenId,
+                  vacatedAt: null
+                },
+                data: { vacatedAt: now }
+              });
+
+              await redisService.del(`table:${table.id}:status`);
+            }
+          }
+        }, { timeout: 20000 });
+        await redisService.del('table:available:all');
+      }
+    } catch (error) {
+      console.error('Error in cleanupOrphanedTables background job:', error);
+    }
+  }
+
   async reconcileSystemState(): Promise<void> {
     const now = new Date();
+
+    // 0. Clean up orphaned occupied tables (self-healing job)
+    await this.cleanupOrphanedTables();
 
     // 1. Reconcile maintenance tables
     const expiredTables = await prisma.table.findMany({
@@ -912,24 +974,8 @@ export class TokenService {
         }
       });
 
-      if (resolvedTableId) {
-        await tx.table.update({
-          where: { id: resolvedTableId },
-          data: {
-            status: 'occupied',
-            currentTokenId: token.id,
-            occupiedSince: start,
-            lastAssignedAt: start
-          }
-        });
-        await tx.tableOccupancyLog.create({
-          data: {
-            tableId: resolvedTableId,
-            tokenId: token.id,
-            occupiedAt: start
-          }
-        });
-      }
+      // Decoupled table occupancy from pending check-ins until payment is confirmed.
+      // Table remains available; tableId is only stored on the token preference.
 
       // Cache token and customer active status
       await redisService.setex(`token:${tokenNumber}`, 86400, JSON.stringify(token));

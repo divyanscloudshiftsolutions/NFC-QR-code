@@ -1655,31 +1655,6 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
           return res.status(400).json({ success: false, error: { message: `Table ${tableNumber} is not available.` } });
         }
         resolvedTableId = table.id;
-
-        // Update table to occupied
-        await prisma.table.update({
-          where: { id: table.id },
-          data: {
-            status: 'occupied',
-            currentTokenId: existingToken.id,
-            occupiedSince: new Date(),
-            lastAssignedAt: new Date()
-          }
-        });
-
-        // Create table occupancy log
-        const logExists = await prisma.tableOccupancyLog.findFirst({
-          where: { tableId: table.id, tokenId: existingToken.id, vacatedAt: null }
-        });
-        if (!logExists) {
-          await prisma.tableOccupancyLog.create({
-            data: {
-              tableId: table.id,
-              tokenId: existingToken.id,
-              occupiedAt: new Date()
-            }
-          });
-        }
       }
 
       // Update token tableId and check-in details
@@ -1820,9 +1795,37 @@ const verifyQrHandler = async (req: Request, res: Response) => {
     const now = new Date();
     const isPendingExpired = now.getTime() > token.issuedAt.getTime() + 20 * 60 * 1000;
     if (isPendingExpired) {
-      await prisma.token.update({
-        where: { id: token.id },
-        data: { status: TokenStatus.EXPIRED }
+      await prisma.$transaction(async (tx) => {
+        await tx.token.update({
+          where: { id: token.id },
+          data: { status: TokenStatus.EXPIRED }
+        });
+
+        if (token.tableId) {
+          const table = await tx.table.findUnique({ where: { id: token.tableId } });
+          if (table && table.currentTokenId === token.id) {
+            await tx.table.update({
+              where: { id: token.tableId },
+              data: {
+                status: 'available',
+                currentTokenId: null,
+                occupiedSince: null,
+                maintenanceStart: null,
+                maintenanceEnd: null
+              }
+            });
+
+            await tx.tableOccupancyLog.updateMany({
+              where: {
+                tableId: token.tableId,
+                tokenId: token.id,
+                vacatedAt: null
+              },
+              data: { vacatedAt: now }
+            });
+            await redisService.del(`table:${token.tableId}:status`);
+          }
+        }
       });
       return res.status(400).json({ success: false, error: { message: 'QR token has expired.' } });
     }
