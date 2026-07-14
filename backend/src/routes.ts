@@ -1762,8 +1762,18 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
         tokenNumber: err.tokenNumber
       });
     }
-    console.error(err);
-    return res.status(400).json({ success: false, error: { message: err.message } });
+    console.error('Error in checkInPendingHandler:', err);
+    let friendlyMessage = 'Unable to complete the check-in. Please try again.';
+    if (err.message) {
+      if (err.message.includes('Foreign key constraint failed on the field')) {
+        friendlyMessage = 'The selected seating table or place type configuration is invalid.';
+      } else if (err.message.includes('prisma') || err.message.includes('invocation')) {
+        friendlyMessage = 'A database error occurred while updating the check-in details. Please try selecting the table again.';
+      } else {
+        friendlyMessage = err.message;
+      }
+    }
+    return res.status(400).json({ success: false, error: { message: friendlyMessage } });
   }
 };
 
