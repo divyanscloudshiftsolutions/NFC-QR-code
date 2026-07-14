@@ -2231,8 +2231,8 @@ router.get('/tokens/active', authenticate, async (req: Request, res: Response) =
   }
 });
 
-// Export sessions as CSV (Admin only)
-router.get('/admin/sessions/export', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// Export sessions as CSV (Admin/Manager allowed)
+router.get('/admin/sessions/export', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const { status, startDate, endDate, paymentVerified } = req.query;
 
@@ -2269,8 +2269,8 @@ router.get('/admin/sessions/export', authenticate, authorize(['admin']), async (
   }
 });
 
-// Get all sessions (Admin only)
-router.get('/admin/sessions', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// Get all sessions (Admin/Manager allowed)
+router.get('/admin/sessions', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     await tokenService.reconcileSystemState();
     const sessions = await prisma.token.findMany({
@@ -3312,8 +3312,8 @@ function getDateRangeFromFilter(filter?: string, queryStart?: string, queryEnd?:
   return { startDate, endDate };
 }
 
-// GET /reports/dashboard
-router.get('/reports/dashboard', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// GET /reports/dashboard (Admin/Manager allowed)
+router.get('/reports/dashboard', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     await tokenService.reconcileSystemState();
     const { filter, startDate: qStart, endDate: qEnd } = req.query;
@@ -3524,8 +3524,8 @@ router.get('/reports/dashboard', authenticate, authorize(['admin']), async (req:
   }
 });
 
-// Sales summary
-router.get('/reports/sales', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// Sales summary (Admin/Manager allowed)
+router.get('/reports/sales', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const { filter, startDate: qStart, endDate: qEnd } = req.query;
     const { startDate, endDate } = getDateRangeFromFilter(filter as string, qStart as string, qEnd as string);
@@ -3564,8 +3564,8 @@ router.get('/reports/sales', authenticate, authorize(['admin']), async (req: Req
   }
 });
 
-// Occupancy report
-router.get('/reports/occupancy', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// Occupancy report (Admin/Manager allowed)
+router.get('/reports/occupancy', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const tables = await prisma.table.findMany();
     const occupiedCount = tables.filter(t => t.status === 'occupied').length;
@@ -3589,8 +3589,8 @@ router.get('/reports/occupancy', authenticate, authorize(['admin']), async (req:
   }
 });
 
-// Peak hours
-router.get('/reports/peak-hours', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// Peak hours (Admin/Manager allowed)
+router.get('/reports/peak-hours', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const { filter, startDate: qStart, endDate: qEnd } = req.query;
     const { startDate, endDate } = getDateRangeFromFilter(filter as string, qStart as string, qEnd as string);
@@ -3617,8 +3617,8 @@ router.get('/reports/peak-hours', authenticate, authorize(['admin']), async (req
   }
 });
 
-// Cards inventory report
-router.get('/reports/cards', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// Cards inventory report (Admin/Manager allowed)
+router.get('/reports/cards', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const cards = await prisma.card.findMany();
     const activeCount = cards.filter(c => c.status === 'available').length;
@@ -3644,8 +3644,8 @@ router.get('/reports/cards', authenticate, authorize(['admin']), async (req: Req
   }
 });
 
-// GET /reports/daily
-router.get('/reports/daily', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// GET /reports/daily (Admin/Manager allowed)
+router.get('/reports/daily', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const { date, filter, startDate: qStart, endDate: qEnd } = req.query;
     let startDate: Date;
@@ -3739,8 +3739,8 @@ router.get('/reports/daily', authenticate, authorize(['admin']), async (req: Req
   }
 });
 
-// GET /reports/table-utilization
-router.get('/reports/table-utilization', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// GET /reports/table-utilization (Admin/Manager allowed)
+router.get('/reports/table-utilization', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const { filter, startDate: qStart, endDate: qEnd, placeTypeId } = req.query;
     const { startDate, endDate } = getDateRangeFromFilter(filter as string, qStart as string, qEnd as string);
@@ -3839,8 +3839,8 @@ router.get('/reports/table-utilization', authenticate, authorize(['admin']), asy
   }
 });
 
-// GET /reports/hourly-breakdown
-router.get('/reports/hourly-breakdown', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+// GET /reports/hourly-breakdown (Admin/Manager allowed)
+router.get('/reports/hourly-breakdown', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const { date, filter, startDate: qStart, endDate: qEnd } = req.query;
     let startDate: Date;
