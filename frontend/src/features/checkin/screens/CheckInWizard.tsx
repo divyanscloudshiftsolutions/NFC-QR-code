@@ -470,6 +470,10 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
     setQrVerificationSuccess(false);
     setQrVerificationError(null);
 
+    if (pending.deliveryMode) {
+      setSelectedDeliveryMode(pending.deliveryMode);
+    }
+
     if (pending.tableNumber && !isAvailable) {
       // Clear selected table and redirect to table selection (Step 2)
       setSelectedTableNum(null);
