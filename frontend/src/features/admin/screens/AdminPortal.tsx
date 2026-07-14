@@ -1687,6 +1687,10 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 setIsSavingSettings(false);
               }
             }}
+          >
+            <Text className="font-extrabold text-sm" style={{ color: (isSavingSettings || isProcessing) ? colors.muted : colors.primaryButtonText }}>
+              {loadingAction === 'save_settings' ? `Saving Settings... (${secondsLeft}s)` : 'Save Configurations'}
+            </Text>
           </TouchableOpacity>
 
           {/* Local Cache Management */}
