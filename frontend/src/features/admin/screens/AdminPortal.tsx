@@ -20,7 +20,8 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     registerStaff, updateStaff, updateStaffStatus, fetchCards, updateCardStatus, fetchRates, updateRateCard, fetchUsers,
     salesSummary, tableUtilization, hourlyBreakdown, fetchReports, showToast,
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
-    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive, setSwipeLocked
+    fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive, setSwipeLocked,
+    setTab, setResumingPendingSession
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('tables');
   const [isTabLoading, setIsTabLoading] = useState(false);
@@ -1976,6 +1977,26 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                                     }}
                                   >
                                     <Text style={{ color: colors.gold, fontSize: 9, fontWeight: 'bold' }}>Extend</Text>
+                                  </TouchableOpacity>
+                                )}
+                                {session.status === TokenStatus.PENDING_PAYMENT && (
+                                  <TouchableOpacity
+                                    style={{ 
+                                      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#F0FDF4', 
+                                      borderWidth: 1.5, 
+                                      borderColor: isDark ? 'rgba(34, 197, 94, 0.35)' : '#22C55E', 
+                                      paddingHorizontal: 10, 
+                                      paddingVertical: 5, 
+                                      borderRadius: 8, 
+                                      justifyContent: 'center',
+                                      alignItems: 'center' 
+                                    }}
+                                    onPress={() => {
+                                      setResumingPendingSession(session);
+                                      setTab('checkin');
+                                    }}
+                                  >
+                                    <Text style={{ color: isDark ? colors.teal : '#16A34A', fontSize: 9, fontWeight: 'bold' }}>Continue</Text>
                                   </TouchableOpacity>
                                 )}
                                 <TouchableOpacity

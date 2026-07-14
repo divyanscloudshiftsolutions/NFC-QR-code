@@ -42,6 +42,9 @@ interface NfcBarContextType {
   preselectedTableNumber: string | null;
   setPreselectedTableNumber: (tableNumber: string | null) => void;
 
+  resumingPendingSession: SessionToken | null;
+  setResumingPendingSession: (session: SessionToken | null) => void;
+
   // Actions
   login: (id: string, pin: string) => Promise<boolean>;
   logout: () => void;
@@ -267,6 +270,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isOverlayActive, setOverlayActive] = useState(false);
   const [swipeLocked, setSwipeLocked] = useState(false);
   const [preselectedTableNumber, setPreselectedTableNumber] = useState<string | null>(null);
+  const [resumingPendingSession, setResumingPendingSession] = useState<SessionToken | null>(null);
   const [notifiedTokens, setNotifiedTokens] = useState<string[]>([]);
 
   // 30-second active session expiration monitor (warnings at 15 minutes remaining)
@@ -2177,6 +2181,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeReturnCardStep, activeReturnCardUid, isOverlayActive, setOverlayActive,
       swipeLocked, setSwipeLocked,
       preselectedTableNumber, setPreselectedTableNumber,
+      resumingPendingSession, setResumingPendingSession,
       salesSummary, tableUtilization, hourlyBreakdown,
       login, logout, setTab, showToast, dismissToast, triggerNotification, markNotificationsAsRead,
       setMode, updateDeliveryAvailability, simulateSync, fetchLatestState, fetchSystemConfig,

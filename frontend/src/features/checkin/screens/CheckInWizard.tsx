@@ -26,7 +26,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
     preselectedTableNumber, setPreselectedTableNumber, tokenType, 
     nfcEnabled, emailQrEnabled,
     createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, setTab, setOverlayActive,
-    pendingSessions, fetchPendingSessions
+    pendingSessions, fetchPendingSessions, resumingPendingSession, setResumingPendingSession
   } = useNfcBar();
   const { loadingAction, secondsLeft, startAction, stopAction, isProcessing } = useActionProgress();
   const { colors, isDark } = useTheme();
@@ -210,6 +210,13 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
     setOverlayActive(isActive && (isNfcWriting || isProcessing));
     return () => setOverlayActive(false);
   }, [isActive, isNfcWriting, isProcessing, setOverlayActive]);
+
+  useEffect(() => {
+    if (resumingPendingSession) {
+      handleResumePending(resumingPendingSession);
+      setResumingPendingSession(null);
+    }
+  }, [resumingPendingSession]);
 
   useEffect(() => {
     if (rates.length > 0) {
