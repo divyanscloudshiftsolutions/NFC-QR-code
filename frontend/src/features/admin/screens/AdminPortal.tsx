@@ -21,7 +21,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     salesSummary, tableUtilization, hourlyBreakdown, fetchReports, showToast,
     nfcEnabled, emailQrEnabled, updateDeliveryAvailability,
     fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive, setSwipeLocked,
-    setTab, setResumingPendingSession
+    setTab, setResumingPendingSession, clearLocalCache
   } = useNfcBar();
   const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('tables');
   const [isTabLoading, setIsTabLoading] = useState(false);
@@ -1687,11 +1687,33 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 setIsSavingSettings(false);
               }
             }}
-          >
-            <Text className="font-extrabold text-sm" style={{ color: (isSavingSettings || isProcessing) ? colors.muted : colors.primaryButtonText }}>
-              {loadingAction === 'save_settings' ? `Saving Settings... (${secondsLeft}s)` : 'Save Configurations'}
-            </Text>
           </TouchableOpacity>
+
+          {/* Local Cache Management */}
+          <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, borderRadius: 16, padding: 20, marginTop: 20 }}>
+            <View className="flex-row items-center mb-3">
+              <Text className="text-gold text-lg mr-2">🧹</Text>
+              <Text className="text-themeText text-sm font-bold" style={{ color: colors.text }}>Local Cache Management</Text>
+            </View>
+            <Text className="text-muted text-xs leading-5 mb-5" style={{ color: colors.muted }}>
+              If your device is displaying out-of-sync or cached session status data, clear the local cache and force-sync from the server database.
+            </Text>
+            <TouchableOpacity
+              style={{
+                width: '100%',
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1.5,
+                borderColor: colors.border,
+                backgroundColor: colors.input
+              }}
+              onPress={() => clearLocalCache()}
+            >
+              <Text className="font-bold text-xs" style={{ color: colors.text }}>Clear Cache & Re-Sync</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       )}
 

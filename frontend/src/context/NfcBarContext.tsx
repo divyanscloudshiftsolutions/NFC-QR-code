@@ -124,9 +124,9 @@ interface NfcBarContextType {
   adminDeactivateSession: (tokenNumber: string, status: TokenStatus, force?: boolean) => Promise<boolean>;
   exportSessionsCSV: (status: string) => Promise<string | null>;
 
-  // Pending Sessions management
   pendingSessions: SessionToken[];
   fetchPendingSessions: () => Promise<boolean>;
+  clearLocalCache: () => Promise<void>;
 }
 
 const NfcBarContext = createContext<NfcBarContextType | undefined>(undefined);
@@ -1933,6 +1933,19 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const clearLocalCache = async (): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem('nfc_bar_cached_sessions');
+      await AsyncStorage.removeItem('nfc_bar_cached_tables');
+      setSessions([]);
+      setTables([]);
+      await fetchLatestState();
+      showToast('Local cache cleared and re-synced.', 'success');
+    } catch (e) {
+      showToast('Failed to clear local cache.', 'danger');
+    }
+  };
+
   const exportSessionsCSV = async (status: string): Promise<string | null> => {
     if (systemMode === 'offline') {
       showToast('Exporting data requires an active network connection.', 'danger');
@@ -2193,7 +2206,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       fetchReports,
       startReturnCardFlow, setReturnCardStep, setReturnCardUid, cancelReturnCardFlow,
       fetchAdminSessions, adminDeactivateSession, exportSessionsCSV,
-      pendingSessions, fetchPendingSessions
+      pendingSessions, fetchPendingSessions, clearLocalCache
     }}>
       {children}
     </NfcBarContext.Provider>
