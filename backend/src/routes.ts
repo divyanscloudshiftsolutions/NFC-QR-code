@@ -1644,6 +1644,15 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
 
       // If assigning a table
       let resolvedTableId = existingToken.tableId;
+      if (resolvedTableId) {
+        const tableExists = await prisma.table.findUnique({
+          where: { id: resolvedTableId }
+        });
+        if (!tableExists) {
+          resolvedTableId = null;
+        }
+      }
+
       if (tableNumber) {
         const table = await prisma.table.findFirst({
           where: { tableNumber: tableNumber, placeTypeId: finalPlaceTypeId }
