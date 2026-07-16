@@ -11,7 +11,7 @@ import { Platform } from 'react-native';
 interface NfcBarContextType {
   // Authentication & Screen States
   user: User | null;
-  currentScreen: 'splash' | 'login' | 'app';
+  currentScreen: 'splash' | 'login' | 'app' | 'quick_attendance';
   activeTab: 'checkin' | 'bartender' | 'tables' | 'admin';
   notifications: NotificationItem[];
   toasts: ToastItem[];
@@ -46,6 +46,7 @@ interface NfcBarContextType {
   setResumingPendingSession: (session: SessionToken | null) => void;
 
   // Actions
+  setScreen: (screen: 'splash' | 'login' | 'app' | 'quick_attendance') => void;
   login: (id: string, pin: string) => Promise<boolean>;
   logout: () => void;
   setTab: (tab: 'checkin' | 'bartender' | 'tables' | 'admin') => void;
@@ -240,7 +241,10 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [user, setUser] = useState<User | null>(null);
   const [userToken, setUserToken] = useState<string | null>(null);
   const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
-  const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'app'>('splash');
+  const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'app' | 'quick_attendance'>('splash');
+  const setScreen = (screen: 'splash' | 'login' | 'app' | 'quick_attendance') => {
+    setCurrentScreen(screen);
+  };
   const [activeTab, setActiveTab] = useState<'checkin' | 'bartender' | 'tables' | 'admin'>('checkin');
   
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -2196,7 +2200,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       preselectedTableNumber, setPreselectedTableNumber,
       resumingPendingSession, setResumingPendingSession,
       salesSummary, tableUtilization, hourlyBreakdown,
-      login, logout, setTab, showToast, dismissToast, triggerNotification, markNotificationsAsRead,
+      login, logout, setScreen, setTab, showToast, dismissToast, triggerNotification, markNotificationsAsRead,
       setMode, updateDeliveryAvailability, simulateSync, fetchLatestState, fetchSystemConfig,
       checkInGuest, createPendingSession, verifyQrCode, activatePendingSession, cancelPendingSession, redeemDrinkForCard, undoDrinkRedemption, extendSessionTime, closeGuestSession,
       addTable, editTable, updateTableStatus, deleteTable,

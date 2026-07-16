@@ -11,7 +11,7 @@ import { AppIcon } from '../../../components/common/AppIcon';
 import { useResponsive } from '../../../utils/responsive';
 
 export const LoginScreen: React.FC = () => {
-  const { login } = useNfcBar();
+  const { login, setScreen } = useNfcBar();
   const insets = useSafeAreaInsets();
   const { isSmallPhone, height } = useResponsive();
   const numpadHeight = isSmallPhone || height < 700 ? 44 : 54;
@@ -359,6 +359,24 @@ export const LoginScreen: React.FC = () => {
               </View>
             </View>
           )}
+        </View>
+
+        {/* Quick Attendance Kiosk Button */}
+        <View className="w-full max-w-[420px] align-self-center mt-4 mb-6 px-4">
+          <TouchableOpacity 
+            className="w-full py-3.5 border border-dashed rounded-xl items-center justify-center min-h-[48px] flex-row gap-2"
+            style={{ 
+              borderColor: colors.gold,
+              backgroundColor: isDark ? 'rgba(212,175,55,0.05)' : 'rgba(212,175,55,0.02)'
+            }}
+            onPress={() => setScreen('quick_attendance')}
+            activeOpacity={0.8}
+          >
+            <Text className="text-base">📷</Text>
+            <Text className="font-extrabold text-[12px] uppercase tracking-wider" style={{ color: colors.gold }}>
+              Quick Attendance Kiosk
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

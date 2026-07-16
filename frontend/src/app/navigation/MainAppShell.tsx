@@ -12,6 +12,7 @@ import { useNfcBar } from '../../context/NfcBarContext';
 import { UserRole } from '../../types/nfc_bar';
 import { SplashScreen } from '../../features/auth/screens/SplashScreen';
 import { LoginScreen } from '../../features/auth/screens/LoginScreen';
+import { QuickAttendanceScreen } from '../../features/checkin/screens/QuickAttendanceScreen';
 import { CheckInWizard } from '../../features/checkin/screens/CheckInWizard';
 import { BartenderPortal } from '../../features/bartender/screens/BartenderPortal';
 import { TablesPortal } from '../../features/tables/screens/TablesPortal';
@@ -227,7 +228,9 @@ export const MainAppShell: React.FC = () => {
   return (
     <View className="flex-1 w-full bg-themeBg">
       
-      {currentScreen === 'login' || !user ? (
+      {currentScreen === 'quick_attendance' ? (
+        <QuickAttendanceScreen />
+      ) : currentScreen === 'login' || !user ? (
         <LoginScreen />
       ) : (
         <View className="flex-1 pb-2">
