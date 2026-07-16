@@ -432,6 +432,19 @@ export const MainAppShell: React.FC = () => {
                 {activeTab === 'admin' && <Text className="text-[10px] mt-[-4px]" style={{ color: colors.navActive }}>•</Text>}
               </TouchableOpacity>
             )}
+
+            {user && (
+              <TouchableOpacity 
+                className="items-center justify-center py-1.5 px-4 rounded-xl min-w-[72px]" 
+                style={activeTab === 'attendance' ? { backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)' } : {}}
+                onPress={() => setTab('attendance')}
+                activeOpacity={0.8}
+              >
+                <Text className="text-lg mb-0.5 opacity-65" style={{ color: activeTab === 'attendance' ? colors.navActive : colors.navInactive }}>📅</Text>
+                <Text className="text-[9px] font-bold uppercase tracking-wider" style={{ color: activeTab === 'attendance' ? colors.navActive : colors.navInactive }}>Attendance</Text>
+                {activeTab === 'attendance' && <Text className="text-[10px] mt-[-4px]" style={{ color: colors.navActive }}>•</Text>}
+              </TouchableOpacity>
+            )}
           </View>
 
         </View>
