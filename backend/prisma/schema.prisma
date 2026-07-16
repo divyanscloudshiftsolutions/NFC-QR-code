@@ -175,6 +175,9 @@ model User {
   tokenExtensions  TokenExtension[]
   rateCardChanges  RateLog[]
   sessions         StaffSession[]
+  attendances      Attendance[]
+  faceEmbeddings   FaceEmbedding[]
+  auditLogsLed     AttendanceAuditLog[]
 
   @@map("users")
 }
@@ -274,3 +277,59 @@ enum CancelReason {
   SESSION_RESTARTED
   OTHER
 }
+
+enum AttendanceState {
+  PRESENT
+  HALF_DAY
+  ABSENT
+}
+
+model Attendance {
+  id             String               @id @default(uuid())
+  userId         String               @map("user_id")
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  checkInTime    DateTime             @map("check_in_time")
+  checkOutTime   DateTime?            @map("check_out_time")
+  workingHours   Decimal?             @db.Decimal(5, 2) @map("working_hours")
+  primaryState   AttendanceState      @map("primary_state")
+  isLate         Boolean              @default(false) @map("is_late")
+  isEarlyLeave   Boolean              @default(false) @map("is_early_leave")
+  isOvertime     Boolean              @default(false) @map("is_overtime")
+  loginMethod    String               @map("login_method") // FACE, PIN
+  logoutMethod   String?              @map("logout_method") // FACE, PIN
+  faceConfidence Decimal?             @db.Decimal(4, 3) @map("face_confidence")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime?            @updatedAt @map("updated_at")
+  auditLogs      AttendanceAuditLog[]
+
+  @@map("attendances")
+}
+
+model FaceEmbedding {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  embeddingVector   String   @map("embedding_vector") // JSON string of float array
+  referenceImageUrl String   @map("reference_image_url")
+  isPrimary         Boolean  @default(false) @map("is_primary")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@map("face_embeddings")
+}
+
+model AttendanceAuditLog {
+  id            String     @id @default(uuid())
+  attendanceId  String     @map("attendance_id")
+  attendance    Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  changedBy     String     @map("changed_by")
+  changer       User       @relation(fields: [changedBy], references: [id])
+  changedAt     DateTime   @default(now()) @map("changed_at")
+  previousValues String    @map("previous_values")
+  updatedValues  String    @map("updated_values")
+  reason        String?
+
+  @@map("attendance_audit_logs")
+}
+

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, ScrollView, 
-  Platform, StatusBar, BackHandler, Alert, Animated, Easing, useWindowDimensions
+  Platform, StatusBar, BackHandler, Alert, Animated, Easing, useWindowDimensions,
+  ActivityIndicator
 } from 'react-native';
 import { AnimatedToast } from '../../components/common/AnimatedToast';
 import { AlertModal } from '../../components/common/AlertModal';
@@ -14,9 +15,11 @@ import { SplashScreen } from '../../features/auth/screens/SplashScreen';
 import { LoginScreen } from '../../features/auth/screens/LoginScreen';
 import { QuickAttendanceScreen } from '../../features/checkin/screens/QuickAttendanceScreen';
 import { CheckInWizard } from '../../features/checkin/screens/CheckInWizard';
+import { StaffAttendanceDashboard } from '../../features/checkin/screens/StaffAttendanceDashboard';
 import { BartenderPortal } from '../../features/bartender/screens/BartenderPortal';
 import { TablesPortal } from '../../features/tables/screens/TablesPortal';
 import { AdminPortal } from '../../features/admin/screens/AdminPortal';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SystemHeader } from '../../components/common/SystemHeader';
 import { ReturnCardModal } from '../../components/modals/ReturnCardModal';
 import { AppIcon } from '../../components/common/AppIcon';
@@ -25,7 +28,7 @@ import { useResponsive } from '../../utils/responsive';
 
 export const MainAppShell: React.FC = () => {
   const { colors, isDark } = useTheme();
-  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, swipeLocked, fetchLatestState, showToast, dismissToast } = useNfcBar();
+  const { currentScreen, activeTab, toasts, notifications, user, logout, setTab, markNotificationsAsRead, isOverlayActive, swipeLocked, fetchLatestState, showToast, dismissToast, faceAttendanceMandatory, setScreen } = useNfcBar();
   const { isTablet, isLargeScreen } = useResponsive();
   const isCentered = isTablet || isLargeScreen;
   const { width } = useWindowDimensions();
@@ -33,6 +36,11 @@ export const MainAppShell: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [isNotifsOpen, setIsNotifsOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+
+  // Logout camera states
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const cameraRef = React.useRef<any>(null);
+  const [isLogoutSubmitting, setIsLogoutSubmitting] = useState(false);
 
   // References for Scroll Paging
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -53,11 +61,12 @@ export const MainAppShell: React.FC = () => {
   const isUserBartender = user?.role === UserRole.BARTENDER;
 
   const allowedTabs = React.useMemo(() => {
-    const tabs: ('checkin' | 'bartender' | 'tables' | 'admin')[] = [];
+    const tabs: ('checkin' | 'bartender' | 'tables' | 'admin' | 'attendance')[] = [];
     if (isUserAdmin || isUserRecep) tabs.push('checkin');
     if (isUserAdmin || isUserBartender || isUserRecep) tabs.push('bartender');
     if (isUserAdmin || isUserRecep || isUserManager) tabs.push('tables');
     if (isUserAdmin || isUserManager) tabs.push('admin');
+    if (user) tabs.push('attendance');
     return tabs;
   }, [user]);
 
@@ -203,12 +212,55 @@ export const MainAppShell: React.FC = () => {
     setIsNotifsOpen(true);
   };
 
-  const renderTabContent = (tab: 'checkin' | 'bartender' | 'tables' | 'admin', isSelected: boolean) => {
+  const handleLogoutPress = async () => {
+    setIsNotifsOpen(false);
+    if (faceAttendanceMandatory) {
+      if (!cameraPermission || !cameraPermission.granted) {
+        const res = await requestCameraPermission();
+        if (!res.granted) {
+          showToast('Camera permission is required for face verification checkout.', 'danger');
+          return;
+        }
+      }
+      setScreen('logout_camera');
+    } else {
+      logout();
+    }
+  };
+
+  const handleLogoutCameraCapture = async () => {
+    if (isLogoutSubmitting || !cameraRef.current) return;
+    setIsLogoutSubmitting(true);
+
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.85,
+        base64: true,
+        skipProcessing: Platform.OS === 'web'
+      });
+
+      if (!photo || !photo.base64) {
+        throw new Error('Failed to capture checkout image.');
+      }
+
+      const success = await logout(photo.base64);
+      if (success) {
+        setScreen('login');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Face verification failed during checkout.', 'danger');
+    } finally {
+      setIsLogoutSubmitting(false);
+    }
+  };
+
+  const renderTabContent = (tab: 'checkin' | 'bartender' | 'tables' | 'admin' | 'attendance', isSelected: boolean) => {
     switch (tab) {
       case 'checkin': return <CheckInWizard isActive={isSelected} />;
       case 'bartender': return <BartenderPortal isActive={isSelected} />;
       case 'tables': return <TablesPortal isActive={isSelected} />;
       case 'admin': return <AdminPortal isActive={isSelected} />;
+      case 'attendance': return <StaffAttendanceDashboard isActive={isSelected} />;
     }
   };
 
@@ -230,6 +282,60 @@ export const MainAppShell: React.FC = () => {
       
       {currentScreen === 'quick_attendance' ? (
         <QuickAttendanceScreen />
+      ) : currentScreen === 'logout_camera' ? (
+        <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'space-between', paddingTop: insets.top }}>
+          <View style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
+            <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>Shift Checkout Face Verification</Text>
+            <TouchableOpacity 
+              onPress={() => setScreen('app')}
+              style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)' }}
+            >
+              <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            <CameraView 
+              ref={cameraRef}
+              facing="front"
+              style={{ width: '100%', height: '100%', position: 'absolute' }}
+            />
+            {/* Oval Guide Overlay */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+              <View 
+                style={{
+                  width: 240,
+                  height: 320,
+                  borderRadius: 160,
+                  borderWidth: 2,
+                  borderColor: '#D4AF37',
+                  borderStyle: 'dashed',
+                  backgroundColor: 'transparent'
+                }}
+              />
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 'bold', marginTop: 16, textAlign: 'center', paddingHorizontal: 24 }}>
+                Align your face inside the golden oval
+              </Text>
+            </View>
+
+            {isLogoutSubmitting && (
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="large" color="#D4AF37" />
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginTop: 16 }}>Verifying checkout...</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={{ padding: 24, backgroundColor: 'black', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
+            <TouchableOpacity
+              disabled={isLogoutSubmitting}
+              onPress={handleLogoutCameraCapture}
+              style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: 'white', backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : currentScreen === 'login' || !user ? (
         <LoginScreen />
       ) : (
@@ -379,7 +485,7 @@ export const MainAppShell: React.FC = () => {
             <TouchableOpacity 
               className="bg-red/10 border border-red py-[15px] rounded-xl items-center mt-3 justify-center" 
               style={{ borderColor: colors.red }}
-              onPress={() => { setIsNotifsOpen(false); logout(); }}
+              onPress={handleLogoutPress}
             >
               <Text className="font-bold text-sm" style={{ color: colors.red }}>Log Out Session</Text>
             </TouchableOpacity>

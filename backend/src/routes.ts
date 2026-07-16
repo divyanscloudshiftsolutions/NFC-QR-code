@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient, CloseReason, ActivationMethod, CancelReason } from '@prisma/client';
+import { PrismaClient, CloseReason, ActivationMethod, CancelReason, AttendanceState } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { tableService } from './services/TableService';
 import { tokenService } from './services/TokenService';
@@ -8,6 +8,8 @@ import { redemptionService } from './services/RedemptionService';
 import redisService from './services/RedisService';
 import bcrypt from 'bcrypt';
 import syncService from './services/SyncService';
+import { FaceService } from './services/FaceService';
+import { AttendanceService } from './services/AttendanceService';
 
 const TokenStatus = {
   PENDING_PAYMENT: 'PENDING_PAYMENT' as const,
@@ -20,8 +22,10 @@ const TokenStatus = {
 type TokenStatus = (typeof TokenStatus)[keyof typeof TokenStatus];
 import s3Service from './services/S3Service';
 import emailNotificationService from './services/EmailNotificationService';
+import multer from 'multer';
 
 const prisma = new PrismaClient();
+const upload = multer();
 const jwtSecret = process.env.JWT_SECRET || 'nfc_bar_super_secret_key_123!';
 const authApiUrl = process.env.AUTH_API_URL || 'https://authapi.cloudshiftsolutions.in';
 const configuredTenantId = process.env.TENANT_ID;
@@ -179,7 +183,7 @@ router.get('/debug-prisma-enums', (req: Request, res: Response) => {
 
 // Login
 router.post('/auth/login', async (req: Request, res: Response) => {
-  const { username, password } = req.body;
+  const { username, password, photoBase64 } = req.body;
   if (!username || !password) {
     return res.status(400).json({ success: false, error: { code: 'VAL_001', message: 'Username and password are required' } });
   }
@@ -325,6 +329,16 @@ router.post('/auth/login', async (req: Request, res: Response) => {
         }
       }).catch(() => {});
 
+      // Record Attendance Check-In before creating session
+      try {
+        await AttendanceService.checkInEmployee(finalUser.id, finalUser.role.name, photoBase64);
+      } catch (attErr: any) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'ATT_ERR', message: attErr.message }
+        });
+      }
+
       const session = await prisma.staffSession.create({
         data: {
           userId: finalUser.id,
@@ -408,6 +422,16 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       }
     }).catch(() => {});
 
+    // Record Attendance Check-In before creating session
+    try {
+      await AttendanceService.checkInEmployee(user.id, user.role.name, photoBase64);
+    } catch (attErr: any) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'ATT_ERR', message: attErr.message }
+      });
+    }
+
     const session = await prisma.staffSession.create({
       data: {
         userId: user.id,
@@ -442,6 +466,23 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
 // Logout User (Authenticated)
 router.post('/auth/logout', authenticate, async (req: Request, res: Response) => {
+  const { photoBase64 } = req.body;
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    return res.status(401).json({ success: false, error: { code: 'AUTH_ERR', message: 'User not authenticated' } });
+  }
+
+  // Record Attendance Check-Out
+  try {
+    await AttendanceService.checkOutEmployee(user.id, photoBase64);
+  } catch (attErr: any) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'ATT_ERR', message: attErr.message }
+    });
+  }
+
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
@@ -3994,6 +4035,413 @@ router.get('/config', async (req: Request, res: Response) => {
       emailQrEnabled: true,
       tokenType
     });
+  }
+});
+
+// ==========================================
+// SMART ATTENDANCE ROUTES
+// ==========================================
+
+// 1. Get Public Face Attendance Config
+router.get('/auth/config/attendance', async (req: Request, res: Response) => {
+  try {
+    const settings = await AttendanceService.getSettings();
+    return res.json({
+      success: true,
+      faceAttendanceMandatory: settings.faceMandatory
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 2. Get Personal Summary
+router.get('/api/attendance/me/summary', authenticate, async (req: Request, res: Response) => {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
+
+  try {
+    const stats = await AttendanceService.getPersonalStats(user.id);
+    return res.json({ success: true, stats });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 3. Get Personal History
+router.get('/api/attendance/me/history', authenticate, async (req: Request, res: Response) => {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
+
+  const { filter, startDate, endDate } = req.query;
+
+  try {
+    let whereClause: any = { userId: user.id };
+
+    if (filter === 'today') {
+      const start = new Date();
+      start.setUTCHours(0, 0, 0, 0);
+      whereClause.checkInTime = { gte: start };
+    } else if (filter === 'week') {
+      const start = new Date();
+      start.setUTCDate(start.getUTCDate() - 7);
+      whereClause.checkInTime = { gte: start };
+    } else if (filter === 'month') {
+      const start = new Date();
+      start.setUTCDate(start.getUTCDate() - 30);
+      whereClause.checkInTime = { gte: start };
+    } else if (filter === 'custom' && startDate && endDate) {
+      whereClause.checkInTime = {
+        gte: new Date(startDate as string),
+        lte: new Date(endDate as string)
+      };
+    }
+
+    const history = await prisma.attendance.findMany({
+      where: whereClause,
+      orderBy: { checkInTime: 'desc' }
+    });
+
+    return res.json({ success: true, history });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 4. Get Admin Dashboard Summary
+router.get('/api/attendance/admin/summary', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    const summary = await AttendanceService.getAdminSummary();
+    return res.json({ success: true, summary });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 5. Get Filtered Admin Logs list
+router.get('/api/attendance/admin/logs', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
+
+  const { userId, role, date, month, status, search } = req.query;
+
+  try {
+    let whereClause: any = {};
+
+    // Manager Scope Restriction: only view Receptionists and Bartenders
+    if (user.role === 'manager') {
+      whereClause.role = { in: ['receptionist', 'bartender'] };
+    }
+
+    if (userId) {
+      whereClause.userId = userId as string;
+    }
+
+    if (role && (user.role === 'admin' || ['receptionist', 'bartender'].includes(role as string))) {
+      whereClause.role = role as string;
+    }
+
+    if (status) {
+      whereClause.primaryState = status as string;
+    }
+
+    if (date) {
+      const start = new Date(date as string);
+      start.setUTCHours(0, 0, 0, 0);
+      const end = new Date(date as string);
+      end.setUTCHours(23, 59, 59, 999);
+      whereClause.checkInTime = { gte: start, lte: end };
+    }
+
+    if (search) {
+      whereClause.user = {
+        fullName: { contains: search as string, mode: 'insensitive' }
+      };
+    }
+
+    const logs = await prisma.attendance.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: { id: true, username: true, fullName: true }
+        }
+      },
+      orderBy: { checkInTime: 'desc' }
+    });
+
+    return res.json({ success: true, logs });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 6. Create Manual Check-In
+router.post('/api/attendance/admin/logs', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+  const { userId, checkInTime, checkOutTime, primaryState, isLate, isEarlyLeave, isOvertime } = req.body;
+
+  try {
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: { message: 'Employee not found' } });
+    }
+
+    const inTime = new Date(checkInTime);
+    const outTime = checkOutTime ? new Date(checkOutTime) : null;
+
+    const metrics = await AttendanceService.calculateMetrics(inTime, outTime);
+
+    const log = await prisma.attendance.create({
+      data: {
+        userId,
+        role: targetUser.role.name,
+        checkInTime: inTime,
+        checkOutTime: outTime,
+        workingHours: metrics.workingHours,
+        primaryState: (primaryState as any) || metrics.primaryState,
+        isLate: isLate !== undefined ? isLate : metrics.isLate,
+        isEarlyLeave: isEarlyLeave !== undefined ? isEarlyLeave : metrics.isEarlyLeave,
+        isOvertime: isOvertime !== undefined ? isOvertime : metrics.isOvertime,
+        loginMethod: 'PIN',
+        logoutMethod: outTime ? 'PIN' : null
+      }
+    });
+
+    return res.json({ success: true, log });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 7. Update Check-In / Check-Out Log (Admin/Manager correction)
+router.put('/api/attendance/admin/logs/:id', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
+
+  const { id } = req.params;
+  const { checkInTime, checkOutTime, reason } = req.body;
+
+  try {
+    const log = await prisma.attendance.findUnique({
+      where: { id },
+      include: { user: { include: { role: true } } }
+    });
+
+    if (!log) {
+      return res.status(404).json({ success: false, error: { message: 'Attendance record not found' } });
+    }
+
+    // Manager Scope Restriction: can only modify Receptionists or Bartenders
+    if (user.role === 'manager' && !['receptionist', 'bartender'].includes(log.role)) {
+      return res.status(403).json({ success: false, error: { message: 'Access denied: cannot modify logs for this role' } });
+    }
+
+    const inTime = new Date(checkInTime);
+    const outTime = checkOutTime ? new Date(checkOutTime) : null;
+
+    const metrics = await AttendanceService.calculateMetrics(inTime, outTime);
+
+    const previousValues = JSON.stringify({
+      checkInTime: log.checkInTime,
+      checkOutTime: log.checkOutTime,
+      workingHours: log.workingHours,
+      primaryState: log.primaryState,
+      isLate: log.isLate,
+      isEarlyLeave: log.isEarlyLeave,
+      isOvertime: log.isOvertime
+    });
+
+    const updatedLog = await prisma.$transaction(async (tx) => {
+      const updated = await tx.attendance.update({
+        where: { id },
+        data: {
+          checkInTime: inTime,
+          checkOutTime: outTime,
+          workingHours: metrics.workingHours,
+          primaryState: metrics.primaryState,
+          isLate: metrics.isLate,
+          isEarlyLeave: metrics.isEarlyLeave,
+          isOvertime: metrics.isOvertime
+        }
+      });
+
+      const updatedValues = JSON.stringify({
+        checkInTime: updated.checkInTime,
+        checkOutTime: updated.checkOutTime,
+        workingHours: updated.workingHours,
+        primaryState: updated.primaryState,
+        isLate: updated.isLate,
+        isEarlyLeave: updated.isEarlyLeave,
+        isOvertime: updated.isOvertime
+      });
+
+      await tx.attendanceAuditLog.create({
+        data: {
+          attendanceId: id,
+          changedBy: user.id,
+          previousValues,
+          updatedValues,
+          reason: reason || 'Admin/Manager adjustment'
+        }
+      });
+
+      return updated;
+    });
+
+    return res.json({ success: true, log: updatedLog });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 8. Enroll Face Templates (Admin/Manager)
+router.post('/api/attendance/admin/enroll-face/:id', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  const { id } = req.params; // User ID
+  const { imagesBase64, s3Urls } = req.body; // Array of base64 images
+
+  if (!imagesBase64 || !Array.isArray(imagesBase64) || imagesBase64.length === 0) {
+    return res.status(400).json({ success: false, error: { message: 'Image base64 array is required' } });
+  }
+
+  try {
+    const targetUser = await prisma.user.findUnique({
+      where: { id }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: { message: 'User not found' } });
+    }
+
+    const buffers = imagesBase64.map(base64 => Buffer.from(base64, 'base64'));
+    const urls = s3Urls || imagesBase64.map(() => '');
+
+    await FaceService.enrollUserFaces(id, buffers, urls);
+
+    return res.json({ success: true, message: 'Face templates enrolled successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 9. Get Attendance Configuration Settings
+router.get('/api/config/attendance-settings', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+  try {
+    const settings = await AttendanceService.getSettings();
+    return res.json({ success: true, settings });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 10. Update Attendance Configuration Settings
+router.put('/api/config/attendance-settings', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+  try {
+    await AttendanceService.saveSettings(req.body);
+    return res.json({ success: true, message: 'Settings saved successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: { message: err.message } });
+  }
+});
+
+// 11. Public Quick Attendance Kiosk (Face matching check-in/check-out)
+router.post('/api/attendance/quick', upload.single('file'), async (req: Request, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: { message: 'Image file is required.' } });
+  }
+
+  try {
+    const capturedEmbedding = await FaceService.getEmbeddingFromImage(req.file.buffer);
+
+    // Fetch all active face templates
+    const allTemplates = await prisma.faceEmbedding.findMany({
+      where: { isActive: true },
+      include: { user: { include: { role: true } } }
+    });
+
+    let bestMatch: typeof allTemplates[0] | null = null;
+    let highestSimilarity = 0;
+    const threshold = 0.80;
+
+    for (const temp of allTemplates) {
+      const templateVec: number[] = JSON.parse(temp.embeddingVector);
+      const similarity = FaceService.calculateSimilarity(capturedEmbedding, templateVec);
+      if (similarity > highestSimilarity) {
+        highestSimilarity = similarity;
+        bestMatch = temp;
+      }
+    }
+
+    if (!bestMatch || highestSimilarity < threshold) {
+      return res.status(401).json({ success: false, error: { message: 'Face not recognized. Please register first.' } });
+    }
+
+    const matchedUser = bestMatch.user;
+    const activeShift = await prisma.attendance.findFirst({
+      where: { userId: matchedUser.id, checkOutTime: null }
+    });
+
+    const settings = await AttendanceService.getSettings();
+
+    if (activeShift) {
+      // Perform Check-Out
+      const checkOutTime = new Date();
+      const metrics = await AttendanceService.calculateMetrics(activeShift.checkInTime, checkOutTime);
+
+      await prisma.attendance.update({
+        where: { id: activeShift.id },
+        data: {
+          checkOutTime,
+          workingHours: metrics.workingHours,
+          primaryState: metrics.primaryState,
+          isEarlyLeave: metrics.isEarlyLeave,
+          isOvertime: metrics.isOvertime,
+          logoutMethod: 'FACE'
+        }
+      });
+
+      return res.json({
+        success: true,
+        message: `Goodbye, ${matchedUser.fullName}. Checked out successfully.`,
+        data: {
+          employeeName: matchedUser.fullName,
+          operation: 'CHECK_OUT',
+          time: checkOutTime,
+          workingHours: metrics.workingHours?.toString()
+        }
+      });
+    } else {
+      // Perform Check-In
+      const checkInTime = new Date();
+      const metrics = await AttendanceService.calculateMetrics(checkInTime, null);
+
+      await prisma.attendance.create({
+        data: {
+          userId: matchedUser.id,
+          role: matchedUser.role.name,
+          checkInTime,
+          primaryState: metrics.primaryState,
+          isLate: metrics.isLate,
+          loginMethod: 'FACE',
+          faceConfidence: highestSimilarity
+        }
+      });
+
+      return res.json({
+        success: true,
+        message: `Welcome, ${matchedUser.fullName}. Checked in successfully.`,
+        data: {
+          employeeName: matchedUser.fullName,
+          operation: 'CHECK_IN',
+          time: checkInTime
+        }
+      });
+    }
+  } catch (err: any) {
+    console.error('Quick Attendance error:', err);
+    return res.status(500).json({ success: false, error: { message: err.message } });
   }
 });
 

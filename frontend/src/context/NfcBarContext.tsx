@@ -11,10 +11,11 @@ import { Platform } from 'react-native';
 interface NfcBarContextType {
   // Authentication & Screen States
   user: User | null;
-  currentScreen: 'splash' | 'login' | 'app' | 'quick_attendance';
-  activeTab: 'checkin' | 'bartender' | 'tables' | 'admin';
+  currentScreen: 'splash' | 'login' | 'app' | 'quick_attendance' | 'logout_camera';
+  activeTab: 'checkin' | 'bartender' | 'tables' | 'admin' | 'attendance';
   notifications: NotificationItem[];
   toasts: ToastItem[];
+  faceAttendanceMandatory: boolean;
   
   // App Operational States
   tables: Table[];
@@ -46,10 +47,10 @@ interface NfcBarContextType {
   setResumingPendingSession: (session: SessionToken | null) => void;
 
   // Actions
-  setScreen: (screen: 'splash' | 'login' | 'app' | 'quick_attendance') => void;
-  login: (id: string, pin: string) => Promise<boolean>;
-  logout: () => void;
-  setTab: (tab: 'checkin' | 'bartender' | 'tables' | 'admin') => void;
+  setScreen: (screen: 'splash' | 'login' | 'app' | 'quick_attendance' | 'logout_camera') => void;
+  login: (id: string, pin: string, photoBase64?: string) => Promise<boolean>;
+  logout: (photoBase64?: string) => Promise<boolean>;
+  setTab: (tab: 'checkin' | 'bartender' | 'tables' | 'admin' | 'attendance') => void;
   showToast: (message: string, type?: ToastItem['type']) => void;
   dismissToast: (id: string) => void;
   triggerNotification: (title: string, message: string, type?: NotificationItem['type']) => void;
@@ -241,11 +242,12 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [user, setUser] = useState<User | null>(null);
   const [userToken, setUserToken] = useState<string | null>(null);
   const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
-  const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'app' | 'quick_attendance'>('splash');
-  const setScreen = (screen: 'splash' | 'login' | 'app' | 'quick_attendance') => {
+  const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'app' | 'quick_attendance' | 'logout_camera'>('splash');
+  const setScreen = (screen: 'splash' | 'login' | 'app' | 'quick_attendance' | 'logout_camera') => {
     setCurrentScreen(screen);
   };
-  const [activeTab, setActiveTab] = useState<'checkin' | 'bartender' | 'tables' | 'admin'>('checkin');
+  const [activeTab, setActiveTab] = useState<'checkin' | 'bartender' | 'tables' | 'admin' | 'attendance'>('checkin');
+  const [faceAttendanceMandatory, setFaceAttendanceMandatory] = useState(false);
   
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -375,6 +377,23 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         window.fetch = originalFetch as any;
       }
     };
+  }, [userToken]);
+
+  useEffect(() => {
+    const fetchAttendanceConfig = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/auth/config/attendance`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success) {
+            setFaceAttendanceMandatory(data.faceAttendanceMandatory);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch attendance configuration:', err);
+      }
+    };
+    fetchAttendanceConfig();
   }, [userToken]);
 
   const mapBackendToken = (t: any): SessionToken => ({
@@ -747,7 +766,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Auth operations
-  const login = async (id: string, pin: string): Promise<boolean> => {
+  const login = async (id: string, pin: string, photoBase64?: string): Promise<boolean> => {
     let apiUsername = id;
     let apiPassword = pin;
 
@@ -772,7 +791,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username: apiUsername, password: apiPassword })
+        body: JSON.stringify({ username: apiUsername, password: apiPassword, photoBase64 })
       });
 
       if (res.ok) {
@@ -857,21 +876,58 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return false;
   };
 
-  const logout = async () => {
+  const logout = async (photoBase64?: string): Promise<boolean> => {
+    if (userToken) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userToken}`
+          },
+          body: JSON.stringify({ photoBase64 })
+        });
+
+        if (res.ok) {
+          setUser(null);
+          setUserToken(null);
+          setCurrentScreen('login');
+          setReturnCardStep('idle');
+          setReturnCardUid(null);
+          showToast('You have been logged out successfully.', 'success');
+          await AsyncStorage.removeItem('nfc_bar_user');
+          await AsyncStorage.removeItem('nfc_bar_user_token');
+          return true;
+        } else {
+          try {
+            const data = await res.json();
+            if (data && data.error && data.error.message) {
+              showToast(data.error.message, 'danger');
+              return false;
+            }
+          } catch (e) {}
+        }
+      } catch (err: any) {
+        console.warn('Online logout request failed:', err);
+      }
+    }
+
+    // Local / Offline fallback logout
     setUser(null);
     setUserToken(null);
     setCurrentScreen('login');
     setReturnCardStep('idle');
     setReturnCardUid(null);
-    showToast('You have been logged out successfully.', 'success');
+    showToast('Logged out (Local cache cleared).', 'success');
     await AsyncStorage.removeItem('nfc_bar_user');
     await AsyncStorage.removeItem('nfc_bar_user_token');
+    return true;
   };
 
-  const setTab = (tab: 'checkin' | 'bartender' | 'tables' | 'admin') => {
+  const setTab = (tab: 'checkin' | 'bartender' | 'tables' | 'admin' | 'attendance') => {
     // Permission checks
     if (!user) return;
-    if (user.role === UserRole.BARTENDER && tab !== 'bartender') {
+    if (user.role === UserRole.BARTENDER && tab !== 'bartender' && tab !== 'attendance') {
       showToast('You do not have permission to perform this action.', 'danger');
       return;
     }
@@ -2192,7 +2248,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <NfcBarContext.Provider value={{
-      user, currentScreen, activeTab, notifications, toasts,
+      user, currentScreen, activeTab, notifications, toasts, faceAttendanceMandatory,
       tables, sessions, adminSessions, users, cards, rates, systemMode, pendingSyncCount, lastSyncTime, tokenType,
       nfcEnabled, emailQrEnabled,
       activeReturnCardStep, activeReturnCardUid, isOverlayActive, setOverlayActive,

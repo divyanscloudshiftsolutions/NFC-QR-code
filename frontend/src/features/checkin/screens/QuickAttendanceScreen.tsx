@@ -73,9 +73,24 @@ export const QuickAttendanceScreen: React.FC = () => {
         type
       } as any);
 
-      // Call deployed Face Mark Quick Attendance API directly
-      const apiBaseUrl = process.env.EXPO_PUBLIC_ATTENDANCE_API_URL || 'http://127.0.0.1:8000/api';
-      const response = await fetch(`${apiBaseUrl}/attendance/quick`, {
+      // Call local backend Smart Attendance API
+      const getBackendUrl = () => {
+        const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+        if (envApiUrl && envApiUrl.trim().length > 0) {
+          let cleaned = envApiUrl.trim();
+          if (cleaned.endsWith('/')) {
+            cleaned = cleaned.slice(0, -1);
+          }
+          if (Platform.OS === 'web' && !cleaned.endsWith('/api')) {
+            cleaned = `${cleaned}/api`;
+          }
+          return cleaned;
+        }
+        return 'https://nfc-qr-code-production.up.railway.app/api';
+      };
+
+      const BACKEND_URL = getBackendUrl();
+      const response = await fetch(`${BACKEND_URL}/attendance/quick`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -86,7 +101,7 @@ export const QuickAttendanceScreen: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.detail || 'Face not recognized. Please register first.';
+        const errorMsg = errorData.error?.message || errorData.detail || 'Face not recognized. Please register first.';
         throw new Error(errorMsg);
       }
 
