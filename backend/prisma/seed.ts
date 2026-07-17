@@ -82,7 +82,7 @@ async function main() {
   await prisma.$executeRawUnsafe(`
     CREATE UNIQUE INDEX uq_customer_active_token 
     ON tokens(customer_id) 
-    WHERE status IN ('ACTIVE', 'EXTENDED', 'EXPIRED');
+    WHERE status IN ('ACTIVE', 'EXTENDED');
   `);
   await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS uq_table_active_token;`);
   await prisma.$executeRawUnsafe(`

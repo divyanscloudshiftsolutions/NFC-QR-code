@@ -4026,7 +4026,7 @@ router.get('/auth/config/attendance', async (req: Request, res: Response) => {
 });
 
 // 1.5 Dashboard Check-In / Check-Out
-router.post('/api/attendance/checkin', authenticate, async (req: Request, res: Response) => {
+router.post('/attendance/checkin', authenticate, async (req: Request, res: Response) => {
   const { photoBase64 } = req.body;
   const user = (req as AuthenticatedRequest).user;
   if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
@@ -4039,7 +4039,7 @@ router.post('/api/attendance/checkin', authenticate, async (req: Request, res: R
   }
 });
 
-router.post('/api/attendance/checkout', authenticate, async (req: Request, res: Response) => {
+router.post('/attendance/checkout', authenticate, async (req: Request, res: Response) => {
   const { photoBase64 } = req.body;
   const user = (req as AuthenticatedRequest).user;
   if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
@@ -4053,7 +4053,7 @@ router.post('/api/attendance/checkout', authenticate, async (req: Request, res: 
 });
 
 // 2. Get Personal Summary
-router.get('/api/attendance/me/summary', authenticate, async (req: Request, res: Response) => {
+router.get('/attendance/me/summary', authenticate, async (req: Request, res: Response) => {
   const user = (req as AuthenticatedRequest).user;
   if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
 
@@ -4066,7 +4066,7 @@ router.get('/api/attendance/me/summary', authenticate, async (req: Request, res:
 });
 
 // 3. Get Personal History
-router.get('/api/attendance/me/history', authenticate, async (req: Request, res: Response) => {
+router.get('/attendance/me/history', authenticate, async (req: Request, res: Response) => {
   const user = (req as AuthenticatedRequest).user;
   if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
 
@@ -4106,7 +4106,7 @@ router.get('/api/attendance/me/history', authenticate, async (req: Request, res:
 });
 
 // 4. Get Admin Dashboard Summary
-router.get('/api/attendance/admin/summary', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+router.get('/attendance/admin/summary', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   try {
     const summary = await AttendanceService.getAdminSummary();
     return res.json({ success: true, summary });
@@ -4116,7 +4116,7 @@ router.get('/api/attendance/admin/summary', authenticate, authorize(['admin', 'm
 });
 
 // 5. Get Filtered Admin Logs list
-router.get('/api/attendance/admin/logs', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+router.get('/attendance/admin/logs', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   const user = (req as AuthenticatedRequest).user;
   if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
 
@@ -4173,7 +4173,7 @@ router.get('/api/attendance/admin/logs', authenticate, authorize(['admin', 'mana
 });
 
 // 6. Create Manual Check-In
-router.post('/api/attendance/admin/logs', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+router.post('/attendance/admin/logs', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
   const { userId, checkInTime, checkOutTime, primaryState, isLate, isEarlyLeave, isOvertime } = req.body;
 
   try {
@@ -4214,7 +4214,7 @@ router.post('/api/attendance/admin/logs', authenticate, authorize(['admin']), as
 });
 
 // 7. Update Check-In / Check-Out Log (Admin/Manager correction)
-router.put('/api/attendance/admin/logs/:id', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+router.put('/attendance/admin/logs/:id', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   const user = (req as AuthenticatedRequest).user;
   if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
 
@@ -4295,7 +4295,7 @@ router.put('/api/attendance/admin/logs/:id', authenticate, authorize(['admin', '
 });
 
 // 8. Enroll Face Templates (Admin/Manager)
-router.post('/api/attendance/admin/enroll-face/:id', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+router.post('/attendance/admin/enroll-face/:id', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
   const { id } = req.params; // User ID
   const { imagesBase64, s3Urls } = req.body; // Array of base64 images
 
@@ -4324,7 +4324,7 @@ router.post('/api/attendance/admin/enroll-face/:id', authenticate, authorize(['a
 });
 
 // 9. Get Attendance Configuration Settings
-router.get('/api/config/attendance-settings', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+router.get('/config/attendance-settings', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
   try {
     const settings = await AttendanceService.getSettings();
     return res.json({ success: true, settings });
@@ -4334,7 +4334,7 @@ router.get('/api/config/attendance-settings', authenticate, authorize(['admin'])
 });
 
 // 10. Update Attendance Configuration Settings
-router.put('/api/config/attendance-settings', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
+router.put('/config/attendance-settings', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
   try {
     await AttendanceService.saveSettings(req.body);
     return res.json({ success: true, message: 'Settings saved successfully' });
@@ -4344,7 +4344,7 @@ router.put('/api/config/attendance-settings', authenticate, authorize(['admin'])
 });
 
 // 11. Public Quick Attendance Kiosk (Face matching check-in/check-out)
-router.post('/api/attendance/quick', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/attendance/quick', upload.single('file'), async (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: { message: 'Image file is required.' } });
   }
