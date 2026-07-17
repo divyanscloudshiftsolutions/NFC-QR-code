@@ -214,44 +214,7 @@ export const MainAppShell: React.FC = () => {
 
   const handleLogoutPress = async () => {
     setIsNotifsOpen(false);
-    if (faceAttendanceMandatory) {
-      if (!cameraPermission || !cameraPermission.granted) {
-        const res = await requestCameraPermission();
-        if (!res.granted) {
-          showToast('Camera permission is required for face verification checkout.', 'danger');
-          return;
-        }
-      }
-      setScreen('logout_camera');
-    } else {
-      logout();
-    }
-  };
-
-  const handleLogoutCameraCapture = async () => {
-    if (isLogoutSubmitting || !cameraRef.current) return;
-    setIsLogoutSubmitting(true);
-
-    try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.85,
-        base64: true,
-        skipProcessing: Platform.OS === 'web'
-      });
-
-      if (!photo || !photo.base64) {
-        throw new Error('Failed to capture checkout image.');
-      }
-
-      const success = await logout(photo.base64);
-      if (success) {
-        setScreen('login');
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Face verification failed during checkout.', 'danger');
-    } finally {
-      setIsLogoutSubmitting(false);
-    }
+    logout();
   };
 
   const renderTabContent = (tab: 'checkin' | 'bartender' | 'tables' | 'admin' | 'attendance', isSelected: boolean) => {
@@ -282,60 +245,6 @@ export const MainAppShell: React.FC = () => {
       
       {currentScreen === 'quick_attendance' ? (
         <QuickAttendanceScreen />
-      ) : currentScreen === 'logout_camera' ? (
-        <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'space-between', paddingTop: insets.top }}>
-          <View style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
-            <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>Shift Checkout Face Verification</Text>
-            <TouchableOpacity 
-              onPress={() => setScreen('app')}
-              style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)' }}
-            >
-              <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            <CameraView 
-              ref={cameraRef}
-              facing="front"
-              style={{ width: '100%', height: '100%', position: 'absolute' }}
-            />
-            {/* Oval Guide Overlay */}
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-              <View 
-                style={{
-                  width: 240,
-                  height: 320,
-                  borderRadius: 160,
-                  borderWidth: 2,
-                  borderColor: '#D4AF37',
-                  borderStyle: 'dashed',
-                  backgroundColor: 'transparent'
-                }}
-              />
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 'bold', marginTop: 16, textAlign: 'center', paddingHorizontal: 24 }}>
-                Align your face inside the golden oval
-              </Text>
-            </View>
-
-            {isLogoutSubmitting && (
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator size="large" color="#D4AF37" />
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginTop: 16 }}>Verifying checkout...</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={{ padding: 24, backgroundColor: 'black', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
-            <TouchableOpacity
-              disabled={isLogoutSubmitting}
-              onPress={handleLogoutCameraCapture}
-              style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: 'white', backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.3)' }} />
-            </TouchableOpacity>
-          </View>
-        </View>
       ) : currentScreen === 'login' || !user ? (
         <LoginScreen />
       ) : (

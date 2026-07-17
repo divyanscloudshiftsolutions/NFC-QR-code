@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, TextInput, Modal, StyleSheet, ActivityIndicator, Image, Share, Alert, Platform
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard, SessionToken } from '../../../types/nfc_bar';
 import { AppIcon } from '../../../components/common/AppIcon';
@@ -23,8 +25,52 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     fetchAdminSessions, adminDeactivateSession, extendSessionTime, systemMode, exportSessionsCSV, setOverlayActive, setSwipeLocked,
     setTab, setResumingPendingSession, clearLocalCache
   } = useNfcBar();
-  const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers'>('tables');
+  const [adminSubTab, setAdminSubTab] = useState<'live' | 'tables' | 'staff' | 'chart' | 'cards' | 'rates' | 'settings' | 'customers' | 'attendance'>('tables');
   const [isTabLoading, setIsTabLoading] = useState(false);
+
+  // Attendance States
+  const [adminSummary, setAdminSummary] = useState<any>(null);
+  const [teamLogs, setTeamLogs] = useState<any[]>([]);
+  const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const [attendanceSearchQuery, setAttendanceSearchQuery] = useState('');
+  const [attendanceRoleFilter, setAttendanceRoleFilter] = useState('');
+  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('');
+
+  // Editing Log Modal States
+  const [editingLog, setEditingLog] = useState<any>(null);
+  const [editCheckIn, setEditCheckIn] = useState('');
+  const [editCheckOut, setEditCheckOut] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Manual Log States
+  const [isCreatingManual, setIsCreatingManual] = useState(false);
+  const [manualUserId, setManualUserId] = useState('');
+  const [manualCheckIn, setManualCheckIn] = useState('');
+  const [manualCheckOut, setManualCheckOut] = useState('');
+  const [allUsersList, setAllUsersList] = useState<any[]>([]);
+
+  // Face Enrollment States
+  const [enrollingUser, setEnrollingUser] = useState<any>(null);
+  const [capturedImages, setCapturedImages] = useState<string[]>([]);
+  const [showEnrollCamera, setShowEnrollCamera] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const enrollCameraRef = useRef<any>(null);
+  const [isEnrollingFace, setIsEnrollingFace] = useState(false);
+
+  // Settings States
+  const [settings, setSettings] = useState<any>({
+    shiftStart: '09:00',
+    lateThreshold: '09:15',
+    shiftEnd: '18:00',
+    earlyLeaveThreshold: '17:00',
+    minHalfDay: 4.0,
+    minFullDay: 8.0,
+    minOvertime: 9.0,
+    faceMandatory: false,
+    timezone: 'UTC'
+  });
+  const [isSavingAttendanceSettings, setIsSavingAttendanceSettings] = useState(false);
 
   const kpiScrollRef = usePreventSwipeNavigation();
   const tabsScrollRef = usePreventSwipeNavigation();
@@ -85,6 +131,256 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       await updateStaffStatus(staffId, isActive);
     } finally {
       stopAction();
+    }
+  };
+
+  const getBackendUrl = () => {
+    const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (envApiUrl && envApiUrl.trim().length > 0) {
+      let cleaned = envApiUrl.trim();
+      if (cleaned.endsWith('/')) {
+        cleaned = cleaned.slice(0, -1);
+      }
+      if (Platform.OS === 'web' && !cleaned.endsWith('/api')) {
+        cleaned = `${cleaned}/api`;
+      }
+      return cleaned;
+    }
+    return 'https://nfc-qr-code-production.up.railway.app/api';
+  };
+
+  const BACKEND_URL = getBackendUrl();
+
+  const fetchAttendanceTeamData = async () => {
+    setIsLoadingTeam(true);
+    try {
+      const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+      if (!activeToken) return;
+
+      // 1. Fetch Summary Statistics
+      const sumRes = await fetch(`${BACKEND_URL}/attendance/admin/summary`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (sumRes.ok) {
+        const sumData = await sumRes.json();
+        if (sumData.success) setAdminSummary(sumData.summary);
+      }
+
+      // 2. Fetch Logs List with Filters
+      const params = new URLSearchParams();
+      if (attendanceSearchQuery) params.append('search', attendanceSearchQuery);
+      if (attendanceRoleFilter) params.append('role', attendanceRoleFilter);
+      if (attendanceStatusFilter) params.append('status', attendanceStatusFilter);
+
+      const logsRes = await fetch(`${BACKEND_URL}/attendance/admin/logs?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (logsRes.ok) {
+        const logsData = await logsRes.json();
+        if (logsData.success) setTeamLogs(logsData.logs);
+      }
+
+      // 3. Fetch Settings Rules config
+      const settingsRes = await fetch(`${BACKEND_URL}/config/attendance-settings`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        if (settingsData.success) setSettings(settingsData.settings);
+      }
+
+      // Fetch all users list
+      const usersRes = await fetch(`${BACKEND_URL}/users`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        if (usersData.success) setAllUsersList(usersData.users || []);
+      }
+    } catch (err) {
+      console.warn('Failed to load team attendance:', err);
+    } finally {
+      setIsLoadingTeam(false);
+    }
+  };
+
+  const handleSaveAttendanceSettings = async () => {
+    setIsSavingAttendanceSettings(true);
+    try {
+      const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+      const res = await fetch(`${BACKEND_URL}/config/attendance-settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify(settings)
+      });
+      if (res.ok) {
+        showToast('Settings saved successfully.', 'success');
+      } else {
+        showToast('Failed to save settings.', 'danger');
+      }
+    } catch (err) {
+      showToast('Connection failed.', 'danger');
+    } finally {
+      setIsSavingAttendanceSettings(false);
+    }
+  };
+
+  const handleCreateManualAttendanceLog = async () => {
+    if (!manualUserId || !manualCheckIn) {
+      showToast('Employee and Check-in time are required.', 'danger');
+      return;
+    }
+    try {
+      const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+      const res = await fetch(`${BACKEND_URL}/attendance/admin/logs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({
+          userId: manualUserId,
+          checkInTime: manualCheckIn,
+          checkOutTime: manualCheckOut || null
+        })
+      });
+      if (res.ok) {
+        showToast('Manual attendance log created.', 'success');
+        setIsCreatingManual(false);
+        setManualUserId('');
+        setManualCheckIn('');
+        setManualCheckOut('');
+        fetchAttendanceTeamData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error?.message || 'Failed to create manual log.', 'danger');
+      }
+    } catch (err) {
+      showToast('Connection error.', 'danger');
+    }
+  };
+
+  const handleUpdateAttendanceLog = async () => {
+    if (!editingLog) return;
+    setIsSavingEdit(true);
+    try {
+      const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+      const res = await fetch(`${BACKEND_URL}/attendance/admin/logs/${editingLog.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({
+          checkInTime: editCheckIn,
+          checkOutTime: editCheckOut || null,
+          reason: editReason
+        })
+      });
+      if (res.ok) {
+        showToast('Attendance log updated successfully.', 'success');
+        setEditingLog(null);
+        fetchAttendanceTeamData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error?.message || 'Failed to update log.', 'danger');
+      }
+    } catch (err) {
+      showToast('Connection error.', 'danger');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Face enrollment photo capture inside Admin Dashboard
+  const handleEnrollFaceCapture = async () => {
+    if (isEnrollingFace || !enrollCameraRef.current) return;
+    setIsEnrollingFace(true);
+
+    try {
+      const photo = await enrollCameraRef.current.takePictureAsync({
+        quality: 0.85,
+        base64: true,
+        skipProcessing: Platform.OS === 'web'
+      });
+
+      if (photo && photo.base64) {
+        const nextImages = [...capturedImages, photo.base64];
+        setCapturedImages(nextImages);
+
+        if (nextImages.length >= 3) {
+          const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+          const res = await fetch(`${BACKEND_URL}/attendance/admin/enroll-face/${enrollingUser.id}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${activeToken}`
+            },
+            body: JSON.stringify({ imagesBase64: nextImages })
+          });
+
+          if (res.ok) {
+            showToast(`Face registered successfully for ${enrollingUser.fullName}!`, 'success');
+          } else {
+            showToast('Failed to register face templates.', 'danger');
+          }
+
+          setShowEnrollCamera(false);
+          setEnrollingUser(null);
+          setCapturedImages([]);
+        } else {
+          showToast(`Sample ${nextImages.length}/3 captured. Take another.`, 'warning');
+        }
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Capture failed.', 'danger');
+    } finally {
+      setIsEnrollingFace(false);
+    }
+  };
+
+  const triggerFaceEnrollment = async (staffMember: any) => {
+    if (!cameraPermission || !cameraPermission.granted) {
+      const res = await requestCameraPermission();
+      if (!res.granted) {
+        showToast('Camera access required for face enrollment.', 'danger');
+        return;
+      }
+    }
+    setEnrollingUser(staffMember);
+    setCapturedImages([]);
+    setShowEnrollCamera(true);
+  };
+
+  const handleExportAttendanceCSV = async () => {
+    try {
+      showToast('Preparing Attendance export...', 'info');
+      let csvContent = 'Date,Employee,Role,Check In,Check Out,Hours,Status,Late,Overtime\n';
+      
+      for (const log of teamLogs) {
+        const dateStr = log.checkInTime ? new Date(log.checkInTime).toLocaleDateString() : '-';
+        const nameStr = log.user?.fullName || '-';
+        const roleStr = log.role || '-';
+        const inStr = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString() : '-';
+        const outStr = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString() : '-';
+        const hoursStr = log.workingHours || '0';
+        const statusStr = log.primaryState || '-';
+        const lateStr = log.isLate ? 'YES' : 'NO';
+        const otStr = log.isOvertime ? 'YES' : 'NO';
+        
+        csvContent += `"${dateStr}","${nameStr}","${roleStr}","${inStr}","${outStr}",${hoursStr},"${statusStr}","${lateStr}","${otStr}"\n`;
+      }
+
+      await Share.share({
+        message: csvContent,
+        title: 'Attendance Shift Logs Export'
+      });
+      showToast('Attendance reports exported successfully.', 'success');
+    } catch (error: any) {
+      showToast('Unable to export reports.', 'danger');
     }
   };
 
@@ -159,6 +455,8 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           await fetchUsers();
         } else if (adminSubTab === 'live') {
           await fetchReports('day');
+        } else if (adminSubTab === 'attendance') {
+          await fetchAttendanceTeamData();
         }
       } catch (e) {
         // ignore
@@ -170,7 +468,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     return () => {
       active = false;
     };
-  }, [adminSubTab, reportFilter, startDateStr, endDateStr]);
+  }, [adminSubTab, reportFilter, startDateStr, endDateStr, attendanceSearchQuery, attendanceRoleFilter, attendanceStatusFilter]);
 
   // 15-second periodic background polling for active admin subtabs
   useEffect(() => {
@@ -429,6 +727,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               { tab: 'chart', label: 'Charts', icon: '📈' },
               { tab: 'settings', label: 'Settings', icon: '⚙️' },
               { tab: 'customers', label: 'Customers', icon: '👤' },
+              { tab: 'attendance', label: 'Attendance', icon: '📅' },
             ].map((item) => {
               const isActive = adminSubTab === item.tab;
               return (
@@ -1716,6 +2015,259 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               onPress={() => clearLocalCache()}
             >
               <Text className="font-bold text-xs" style={{ color: colors.text }}>Clear Cache & Re-Sync</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      )}
+
+      {adminSubTab === 'attendance' && (
+        <ScrollView className="flex-grow" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-[11px] font-bold text-muted uppercase tracking-wider">Attendance Management</Text>
+            
+            {/* Export Report CSV Button */}
+            <TouchableOpacity
+              onPress={handleExportAttendanceCSV}
+              style={{
+                backgroundColor: colors.gold,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              <Text style={{ color: colors.goldButtonText, fontSize: 10, fontWeight: 'bold' }}>📤 Export CSV</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Stats Panel */}
+          <View className="flex-row flex-wrap justify-between mb-4">
+            {[
+              { label: 'Present Today', val: adminSummary?.presentToday || 0, color: '#22c55e' },
+              { label: 'Lates Today', val: adminSummary?.lateToday || 0, color: '#a855f7' },
+              { label: 'Overtime Today', val: adminSummary?.overtimeToday || 0, color: '#f59e0b' },
+              { label: 'Company %', val: `${adminSummary?.companyAttendancePercentage || 0}%`, color: '#D4AF37' }
+            ].map((s, idx) => (
+              <View key={idx} className="w-[48%] p-3 rounded-xl border mb-3" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                <Text className="text-[9px] font-bold uppercase tracking-wider" style={{ color: colors.muted }}>{s.label}</Text>
+                <Text className="text-base font-black mt-1" style={{ color: s.color }}>{s.val}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Filters Card */}
+          <View className="p-4 border rounded-2xl mb-4 gap-3" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+            <Text className="text-xs font-bold" style={{ color: colors.text }}>Search & Filters</Text>
+            <TextInput
+              placeholder="Search employee name..."
+              placeholderTextColor="rgba(255,255,255,0.4)"
+              value={attendanceSearchQuery}
+              onChangeText={setAttendanceSearchQuery}
+              style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, fontSize: 13 }}
+            />
+
+            <View className="flex-row gap-2 mt-1">
+              <View style={{ flex: 1 }}>
+                <Text className="text-[9px] font-bold text-white/50 mb-1">Filter Role</Text>
+                <View className="flex-row bg-black/20 rounded-lg p-1">
+                  {['', 'admin', 'manager', 'receptionist', 'bartender'].map(r => (
+                    <TouchableOpacity
+                      key={r}
+                      onPress={() => setAttendanceRoleFilter(r)}
+                      style={{ flex: 1, paddingVertical: 4, borderRadius: 6, alignItems: 'center', backgroundColor: attendanceRoleFilter === r ? colors.gold : 'transparent' }}
+                    >
+                      <Text style={{ fontSize: 8, fontWeight: 'bold', color: attendanceRoleFilter === r ? 'black' : 'white' }}>
+                        {r === '' ? 'ALL' : r.substring(0, 3).toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Add Manual Check-In Button */}
+          {!isCreatingManual && (
+            <TouchableOpacity
+              onPress={() => setIsCreatingManual(true)}
+              style={{
+                backgroundColor: colors.gold,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16
+              }}
+            >
+              <Text style={{ color: colors.goldButtonText, fontWeight: 'bold', fontSize: 12 }}>Create Manual Attendance Entry</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Manual Entry Creation Panel */}
+          {isCreatingManual && (
+            <View className="p-4 border rounded-2xl mb-4 gap-3" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+              <Text className="text-xs font-bold" style={{ color: colors.text }}>Create Manual Shift Log</Text>
+              
+              <Text className="text-[10px] text-white/50">Target User UUID</Text>
+              <TextInput
+                placeholder="Paste Employee ID (UUID)"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={manualUserId}
+                onChangeText={setManualUserId}
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+
+              <Text className="text-[10px] text-white/50">Check-In Time (ISO String)</Text>
+              <TextInput
+                placeholder="e.g. 2026-07-17T09:00:00Z"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={manualCheckIn}
+                onChangeText={setManualCheckIn}
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+
+              <Text className="text-[10px] text-white/50">Check-Out Time (ISO String - Optional)</Text>
+              <TextInput
+                placeholder="e.g. 2026-07-17T18:00:00Z"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={manualCheckOut}
+                onChangeText={setManualCheckOut}
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+
+              <View className="flex-row gap-2 mt-2">
+                <TouchableOpacity
+                  onPress={handleCreateManualAttendanceLog}
+                  className="flex-1 py-3 bg-emerald-600 rounded-xl items-center"
+                >
+                  <Text className="text-white font-bold text-xs">Save Shift Entry</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setIsCreatingManual(false)}
+                  className="flex-1 py-3 bg-white/10 rounded-xl items-center"
+                >
+                  <Text className="text-white font-bold text-xs">Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Daily Logs Table List */}
+          <Text className="text-xs font-bold mb-3" style={{ color: colors.text }}>Daily Team Logs</Text>
+          {isLoadingTeam ? (
+            <ActivityIndicator size="small" color="#D4AF37" className="my-6" />
+          ) : (
+            <View>
+              {teamLogs.length === 0 ? (
+                <Text className="text-white/40 text-xs italic py-4">No shift attendance logs found.</Text>
+              ) : (
+                teamLogs.map((log, index) => (
+                  <View key={index} className="p-3 border rounded-xl mb-3 gap-2" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                    <View className="flex-row justify-between items-center">
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 13 }}>{log.user?.fullName}</Text>
+                        <Text style={{ color: colors.muted, fontSize: 10, textTransform: 'capitalize', marginTop: 2 }}>{log.role} | ID: {log.user?.id.substring(0, 8)}...</Text>
+                      </View>
+
+                      {/* Enroll Face Trigger */}
+                      <TouchableOpacity
+                        onPress={() => triggerFaceEnrollment(log.user)}
+                        className="px-2.5 py-1.5 border border-dashed rounded-lg"
+                        style={{ borderColor: colors.gold }}
+                      >
+                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.gold, textTransform: 'uppercase' }}>Enroll Face</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View className="flex-row justify-between items-center border-t border-white/5 pt-2 mt-1">
+                      <View>
+                        <Text style={{ color: colors.muted, fontSize: 10 }}>In: {log.checkInTime ? new Date(log.checkInTime).toLocaleString() : '-'}</Text>
+                        <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>Out: {log.checkOutTime ? new Date(log.checkOutTime).toLocaleString() : '-'}</Text>
+                        {log.workingHours && (
+                          <Text style={{ color: colors.gold, fontSize: 10, fontWeight: 'bold', marginTop: 2 }}>Hours: {log.workingHours}h</Text>
+                        )}
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditingLog(log);
+                          setEditCheckIn(log.checkInTime);
+                          setEditCheckOut(log.checkOutTime || '');
+                          setEditReason('');
+                        }}
+                        style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 10, fontWeight: 'bold' }}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+
+          {/* Attendance Rules Settings Card */}
+          <Text className="text-xs font-bold mt-4 mb-3" style={{ color: colors.text }}>Shift Attendance Configuration</Text>
+          <View className="p-4 border rounded-2xl mb-10 gap-4" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+            <View>
+              <Text className="text-[10px] text-white/50 mb-1">Shift Start Time (HH:MM)</Text>
+              <TextInput
+                value={settings.shiftStart}
+                onChangeText={(text) => setSettings({ ...settings, shiftStart: text })}
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+            </View>
+
+            <View>
+              <Text className="text-[10px] text-white/50 mb-1">Late Arrival Threshold (HH:MM)</Text>
+              <TextInput
+                value={settings.lateThreshold}
+                onChangeText={(text) => setSettings({ ...settings, lateThreshold: text })}
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+            </View>
+
+            <View>
+              <Text className="text-[10px] text-white/50 mb-1">Shift End Time (HH:MM)</Text>
+              <TextInput
+                value={settings.shiftEnd}
+                onChangeText={(text) => setSettings({ ...settings, shiftEnd: text })}
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+            </View>
+
+            <View className="flex-row justify-between items-center py-2">
+              <View>
+                <Text className="text-xs font-bold text-white">Face Recognition Attendance</Text>
+                <Text className="text-[9px] text-white/40 mt-1">If enabled, face verification is mandatory at checkin/out.</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSettings({ ...settings, faceMandatory: !settings.faceMandatory })}
+                className={`w-10 h-6 rounded-full p-1 ${settings.faceMandatory ? 'bg-[#D4AF37]' : 'bg-white/20'}`}
+              >
+                <View className={`w-4 h-4 rounded-full bg-black ${settings.faceMandatory ? 'translate-x-4' : ''}`} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              disabled={isSavingAttendanceSettings}
+              onPress={handleSaveAttendanceSettings}
+              style={{
+                backgroundColor: colors.gold,
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 8
+              }}
+            >
+              {isSavingAttendanceSettings ? (
+                <ActivityIndicator size="small" color="black" />
+              ) : (
+                <Text style={{ color: colors.goldButtonText, fontWeight: 'bold', fontSize: 12, textTransform: 'uppercase' }}>Save Rules</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -3009,6 +3561,123 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
           );
         })()}
       </AlertModal>
+
+      {/* Attendance Face Enrollment Camera View */}
+      {showEnrollCamera && (
+        <Modal visible={showEnrollCamera} animationType="slide">
+          <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'space-between', paddingTop: 40 }}>
+            <View style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
+              <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>Enroll Face: {enrollingUser?.fullName}</Text>
+              <TouchableOpacity
+                onPress={() => { setShowEnrollCamera(false); setEnrollingUser(null); setCapturedImages([]); }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)' }}
+              >
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              <CameraView
+                ref={enrollCameraRef}
+                facing="front"
+                style={{ width: '100%', height: '100%', position: 'absolute' }}
+              />
+              {/* Oval Guide Overlay */}
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+                <View
+                  style={{
+                    width: 240,
+                    height: 320,
+                    borderRadius: 160,
+                    borderWidth: 2,
+                    borderColor: '#D4AF37',
+                    borderStyle: 'dashed',
+                    backgroundColor: 'transparent'
+                  }}
+                />
+                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 'bold', marginTop: 16, textAlign: 'center', paddingHorizontal: 24 }}>
+                  Take 3 photos from different angles ({capturedImages.length}/3 captured)
+                </Text>
+              </View>
+
+              {isEnrollingFace && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                  <ActivityIndicator size="large" color="#D4AF37" />
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginTop: 16 }}>Processing image...</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={{ padding: 24, backgroundColor: 'black', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
+              <TouchableOpacity
+                disabled={isEnrollingFace}
+                onPress={handleEnrollFaceCapture}
+                style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: 'white', backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Attendance Log Editor Modal */}
+      {editingLog && (
+        <AlertModal
+          visible={!!editingLog}
+          title="Edit Attendance Log"
+          onClose={() => setEditingLog(null)}
+        >
+          <View style={{ gap: 12 }}>
+            <View>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Check-In Time</Text>
+              <TextInput
+                value={editCheckIn}
+                onChangeText={setEditCheckIn}
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Check-Out Time</Text>
+              <TextInput
+                value={editCheckOut}
+                onChangeText={setEditCheckOut}
+                placeholder="Check-out ISO date"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+            </View>
+
+            <View>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Correction Reason (Required)</Text>
+              <TextInput
+                value={editReason}
+                onChangeText={setEditReason}
+                placeholder="e.g. forgot to checkout"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                style={{ backgroundColor: colors.input, color: 'white', padding: 10, borderRadius: 10, fontSize: 12, borderWidth: 1, borderColor: colors.border }}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <TouchableOpacity
+                disabled={isSavingEdit || !editReason}
+                onPress={handleUpdateAttendanceLog}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgb(16,185,129)', alignItems: 'center', justifyContent: 'center', minHeight: 44 }}
+              >
+                {isSavingEdit ? <ActivityIndicator size="small" color="white" /> : <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>Save Changes</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setEditingLog(null)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', minHeight: 44 }}
+              >
+                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </AlertModal>
+      )}
     </View>
   );
 };

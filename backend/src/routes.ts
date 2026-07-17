@@ -329,16 +329,6 @@ router.post('/auth/login', async (req: Request, res: Response) => {
         }
       }).catch(() => {});
 
-      // Record Attendance Check-In before creating session
-      try {
-        await AttendanceService.checkInEmployee(finalUser.id, finalUser.role.name, photoBase64);
-      } catch (attErr: any) {
-        return res.status(400).json({
-          success: false,
-          error: { code: 'ATT_ERR', message: attErr.message }
-        });
-      }
-
       const session = await prisma.staffSession.create({
         data: {
           userId: finalUser.id,
@@ -422,16 +412,6 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       }
     }).catch(() => {});
 
-    // Record Attendance Check-In before creating session
-    try {
-      await AttendanceService.checkInEmployee(user.id, user.role.name, photoBase64);
-    } catch (attErr: any) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'ATT_ERR', message: attErr.message }
-      });
-    }
-
     const session = await prisma.staffSession.create({
       data: {
         userId: user.id,
@@ -471,16 +451,6 @@ router.post('/auth/logout', authenticate, async (req: Request, res: Response) =>
 
   if (!user) {
     return res.status(401).json({ success: false, error: { code: 'AUTH_ERR', message: 'User not authenticated' } });
-  }
-
-  // Record Attendance Check-Out
-  try {
-    await AttendanceService.checkOutEmployee(user.id, photoBase64);
-  } catch (attErr: any) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'ATT_ERR', message: attErr.message }
-    });
   }
 
   const authHeader = req.headers.authorization;
@@ -4055,6 +4025,33 @@ router.get('/auth/config/attendance', async (req: Request, res: Response) => {
   }
 });
 
+// 1.5 Dashboard Check-In / Check-Out
+router.post('/api/attendance/checkin', authenticate, async (req: Request, res: Response) => {
+  const { photoBase64 } = req.body;
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
+
+  try {
+    const result = await AttendanceService.checkInEmployee(user.id, user.role, photoBase64);
+    return res.json({ success: true, message: 'Checked in successfully', ...result });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+});
+
+router.post('/api/attendance/checkout', authenticate, async (req: Request, res: Response) => {
+  const { photoBase64 } = req.body;
+  const user = (req as AuthenticatedRequest).user;
+  if (!user) return res.status(401).json({ success: false, error: { message: 'Not authenticated' } });
+
+  try {
+    await AttendanceService.checkOutEmployee(user.id, photoBase64);
+    return res.json({ success: true, message: 'Checked out successfully' });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+});
+
 // 2. Get Personal Summary
 router.get('/api/attendance/me/summary', authenticate, async (req: Request, res: Response) => {
   const user = (req as AuthenticatedRequest).user;
@@ -4318,7 +4315,7 @@ router.post('/api/attendance/admin/enroll-face/:id', authenticate, authorize(['a
     const buffers = imagesBase64.map(base64 => Buffer.from(base64, 'base64'));
     const urls = s3Urls || imagesBase64.map(() => '');
 
-    await FaceService.enrollUserFaces(id, buffers, urls);
+    await FaceService.enrollUserFaces(id, buffers);
 
     return res.json({ success: true, message: 'Face templates enrolled successfully' });
   } catch (err: any) {
@@ -4353,32 +4350,18 @@ router.post('/api/attendance/quick', upload.single('file'), async (req: Request,
   }
 
   try {
-    const capturedEmbedding = await FaceService.getEmbeddingFromImage(req.file.buffer);
+    const match = await FaceService.recognizeFace(req.file.buffer);
 
-    // Fetch all active face templates
-    const allTemplates = await prisma.faceEmbedding.findMany({
-      where: { isActive: true },
-      include: { user: { include: { role: true } } }
+    // Look up the recognized user ID locally
+    const matchedUser = await prisma.user.findUnique({
+      where: { id: match.userId },
+      include: { role: true }
     });
 
-    let bestMatch: typeof allTemplates[0] | null = null;
-    let highestSimilarity = 0;
-    const threshold = 0.80;
-
-    for (const temp of allTemplates) {
-      const templateVec: number[] = JSON.parse(temp.embeddingVector);
-      const similarity = FaceService.calculateSimilarity(capturedEmbedding, templateVec);
-      if (similarity > highestSimilarity) {
-        highestSimilarity = similarity;
-        bestMatch = temp;
-      }
-    }
-
-    if (!bestMatch || highestSimilarity < threshold) {
+    if (!matchedUser) {
       return res.status(401).json({ success: false, error: { message: 'Face not recognized. Please register first.' } });
     }
 
-    const matchedUser = bestMatch.user;
     const activeShift = await prisma.attendance.findFirst({
       where: { userId: matchedUser.id, checkOutTime: null }
     });
@@ -4405,6 +4388,10 @@ router.post('/api/attendance/quick', upload.single('file'), async (req: Request,
       return res.json({
         success: true,
         message: `Goodbye, ${matchedUser.fullName}. Checked out successfully.`,
+        userName: matchedUser.fullName,
+        action: 'check-out',
+        confidence: match.confidence,
+        timestamp: checkOutTime,
         data: {
           employeeName: matchedUser.fullName,
           operation: 'CHECK_OUT',
@@ -4425,13 +4412,17 @@ router.post('/api/attendance/quick', upload.single('file'), async (req: Request,
           primaryState: metrics.primaryState,
           isLate: metrics.isLate,
           loginMethod: 'FACE',
-          faceConfidence: highestSimilarity
+          faceConfidence: match.confidence
         }
       });
 
       return res.json({
         success: true,
         message: `Welcome, ${matchedUser.fullName}. Checked in successfully.`,
+        userName: matchedUser.fullName,
+        action: 'check-in',
+        confidence: match.confidence,
+        timestamp: checkInTime,
         data: {
           employeeName: matchedUser.fullName,
           operation: 'CHECK_IN',

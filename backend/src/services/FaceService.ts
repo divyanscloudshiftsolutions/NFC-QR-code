@@ -1,135 +1,108 @@
-import { Jimp } from 'jimp';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+/**
+ * @deprecated The FaceEmbedding database table is deprecated. Biometrics are now managed on the FaceMark staging server.
+ */
+// FaceEmbedding table is deprecated and direct local queries are disabled.
+
 export class FaceService {
-  /**
-   * Helper to extract face embedding from an image buffer using pure JS pixel normalization
-   */
-  public static async getEmbeddingFromImage(imageBuffer: Buffer): Promise<number[]> {
-    try {
-      const image = await Jimp.read(imageBuffer);
+  private static getApiBase(): string {
+    return (process.env.FACEMARK_API_BASE || 'https://api.facemark.app.cloudshiftsolutions.in').replace(/\/$/, '');
+  }
 
-      // Center crop: Since the mobile UI forces the user to align their face in an oval,
-      // the face is centered. We crop the central 70% square region.
-      const width = image.width;
-      const height = image.height;
-      const size = Math.min(width, height) * 0.7;
-      const x = (width - size) / 2;
-      const y = (height - size) / 2;
-
-      image.crop({
-        x: Math.round(x),
-        y: Math.round(y),
-        w: Math.round(size),
-        h: Math.round(size)
-      });
-      image.resize({ w: 64, h: 64 });
-
-      // Jimp v1 stores raw pixel data in image.bitmap.data as a Uint8ClampedArray/Buffer of size 64 * 64 * 4
-      const data = image.bitmap.data;
-      const vector: number[] = [];
-
-      for (let i = 0; i < 4096; i++) {
-        const idx = i * 4;
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        // Standard Grayscale projection (R = 0.299, G = 0.587, B = 0.114)
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        vector.push(gray);
-      }
-
-      // L2 Normalization
-      let sumSquare = 0;
-      for (const val of vector) {
-        sumSquare += val * val;
-      }
-      const norm = Math.sqrt(sumSquare);
-
-      if (norm < 1e-8) {
-        throw new Error('Image too blank or dark to extract features.');
-      }
-
-      return vector.map(val => val / norm);
-    } catch (error: any) {
-      throw new Error(`Face feature extraction failed: ${error.message}`);
-    }
+  private static getBearerToken(): string {
+    return process.env.FACEMARK_BEARER_TOKEN || '';
   }
 
   /**
-   * Calculates cosine similarity (dot product of L2-normalized vectors)
+   * Registers multiple face templates for a user on the FaceMark staging server.
+   * Path: POST /api/face/register-multiple/{user_id}
    */
-  public static calculateSimilarity(vecA: number[], vecB: number[]): number {
-    if (vecA.length !== 4096 || vecB.length !== 4096) {
-      throw new Error('Embedding vectors must have length 4096.');
-    }
-    let dotProduct = 0;
-    for (let i = 0; i < 4096; i++) {
-      dotProduct += vecA[i] * vecB[i];
-    }
-    return dotProduct;
-  }
-
-  /**
-   * Matches a captured face vector against a specific user's enrolled templates
-   */
-  public static async verifyUserFace(userId: string, capturedVec: number[], threshold = 0.80): Promise<{ isMatch: boolean; confidence: number }> {
-    const activeEmbeddings = await prisma.faceEmbedding.findMany({
-      where: {
-        userId,
-        isActive: true
-      }
-    });
-
-    if (activeEmbeddings.length === 0) {
-      throw new Error('No face templates enrolled for this user.');
-    }
-
-    let highestSimilarity = 0;
-
-    for (const record of activeEmbeddings) {
-      const templateVec: number[] = JSON.parse(record.embeddingVector);
-      const similarity = this.calculateSimilarity(capturedVec, templateVec);
-      if (similarity > highestSimilarity) {
-        highestSimilarity = similarity;
-      }
-    }
-
-    return {
-      isMatch: highestSimilarity >= threshold,
-      confidence: highestSimilarity
-    };
-  }
-
-  /**
-   * Registers multiple face templates for a user
-   */
-  public static async enrollUserFaces(userId: string, images: Buffer[], s3Urls: string[]): Promise<void> {
+  public static async enrollUserFaces(userId: string, images: Buffer[]): Promise<void> {
     if (images.length === 0) {
       throw new Error('At least one face sample is required for enrollment.');
     }
 
-    // Set previous embeddings to inactive
-    await prisma.faceEmbedding.updateMany({
-      where: { userId },
-      data: { isActive: false }
+    const apiBase = this.getApiBase();
+    const token = this.getBearerToken();
+
+    const formData = new globalThis.FormData();
+    for (let i = 0; i < images.length; i++) {
+      const blob = new globalThis.Blob([images[i]], { type: 'image/jpeg' });
+      formData.append('files', blob, `sample_${i}.jpg`);
+    }
+
+    const url = `${apiBase}/api/face/register-multiple/${userId}`;
+    const headers: Record<string, string> = {};
+    if (token && token.trim().length > 0 && token !== 'your_staging_bearer_token_here') {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      headers
     });
 
-    for (let i = 0; i < images.length; i++) {
-      const embedding = await this.getEmbeddingFromImage(images[i]);
-      const s3Url = s3Urls[i] || '';
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`FaceMark enrollment failed (HTTP ${response.status}): ${errText}`);
+    }
+  }
 
-      await prisma.faceEmbedding.create({
-        data: {
-          userId,
-          embeddingVector: JSON.stringify(embedding),
-          referenceImageUrl: s3Url,
-          isPrimary: i === 0,
-          isActive: true
-        }
-      });
+  /**
+   * Performs face recognition using FaceMark staging API.
+   * Path: POST /api/face/recognize
+   */
+  public static async recognizeFace(imageBuffer: Buffer): Promise<{ userId: string; confidence: number }> {
+    const apiBase = this.getApiBase();
+    const formData = new globalThis.FormData();
+    const blob = new globalThis.Blob([imageBuffer], { type: 'image/jpeg' });
+    formData.append('file', blob, 'capture.jpg');
+
+    const url = `${apiBase}/api/face/recognize`;
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`FaceMark recognition failed (HTTP ${response.status}): ${errText}`);
+    }
+
+    const data: any = await response.json();
+    const recognizedId = data.userId || data.user_id || data.id || (data.user && (data.user.id || data.user.userId));
+    const confidence = typeof data.confidence === 'number' ? data.confidence : (typeof data.similarity === 'number' ? data.similarity : 1.0);
+
+    if (!recognizedId) {
+      throw new Error('Face not recognized. Please register first.');
+    }
+
+    return {
+      userId: recognizedId,
+      confidence
+    };
+  }
+
+  /**
+   * Verifies if a captured face matches a target user ID using recognize endpoint
+   */
+  public static async verifyUserFace(userId: string, imageBuffer: Buffer): Promise<{ isMatch: boolean; confidence: number }> {
+    try {
+      const match = await this.recognizeFace(imageBuffer);
+      const isMatch = match.userId.toLowerCase() === userId.toLowerCase();
+      return {
+        isMatch,
+        confidence: match.confidence
+      };
+    } catch (err: any) {
+      return {
+        isMatch: false,
+        confidence: 0
+      };
     }
   }
 }

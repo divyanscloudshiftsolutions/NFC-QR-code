@@ -26,8 +26,7 @@ export class AttendanceService {
         throw new Error('Face verification photo is required for this shift.');
       }
       const buffer = Buffer.from(photoBase64, 'base64');
-      const embedding = await FaceService.getEmbeddingFromImage(buffer);
-      const verification = await FaceService.verifyUserFace(userId, embedding);
+      const verification = await FaceService.verifyUserFace(userId, buffer);
       if (!verification.isMatch) {
         throw new Error('Face does not match the entered PIN. Buddy punching detected.');
       }
@@ -70,8 +69,7 @@ export class AttendanceService {
         throw new Error('Face verification photo is required to check out.');
       }
       const buffer = Buffer.from(photoBase64, 'base64');
-      const embedding = await FaceService.getEmbeddingFromImage(buffer);
-      const verification = await FaceService.verifyUserFace(userId, embedding);
+      const verification = await FaceService.verifyUserFace(userId, buffer);
       if (!verification.isMatch) {
         throw new Error('Face does not match the active session. Verification failed.');
       }
@@ -260,6 +258,11 @@ export class AttendanceService {
       ? ((presentDays + (halfDays * 0.5)) / totalWorkingDays) * 100 
       : 0;
 
+    const activeShift = await prisma.attendance.findFirst({
+      where: { userId, checkOutTime: null },
+      orderBy: { checkInTime: 'desc' }
+    });
+
     return {
       presentDays,
       absentDays,
@@ -269,7 +272,13 @@ export class AttendanceService {
       overtimeDays,
       totalWorkingHours: parseFloat(totalWorkingHours.toFixed(2)),
       averageWorkingHours: parseFloat(averageWorkingHours.toFixed(2)),
-      attendancePercentage: parseFloat(attendancePercentage.toFixed(1))
+      attendancePercentage: parseFloat(attendancePercentage.toFixed(1)),
+      activeShift: activeShift ? {
+        id: activeShift.id,
+        checkInTime: activeShift.checkInTime.toISOString(),
+        role: activeShift.role,
+        loginMethod: activeShift.loginMethod
+      } : null
     };
   }
 
