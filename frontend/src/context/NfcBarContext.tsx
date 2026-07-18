@@ -51,7 +51,7 @@ interface NfcBarContextType {
   login: (id: string, pin: string, photoBase64?: string) => Promise<boolean>;
   logout: (photoBase64?: string) => Promise<boolean>;
   setTab: (tab: 'checkin' | 'bartender' | 'tables' | 'admin' | 'attendance') => void;
-  showToast: (message: string, type?: ToastItem['type']) => void;
+  showToast: (message: string, type?: ToastItem['type'], duration?: number) => void;
   dismissToast: (id: string) => void;
   triggerNotification: (title: string, message: string, type?: NotificationItem['type']) => void;
   markNotificationsAsRead: () => void;

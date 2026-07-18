@@ -201,11 +201,11 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
           showToast(type === 'checkin' ? 'Face check-in successful' : 'Face check-out successful', 'success');
           fetchPersonalData();
         } else {
-          showToast(data.error?.message || 'Face verification failed', 'danger');
+          showToast(data.error?.message || 'Face verification failed', 'danger', 5000);
         }
       }
     } catch (err: any) {
-      showToast(err.message || 'Verification capture failed', 'danger');
+      showToast('Unable to connect to the face verification service. Please check your internet connection and try again.', 'danger', 5000);
     } finally {
       setIsVerifyingFace(false);
     }

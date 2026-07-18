@@ -323,10 +323,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             body: JSON.stringify({ imagesBase64: nextImages })
           });
 
-          if (res.ok) {
+          const data = await res.json();
+          if (res.ok && data.success) {
             showToast(`Face registered successfully for ${enrollingUser.fullName}!`, 'success');
           } else {
-            showToast('Failed to register face templates.', 'danger');
+            showToast(data.error?.message || 'Something went wrong while registering your face. Please try again or contact the administrator if the problem continues.', 'danger', 5000);
           }
 
           setShowEnrollCamera(false);
@@ -337,7 +338,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
         }
       }
     } catch (err: any) {
-      showToast(err.message || 'Capture failed.', 'danger');
+      showToast('Unable to connect to the face verification service. Please check your internet connection and try again.', 'danger', 5000);
     } finally {
       setIsEnrollingFace(false);
     }
