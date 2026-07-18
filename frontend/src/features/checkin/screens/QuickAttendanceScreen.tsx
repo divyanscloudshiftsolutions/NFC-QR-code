@@ -109,7 +109,7 @@ export const QuickAttendanceScreen: React.FC = () => {
       setIsCameraActive(false);
       showToast(responseData.message || 'Attendance recorded successfully!', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Attendance verification failed.', 'danger');
+      showToast(err.message || 'Attendance verification failed.', 'danger', 5000);
     } finally {
       setIsSubmitting(false);
     }

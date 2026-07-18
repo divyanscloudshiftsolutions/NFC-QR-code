@@ -4319,7 +4319,8 @@ router.post('/attendance/admin/enroll-face/:id', authenticate, authorize(['admin
 
     return res.json({ success: true, message: 'Face templates enrolled successfully' });
   } catch (err: any) {
-    return res.status(500).json({ success: false, error: { message: err.message } });
+    const status = (err.name === 'FaceMarkError' || err instanceof FaceMarkError) ? 400 : 500;
+    return res.status(status).json({ success: false, error: { message: err.message } });
   }
 });
 
@@ -4432,7 +4433,7 @@ router.post('/attendance/quick', upload.single('file'), async (req: Request, res
     }
   } catch (err: any) {
     console.error('Quick Attendance error:', err);
-    const status = err instanceof FaceMarkError ? 400 : 500;
+    const status = (err.name === 'FaceMarkError' || err instanceof FaceMarkError) ? 400 : 500;
     return res.status(status).json({ success: false, error: { message: err.message } });
   }
 });
