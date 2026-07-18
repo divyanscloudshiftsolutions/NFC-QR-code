@@ -28,6 +28,13 @@ export const QuickAttendanceScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, [result]);
 
+  // Screen unmount cleanup to release camera device
+  useEffect(() => {
+    return () => {
+      setIsCameraActive(false);
+    };
+  }, []);
+
   // Request camera permission on mount if not already granted
   useEffect(() => {
     (async () => {
@@ -58,6 +65,7 @@ export const QuickAttendanceScreen: React.FC = () => {
       if (!photo || !photo.uri) {
         showToast('Could not capture photo. Please try again.', 'danger');
         setIsSubmitting(false);
+        setIsCameraActive(false);
         return;
       }
 
@@ -110,6 +118,7 @@ export const QuickAttendanceScreen: React.FC = () => {
       showToast(responseData.message || 'Attendance recorded successfully!', 'success');
     } catch (err: any) {
       showToast(err.message || 'Attendance verification failed.', 'danger', 5000);
+      setIsCameraActive(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -168,6 +177,43 @@ export const QuickAttendanceScreen: React.FC = () => {
             <Text className="text-muted text-[10px] italic text-center" style={{ color: colors.muted }}>
               Resuming camera in a few seconds...
             </Text>
+          </View>
+        </View>
+      ) : !isCameraActive ? (
+        // Verification Stopped / Retry View
+        <View className="flex-grow items-center justify-center p-6 bg-[#0B0D12]">
+          {/* Top Floating Control Bar */}
+          <View className="absolute top-12 left-0 right-0 px-5 flex-row justify-between items-center z-10">
+            <View className="flex-row items-center gap-1.5">
+              <Text style={{ fontSize: 18 }}>🕒</Text>
+              <Text className="text-white text-xs font-black uppercase tracking-wider">Kiosk Mode</Text>
+            </View>
+            <TouchableOpacity 
+              className="px-4 py-2 border rounded-full bg-black/60"
+              style={{ borderColor: 'rgba(255,255,255,0.2)' }}
+              onPress={() => setScreen('login')}
+            >
+              <Text className="text-white text-[10px] font-bold uppercase tracking-wider">Return to Login</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View className="bg-card border border-border rounded-3xl p-8 items-center justify-center max-w-[380px] w-full shadow-2xl">
+            <View className="h-20 w-20 rounded-full bg-red/10 items-center justify-center mb-6">
+              <Text style={{ fontSize: 40 }}>❌</Text>
+            </View>
+            <Text className="text-themeText text-lg font-black text-center mb-2" style={{ color: colors.text }}>
+              Verification Stopped
+            </Text>
+            <Text className="text-muted text-xs text-center mb-6" style={{ color: colors.muted }}>
+              Please look directly at the camera, ensure good lighting, and tap below to retry.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setIsCameraActive(true)}
+              className="w-full py-3.5 rounded-xl items-center justify-center min-h-[48px]"
+              style={{ backgroundColor: colors.gold }}
+            >
+              <Text className="text-black font-extrabold text-xs uppercase tracking-wider">Start Camera</Text>
+            </TouchableOpacity>
           </View>
         </View>
       ) : (

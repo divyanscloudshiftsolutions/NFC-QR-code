@@ -25,6 +25,7 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const dashboardCameraRef = useRef<any>(null);
   const [isVerifyingFace, setIsVerifyingFace] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
 
   // Live Timer states
   const [elapsedTimeStr, setElapsedTimeStr] = useState('00:00:00');
@@ -92,6 +93,12 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
       fetchPersonalData();
     }
   }, [isActive, historyFilter, customStartDate, customEndDate]);
+
+  useEffect(() => {
+    return () => {
+      setIsCameraActive(false);
+    };
+  }, [isActive]);
 
   // Live Timer Tick Hook
   useEffect(() => {
@@ -166,6 +173,18 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
   };
 
   // Face Check-In/Check-Out Camera capture
+  const startFaceVerification = async () => {
+    if (!cameraPermission || !cameraPermission.granted) {
+      const res = await requestCameraPermission();
+      if (!res.granted) {
+        showToast('Camera permission is required.', 'danger');
+        return;
+      }
+    }
+    setIsCameraActive(true);
+  };
+
+  // Face Check-In/Check-Out Camera capture
   const handleFaceCheckInOut = async (type: 'checkin' | 'checkout') => {
     if (isVerifyingFace || !dashboardCameraRef.current) return;
     setIsVerifyingFace(true);
@@ -176,6 +195,7 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
         if (!res.granted) {
           showToast('Camera permission is required.', 'danger');
           setIsVerifyingFace(false);
+          setIsCameraActive(false);
           return;
         }
       }
@@ -208,6 +228,7 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
       showToast('Unable to connect to the face verification service. Please check your internet connection and try again.', 'danger', 5000);
     } finally {
       setIsVerifyingFace(false);
+      setIsCameraActive(false);
     }
   };
 
@@ -258,45 +279,68 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
             <View className="gap-3">
               <Text className="text-xs font-bold text-white/80">Face Verification Mandatory</Text>
               
-              <View className="h-[280px] w-full rounded-2xl overflow-hidden relative border border-white/10 bg-black">
-                <CameraView
-                  ref={dashboardCameraRef}
-                  facing="front"
-                  style={{ width: '100%', height: '100%' }}
-                />
-                
-                {/* Oval overlay outline guide */}
-                <View className="absolute inset-0 items-center justify-center bg-black/20">
-                  <View
-                    style={{
-                      width: 180,
-                      height: 240,
-                      borderRadius: 120,
-                      borderWidth: 2,
-                      borderColor: '#D4AF37',
-                      borderStyle: 'dashed',
-                      backgroundColor: 'transparent'
-                    }}
-                  />
-                </View>
+              {isCameraActive ? (
+                <View className="gap-3">
+                  <View className="h-[280px] w-full rounded-2xl overflow-hidden relative border border-white/10 bg-black">
+                    <CameraView
+                      ref={dashboardCameraRef}
+                      facing="front"
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                    
+                    {/* Oval overlay outline guide */}
+                    <View className="absolute inset-0 items-center justify-center bg-black/20">
+                      <View
+                        style={{
+                          width: 180,
+                          height: 240,
+                          borderRadius: 120,
+                          borderWidth: 2,
+                          borderColor: '#D4AF37',
+                          borderStyle: 'dashed',
+                          backgroundColor: 'transparent'
+                        }}
+                      />
+                    </View>
 
-                {isVerifyingFace && (
-                  <View className="absolute inset-0 bg-black/85 justify-center items-center">
-                    <ActivityIndicator size="small" color="#D4AF37" />
-                    <Text className="text-white text-[10px] mt-2">Processing...</Text>
+                    {isVerifyingFace && (
+                      <View className="absolute inset-0 bg-black/85 justify-center items-center">
+                        <ActivityIndicator size="small" color="#D4AF37" />
+                        <Text className="text-white text-[10px] mt-2">Processing...</Text>
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
 
-              <TouchableOpacity
-                disabled={isVerifyingFace}
-                onPress={() => handleFaceCheckInOut(isCheckedIn ? 'checkout' : 'checkin')}
-                className="py-3 bg-[#D4AF37] rounded-xl items-center min-h-[48px] justify-center"
-              >
-                <Text className="text-black font-extrabold text-sm uppercase tracking-wider">
-                  {isCheckedIn ? 'Capture to Check-Out' : 'Capture to Check-In'}
-                </Text>
-              </TouchableOpacity>
+                  <View className="flex-row gap-2">
+                    <TouchableOpacity
+                      disabled={isVerifyingFace}
+                      onPress={() => handleFaceCheckInOut(isCheckedIn ? 'checkout' : 'checkin')}
+                      className="flex-grow py-3 bg-[#D4AF37] rounded-xl items-center min-h-[48px] justify-center"
+                    >
+                      <Text className="text-black font-extrabold text-xs uppercase tracking-wider">
+                        {isCheckedIn ? 'Capture Out' : 'Capture In'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      disabled={isVerifyingFace}
+                      onPress={() => setIsCameraActive(false)}
+                      className="px-6 py-3 bg-white/10 rounded-xl items-center min-h-[48px] justify-center"
+                    >
+                      <Text className="text-white font-extrabold text-xs uppercase tracking-wider">Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={startFaceVerification}
+                  className="py-3 bg-[#D4AF37] rounded-xl items-center min-h-[48px] justify-center"
+                >
+                  <Text className="text-black font-extrabold text-sm uppercase tracking-wider">
+                    {isCheckedIn ? 'Start Face Clock-Out' : 'Start Face Clock-In'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             // Manual clocking trigger
