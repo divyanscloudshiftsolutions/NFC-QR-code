@@ -370,6 +370,7 @@ export const MainAppShell: React.FC = () => {
             id={toast.id}
             message={toast.message}
             type={toast.type}
+            duration={toast.duration}
             onDismiss={dismissToast}
           />
         ))}

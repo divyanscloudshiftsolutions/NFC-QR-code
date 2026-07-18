@@ -172,6 +172,7 @@ export const AlertModal: React.FC<AlertModalProps> = ({ visible, onClose, title,
                 id={toast.id}
                 message={toast.message}
                 type={toast.type}
+                duration={toast.duration}
                 onDismiss={dismissToast}
               />
             ))}

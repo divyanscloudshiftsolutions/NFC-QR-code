@@ -150,4 +150,5 @@ export interface ToastItem {
   id: string;
   message: string;
   type: 'success' | 'warning' | 'danger' | 'info';
+  duration?: number;
 }

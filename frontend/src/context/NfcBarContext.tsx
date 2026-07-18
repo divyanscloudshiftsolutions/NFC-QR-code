@@ -734,11 +734,12 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const showToast = (message: string, type: ToastItem['type'] = 'info', duration = 2000) => {
     const id = Math.random().toString();
-    setToasts(prev => [...prev, { id, message, type }]);
     
     const words = message ? message.split(/\s+/).filter(Boolean).length : 0;
     const computedDuration = Math.min(8000, Math.max(5000, words * 150 + 4000));
     const activeDuration = duration > 2000 ? Math.max(duration, computedDuration) : computedDuration;
+
+    setToasts(prev => [...prev, { id, message, type, duration: activeDuration }]);
 
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
