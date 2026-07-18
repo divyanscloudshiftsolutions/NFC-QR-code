@@ -71,6 +71,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     timezone: 'UTC'
   });
   const [isSavingAttendanceSettings, setIsSavingAttendanceSettings] = useState(false);
+  const [attendanceViewMode, setAttendanceViewMode] = useState<'logs' | 'enrollment'>('logs');
 
   const kpiScrollRef = usePreventSwipeNavigation();
   const tabsScrollRef = usePreventSwipeNavigation();
@@ -195,7 +196,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       });
       if (usersRes.ok) {
         const usersData = await usersRes.json();
-        if (usersData.success) setAllUsersList(usersData.users || []);
+        if (usersData.success) setAllUsersList(usersData.data || usersData.users || []);
       }
     } catch (err) {
       console.warn('Failed to load team attendance:', err);
@@ -2154,54 +2155,131 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             </View>
           )}
 
-          {/* Daily Logs Table List */}
-          <Text className="text-xs font-bold mb-3" style={{ color: colors.text }}>Daily Team Logs</Text>
-          {isLoadingTeam ? (
-            <ActivityIndicator size="small" color="#D4AF37" className="my-6" />
+          {/* View Toggles */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+            <TouchableOpacity
+              onPress={() => setAttendanceViewMode('logs')}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 12,
+                alignItems: 'center',
+                backgroundColor: attendanceViewMode === 'logs' ? colors.gold : 'rgba(255,255,255,0.05)',
+                borderWidth: 1.5,
+                borderColor: attendanceViewMode === 'logs' ? colors.gold : colors.border
+              }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: attendanceViewMode === 'logs' ? 'black' : colors.text }}>
+                Daily Team Logs
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setAttendanceViewMode('enrollment')}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 12,
+                alignItems: 'center',
+                backgroundColor: attendanceViewMode === 'enrollment' ? colors.gold : 'rgba(255,255,255,0.05)',
+                borderWidth: 1.5,
+                borderColor: attendanceViewMode === 'enrollment' ? colors.gold : colors.border
+              }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: attendanceViewMode === 'enrollment' ? 'black' : colors.text }}>
+                Staff Biometric Registry
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {attendanceViewMode === 'logs' ? (
+            <View>
+              {/* Daily Logs Table List */}
+              <Text className="text-xs font-bold mb-3" style={{ color: colors.text }}>Daily Team Logs</Text>
+              {isLoadingTeam ? (
+                <ActivityIndicator size="small" color="#D4AF37" className="my-6" />
+              ) : (
+                <View>
+                  {teamLogs.length === 0 ? (
+                    <Text className="text-white/40 text-xs italic py-4">No shift attendance logs found.</Text>
+                  ) : (
+                    teamLogs.map((log, index) => (
+                      <View key={index} className="p-3 border rounded-xl mb-3 gap-2" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                        <View className="flex-row justify-between items-center">
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 13 }}>{log.user?.fullName}</Text>
+                            <Text style={{ color: colors.muted, fontSize: 10, textTransform: 'capitalize', marginTop: 2 }}>{log.role} | ID: {log.user?.id.substring(0, 8)}...</Text>
+                          </View>
+
+                          {/* Enroll Face Trigger */}
+                          <TouchableOpacity
+                            onPress={() => triggerFaceEnrollment(log.user)}
+                            className="px-2.5 py-1.5 border border-dashed rounded-lg"
+                            style={{ borderColor: colors.gold }}
+                          >
+                            <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.gold, textTransform: 'uppercase' }}>Enroll Face</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View className="flex-row justify-between items-center border-t border-white/5 pt-2 mt-1">
+                          <View>
+                            <Text style={{ color: colors.muted, fontSize: 10 }}>In: {log.checkInTime ? new Date(log.checkInTime).toLocaleString() : '-'}</Text>
+                            <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>Out: {log.checkOutTime ? new Date(log.checkOutTime).toLocaleString() : '-'}</Text>
+                            {log.workingHours && (
+                              <Text style={{ color: colors.gold, fontSize: 10, fontWeight: 'bold', marginTop: 2 }}>Hours: {log.workingHours}h</Text>
+                            )}
+                          </View>
+
+                          <TouchableOpacity
+                            onPress={() => {
+                              setEditingLog(log);
+                              setEditCheckIn(log.checkInTime);
+                              setEditCheckOut(log.checkOutTime || '');
+                              setEditReason('');
+                            }}
+                            style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                          >
+                            <Text style={{ color: colors.text, fontSize: 10, fontWeight: 'bold' }}>Edit</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
+            </View>
           ) : (
             <View>
-              {teamLogs.length === 0 ? (
-                <Text className="text-white/40 text-xs italic py-4">No shift attendance logs found.</Text>
+              <Text className="text-xs font-bold mb-3" style={{ color: colors.text }}>Staff Registry ({allUsersList.filter(u => {
+                const matchSearch = attendanceSearchQuery ? u.fullName.toLowerCase().includes(attendanceSearchQuery.toLowerCase()) : true;
+                const matchRole = attendanceRoleFilter ? u.role?.name === attendanceRoleFilter : true;
+                return matchSearch && matchRole;
+              }).length} users)</Text>
+              {allUsersList.filter(u => {
+                const matchSearch = attendanceSearchQuery ? u.fullName.toLowerCase().includes(attendanceSearchQuery.toLowerCase()) : true;
+                const matchRole = attendanceRoleFilter ? u.role?.name === attendanceRoleFilter : true;
+                return matchSearch && matchRole;
+              }).length === 0 ? (
+                <Text className="text-white/40 text-xs italic py-4">No staff members found matching filters.</Text>
               ) : (
-                teamLogs.map((log, index) => (
-                  <View key={index} className="p-3 border rounded-xl mb-3 gap-2" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
-                    <View className="flex-row justify-between items-center">
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 13 }}>{log.user?.fullName}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 10, textTransform: 'capitalize', marginTop: 2 }}>{log.role} | ID: {log.user?.id.substring(0, 8)}...</Text>
-                      </View>
-
-                      {/* Enroll Face Trigger */}
-                      <TouchableOpacity
-                        onPress={() => triggerFaceEnrollment(log.user)}
-                        className="px-2.5 py-1.5 border border-dashed rounded-lg"
-                        style={{ borderColor: colors.gold }}
-                      >
-                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: colors.gold, textTransform: 'uppercase' }}>Enroll Face</Text>
-                      </TouchableOpacity>
+                allUsersList.filter(u => {
+                  const matchSearch = attendanceSearchQuery ? u.fullName.toLowerCase().includes(attendanceSearchQuery.toLowerCase()) : true;
+                  const matchRole = attendanceRoleFilter ? u.role?.name === attendanceRoleFilter : true;
+                  return matchSearch && matchRole;
+                }).map((staff, index) => (
+                  <View key={staff.id || index} className="p-3 border rounded-xl mb-3 gap-2 flex-row justify-between items-center" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: 13 }}>{staff.fullName}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 10, textTransform: 'capitalize', marginTop: 2 }}>{staff.role?.name} | Username: {staff.username}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 9, marginTop: 1 }}>ID: {staff.id}</Text>
                     </View>
 
-                    <View className="flex-row justify-between items-center border-t border-white/5 pt-2 mt-1">
-                      <View>
-                        <Text style={{ color: colors.muted, fontSize: 10 }}>In: {log.checkInTime ? new Date(log.checkInTime).toLocaleString() : '-'}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>Out: {log.checkOutTime ? new Date(log.checkOutTime).toLocaleString() : '-'}</Text>
-                        {log.workingHours && (
-                          <Text style={{ color: colors.gold, fontSize: 10, fontWeight: 'bold', marginTop: 2 }}>Hours: {log.workingHours}h</Text>
-                        )}
-                      </View>
-
-                      <TouchableOpacity
-                        onPress={() => {
-                          setEditingLog(log);
-                          setEditCheckIn(log.checkInTime);
-                          setEditCheckOut(log.checkOutTime || '');
-                          setEditReason('');
-                        }}
-                        style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 10, fontWeight: 'bold' }}>Edit</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                      onPress={() => triggerFaceEnrollment(staff)}
+                      className="px-3 py-2 rounded-lg"
+                      style={{ backgroundColor: colors.gold }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: 'bold', color: colors.goldButtonText, textTransform: 'uppercase' }}>Enroll Face</Text>
+                    </TouchableOpacity>
                   </View>
                 ))
               )}
