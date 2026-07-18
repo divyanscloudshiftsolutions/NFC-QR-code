@@ -732,14 +732,17 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  // Toast manager helper - stacks toasts for multiple overlays/transient logs
   const showToast = (message: string, type: ToastItem['type'] = 'info', duration = 2000) => {
     const id = Math.random().toString();
     setToasts(prev => [...prev, { id, message, type }]);
     
+    const words = message ? message.split(/\s+/).filter(Boolean).length : 0;
+    const computedDuration = Math.min(8000, Math.max(5000, words * 150 + 4000));
+    const activeDuration = duration > 2000 ? Math.max(duration, computedDuration) : computedDuration;
+
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, duration); // dynamic duration (default 2s)
+    }, activeDuration);
   };
 
   const dismissToast = (id: string) => {
