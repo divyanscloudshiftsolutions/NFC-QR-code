@@ -8,7 +8,7 @@ import { redemptionService } from './services/RedemptionService';
 import redisService from './services/RedisService';
 import bcrypt from 'bcrypt';
 import syncService from './services/SyncService';
-import { FaceService } from './services/FaceService';
+import { FaceService, FaceMarkError } from './services/FaceService';
 import { AttendanceService } from './services/AttendanceService';
 
 const TokenStatus = {
@@ -4432,7 +4432,8 @@ router.post('/attendance/quick', upload.single('file'), async (req: Request, res
     }
   } catch (err: any) {
     console.error('Quick Attendance error:', err);
-    return res.status(500).json({ success: false, error: { message: err.message } });
+    const status = err instanceof FaceMarkError ? 400 : 500;
+    return res.status(status).json({ success: false, error: { message: err.message } });
   }
 });
 
