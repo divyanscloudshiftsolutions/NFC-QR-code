@@ -15,6 +15,7 @@ import { useResponsive } from '../../../utils/responsive';
 import { AlertModal } from '../../../components/common/AlertModal';
 import { ProgressOverlay } from '../../../components/common/ProgressOverlay';
 import { useActionProgress } from '../../../utils/actionProgress';
+import { AppSuccessState } from '../../../components/common/AppSuccessState';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -560,30 +561,38 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
         </View>
       </View>
       
-      {/* Circle & Line Step Progress Indicator */}
-      <View className="flex-row items-center justify-between mb-6 px-2">
-        {[
-          { num: 1, label: 'Guest Details' },
-          { num: 2, label: 'Table Selection' },
-          { num: 3, label: 'Confirmation' }
-        ].map((item, idx, arr) => {
+      {/* Circle & Line 5-Step Progress Indicator */}
+      <View className="flex-row items-center justify-between mb-6 px-1">
+        {(selectedDeliveryMode === 'NFC_CARD' ? [
+          { num: 1, label: 'Details' },
+          { num: 2, label: 'Table' },
+          { num: 3, label: 'Payment' },
+          { num: 4, label: 'NFC Tap' },
+          { num: 5, label: 'Success' }
+        ] : [
+          { num: 1, label: 'Details' },
+          { num: 2, label: 'Table' },
+          { num: 3, label: 'QR Scan' },
+          { num: 4, label: 'Payment' },
+          { num: 5, label: 'Success' }
+        ]).map((item, idx, arr) => {
           const isDone = step > item.num;
-          const isActive = step === item.num || (item.num === 1 && step === 5);
+          const isActive = step === item.num;
           return (
             <React.Fragment key={item.num}>
               <View className="items-center">
                 <View 
-                  className="w-8 h-8 rounded-full items-center justify-center mb-1.5"
+                  className="w-7 h-7 rounded-full items-center justify-center mb-1"
                   style={{ 
                     backgroundColor: isActive || isDone ? '#FF9F1C' : '#232733',
                   }}
                 >
-                  <Text className="font-black text-xs" style={{ color: isActive || isDone ? '#08090D' : '#8E8E93' }}>
+                  <Text className="font-black text-[11px]" style={{ color: isActive || isDone ? '#08090D' : '#8E8E93' }}>
                     {item.num}
                   </Text>
                 </View>
                 <Text 
-                  className="text-[11px] font-bold text-center"
+                  className="text-[10px] font-bold text-center"
                   style={{ color: isActive || isDone ? '#FF9F1C' : '#8E8E93' }}
                 >
                   {item.label}
@@ -592,7 +601,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
 
               {idx < arr.length - 1 && (
                 <View 
-                  className="flex-1 h-[2px] mx-2 -mt-5"
+                  className="flex-1 h-[2px] mx-1 -mt-4"
                   style={{ backgroundColor: isDone ? '#FF9F1C' : '#232733' }}
                 />
               )}
@@ -1878,42 +1887,22 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
 
                 {/* Success screen overlay */}
                 {nfcWriteState === 'success' && createdSession && (
-                  <View className="items-center justify-center py-4">
-                    <View className="w-16 h-16 rounded-full bg-teal/10 border justify-center items-center mb-4" style={{ borderColor: colors.teal }}>
-                      <Text className="text-3xl font-extrabold" style={{ color: colors.teal }}>✓</Text>
-                    </View>
-                    
-                    <Text className="text-lg font-bold mb-2 text-center" style={{ color: colors.text }}>
-                      Card Programmed Successfully!
-                    </Text>
-                    
-                    <View className="w-full border rounded-xl p-4 mb-6" style={{ backgroundColor: colors.secondarySurface, borderColor: isDark ? colors.border : '#E2E8F0', borderWidth: 1.5 }}>
-                      <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
-                        <Text className="text-[11px]" style={{ color: colors.muted }}>Customer Name:</Text>
-                        <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{fullName}</Text>
-                      </View>
-                      <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
-                        <Text className="text-[11px]" style={{ color: colors.muted }}>Assigned Table:</Text>
-                        <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{selectedTableNum}</Text>
-                      </View>
-                      <View className="flex-row justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
-                        <Text className="text-[11px]" style={{ color: colors.muted }}>Card Number:</Text>
-                        <Text className="font-mono text-[11px] font-extrabold" style={{ color: colors.gold }}>{cardUid}</Text>
-                      </View>
-                      <View className="flex-row justify-between py-2">
-                        <Text className="text-[11px]" style={{ color: colors.muted }}>Drinks Included:</Text>
-                        <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{maxDrinksTotal} Free Drinks</Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity 
-                      className="bg-gold py-[15px] rounded-xl w-full items-center justify-center min-h-[48px] border" 
-                      style={{ borderColor: colors.gold }} 
-                      onPress={resetWizard}
-                    >
-                      <Text className="font-extrabold text-sm" style={{ color: colors.goldButtonText }}>New Guest Check-in</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <AppSuccessState
+                    title="Table Assigned Successfully"
+                    subtitle="NFC card activated & table assigned to guest"
+                    details={[
+                      { label: 'Table Number', value: selectedTableNum ? `Table ${selectedTableNum}` : 'Assigned' },
+                      { label: 'Guest Name', value: fullName || 'Guest' },
+                      { label: 'Guests Count', value: `${guestCount} Pax` },
+                      { label: 'Card Number', value: cardUid || 'Active' },
+                      { label: 'Drinks Included', value: `${maxDrinksTotal} Free Drinks` },
+                      { label: 'Payment Status', value: `Paid (₹${totalPrice})` }
+                    ]}
+                    primaryButtonTitle="View Table"
+                    onPrimaryPress={() => setTab('tables')}
+                    secondaryButtonTitle="Back to Reception"
+                    onSecondaryPress={resetWizard}
+                  />
                 )}
 
                 {/* Error screen overlay */}
