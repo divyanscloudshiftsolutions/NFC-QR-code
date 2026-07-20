@@ -475,19 +475,19 @@ export const LoginScreen: React.FC = () => {
             <View className="rounded-xl p-3 border mt-2 gap-2" style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}>
               <View className="flex-row flex-wrap justify-between gap-2">
                 <TouchableOpacity className="w-[48%] border rounded-xl p-3 flex-row items-center gap-2 min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => handleQuickLogin('REC-01', '1234')}>
-                  <Text className="text-base">👩‍💼</Text>
+                  <AppIcon name="user" color={colors.gold} size={16} />
                   <Text className="text-[10px] font-bold" style={{ color: colors.text }}>Sarah (Recep)</Text>
                 </TouchableOpacity>
                 <TouchableOpacity className="w-[48%] border rounded-xl p-3 flex-row items-center gap-2 min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => handleQuickLogin('BAR-02', '4321')}>
-                  <Text className="text-base">🍹</Text>
+                  <AppIcon name="bartender" color={colors.gold} size={16} />
                   <Text className="text-[10px] font-bold" style={{ color: colors.text }}>John (Bar)</Text>
                 </TouchableOpacity>
                 <TouchableOpacity className="w-[48%] border rounded-xl p-3 flex-row items-center gap-2 min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => handleQuickLogin('ADM-03', '8888')}>
-                  <Text className="text-base">🛡️</Text>
+                  <AppIcon name="shield" color={colors.gold} size={16} />
                   <Text className="text-[10px] font-bold" style={{ color: colors.text }}>Alex (Admin)</Text>
                 </TouchableOpacity>
                 <TouchableOpacity className="w-[48%] border rounded-xl p-3 flex-row items-center gap-2 min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => handleQuickLogin('MGR-04', '9999')}>
-                  <Text className="text-base">👑</Text>
+                  <AppIcon name="user" color={colors.gold} size={16} />
                   <Text className="text-[10px] font-bold" style={{ color: colors.text }}>Elena (Manager)</Text>
                 </TouchableOpacity>
               </View>
@@ -506,7 +506,7 @@ export const LoginScreen: React.FC = () => {
             onPress={() => setScreen('quick_attendance')}
             activeOpacity={0.8}
           >
-            <Text className="text-base">📷</Text>
+            <AppIcon name="camera" color={colors.gold} size={18} />
             <Text className="font-extrabold text-[12px] uppercase tracking-wider" style={{ color: colors.gold }}>
               Quick Attendance Kiosk
             </Text>
