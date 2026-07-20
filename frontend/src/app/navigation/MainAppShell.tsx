@@ -285,73 +285,99 @@ export const MainAppShell: React.FC = () => {
 
 
 
-          {/* BOTTOM TAB BAR */}
+          {/* BOTTOM TAB BAR matching mockup design */}
           <View 
-            className="flex-row justify-around items-center py-1.5 border-t"
-            style={{ paddingBottom: insets.bottom, height: 60 + insets.bottom, backgroundColor: colors.navBg, borderTopColor: colors.navBorder, borderTopWidth: 1 }}
+            className="flex-row justify-around items-center py-2 border-t"
+            style={{ 
+              paddingBottom: Math.max(8, insets.bottom), 
+              height: 64 + insets.bottom, 
+              backgroundColor: '#08090D', 
+              borderTopColor: 'rgba(255,255,255,0.08)', 
+              borderTopWidth: 1 
+            }}
           >
             {(isUserAdmin || isUserRecep) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1.5 px-4 rounded-xl min-w-[72px]" 
-                style={activeTab === 'checkin' ? { backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)' } : {}}
+                className="items-center justify-center py-1 px-4 min-w-[76px]" 
                 onPress={() => setTab('checkin')}
                 activeOpacity={0.8}
               >
-                <Text className="text-lg mb-0.5 opacity-65" style={{ color: activeTab === 'checkin' ? colors.navActive : colors.navInactive }}>📱</Text>
-                <Text className="text-[9px] font-bold uppercase tracking-wider" style={{ color: activeTab === 'checkin' ? colors.navActive : colors.navInactive }}>Check-in</Text>
-                {activeTab === 'checkin' && <Text className="text-[10px] mt-[-4px]" style={{ color: colors.navActive }}>•</Text>}
+                <Text style={{ fontSize: 20, color: activeTab === 'checkin' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>📋</Text>
+                <Text 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  style={{ color: activeTab === 'checkin' ? '#FF9F1C' : '#8E8E93' }}
+                >
+                  CHECK-IN
+                </Text>
+                {activeTab === 'checkin' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
               </TouchableOpacity>
             )}
 
             {(isUserAdmin || isUserBartender || isUserRecep) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1.5 px-4 rounded-xl min-w-[72px]" 
-                style={activeTab === 'bartender' ? { backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)' } : {}}
+                className="items-center justify-center py-1 px-4 min-w-[76px]" 
                 onPress={() => setTab('bartender')}
                 activeOpacity={0.8}
               >
-                <Text className="text-lg mb-0.5 opacity-65" style={{ color: activeTab === 'bartender' ? colors.navActive : colors.navInactive }}>🍺</Text>
-                <Text className="text-[9px] font-bold uppercase tracking-wider" style={{ color: activeTab === 'bartender' ? colors.navActive : colors.navInactive }}>Bartender</Text>
-                {activeTab === 'bartender' && <Text className="text-[10px] mt-[-4px]" style={{ color: colors.navActive }}>•</Text>}
+                <Text style={{ fontSize: 20, color: activeTab === 'bartender' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>🍺</Text>
+                <Text 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  style={{ color: activeTab === 'bartender' ? '#FF9F1C' : '#8E8E93' }}
+                >
+                  BARTENDER
+                </Text>
+                {activeTab === 'bartender' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
               </TouchableOpacity>
             )}
 
             {(isUserAdmin || isUserRecep || isUserManager) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1.5 px-4 rounded-xl min-w-[72px]" 
-                style={activeTab === 'tables' ? { backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)' } : {}}
+                className="items-center justify-center py-1 px-4 min-w-[76px]" 
                 onPress={() => setTab('tables')}
                 activeOpacity={0.8}
               >
-                <Text className="text-lg mb-0.5 opacity-65" style={{ color: activeTab === 'tables' ? colors.navActive : colors.navInactive }}>🗺️</Text>
-                <Text className="text-[9px] font-bold uppercase tracking-wider" style={{ color: activeTab === 'tables' ? colors.navActive : colors.navInactive }}>Tables</Text>
-                {activeTab === 'tables' && <Text className="text-[10px] mt-[-4px]" style={{ color: colors.navActive }}>•</Text>}
+                <Text style={{ fontSize: 20, color: activeTab === 'tables' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>🗺️</Text>
+                <Text 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  style={{ color: activeTab === 'tables' ? '#FF9F1C' : '#8E8E93' }}
+                >
+                  TABLES
+                </Text>
+                {activeTab === 'tables' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
               </TouchableOpacity>
             )}
 
             {(isUserAdmin || isUserManager) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1.5 px-4 rounded-xl min-w-[72px]" 
-                style={activeTab === 'admin' ? { backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)' } : {}}
+                className="items-center justify-center py-1 px-4 min-w-[76px]" 
                 onPress={() => setTab('admin')}
                 activeOpacity={0.8}
               >
-                <Text className="text-lg mb-0.5 opacity-65" style={{ color: activeTab === 'admin' ? colors.navActive : colors.navInactive }}>📈</Text>
-                <Text className="text-[9px] font-bold uppercase tracking-wider" style={{ color: activeTab === 'admin' ? colors.navActive : colors.navInactive }}>Admin</Text>
-                {activeTab === 'admin' && <Text className="text-[10px] mt-[-4px]" style={{ color: colors.navActive }}>•</Text>}
+                <Text style={{ fontSize: 20, color: activeTab === 'admin' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>📈</Text>
+                <Text 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  style={{ color: activeTab === 'admin' ? '#FF9F1C' : '#8E8E93' }}
+                >
+                  ADMIN
+                </Text>
+                {activeTab === 'admin' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
               </TouchableOpacity>
             )}
 
             {user && (
               <TouchableOpacity 
-                className="items-center justify-center py-1.5 px-4 rounded-xl min-w-[72px]" 
-                style={activeTab === 'attendance' ? { backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)' } : {}}
+                className="items-center justify-center py-1 px-4 min-w-[76px]" 
                 onPress={() => setTab('attendance')}
                 activeOpacity={0.8}
               >
-                <Text className="text-lg mb-0.5 opacity-65" style={{ color: activeTab === 'attendance' ? colors.navActive : colors.navInactive }}>📅</Text>
-                <Text className="text-[9px] font-bold uppercase tracking-wider" style={{ color: activeTab === 'attendance' ? colors.navActive : colors.navInactive }}>Attendance</Text>
-                {activeTab === 'attendance' && <Text className="text-[10px] mt-[-4px]" style={{ color: colors.navActive }}>•</Text>}
+                <Text style={{ fontSize: 20, color: activeTab === 'attendance' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>📅</Text>
+                <Text 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  style={{ color: activeTab === 'attendance' ? '#FF9F1C' : '#8E8E93' }}
+                >
+                  ATTENDANCE
+                </Text>
+                {activeTab === 'attendance' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
               </TouchableOpacity>
             )}
           </View>

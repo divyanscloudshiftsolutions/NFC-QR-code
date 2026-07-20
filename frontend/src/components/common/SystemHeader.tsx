@@ -80,7 +80,7 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
 
   return (
     <View 
-      className="flex-row justify-between items-center px-4 pb-2.5 border-b"
+      className="flex-row justify-between items-center px-4 py-3 border-b"
       style={{ 
         paddingTop: Math.max(12, insets.top),
         backgroundColor: colors.bg,
@@ -88,86 +88,56 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
         borderBottomWidth: 1
       }}
     >
-      <View className="flex-row items-center gap-1.5 max-w-[45%]">
-        {/* Sync Capsule Status Pill */}
+      {/* Left Connection Capsule */}
+      <View className="flex-row items-center gap-2">
         <TouchableOpacity 
-          className={`flex-row items-center py-2 px-3 rounded-full border min-h-[36px] ${capsule.bg}`}
+          className="flex-row items-center py-1.5 px-3 rounded-full border bg-[#06261B] border-[#10B981]/30 min-h-[34px]"
           onPress={toggleConnection}
           activeOpacity={0.8}
         >
-          <View className={`w-1.5 h-1.5 rounded-full mr-1.5 ${capsule.dot}`} style={!isDark && capsule.dot === 'bg-teal' ? { backgroundColor: colors.teal } : {}} />
-          <Text className="text-[9px] font-extrabold uppercase tracking-[0.5px]" style={{ color: capsule.text }} numberOfLines={1}>
-            {capsule.label}
+          <View className="w-2 h-2 rounded-full mr-2 bg-[#10B981]" />
+          <Text className="text-[11px] font-black uppercase tracking-wider text-[#10B981]">
+            {systemMode === 'online' ? 'ONLINE' : systemMode.toUpperCase()}
           </Text>
         </TouchableOpacity>
 
-        {/* Offline pending syncs indicator */}
         {systemMode === 'offline' && pendingSyncCount > 0 && (
-          <View className="bg-red/10 border border-red/25 px-2.5 py-2 rounded-full min-h-[36px] justify-center">
-            <Text className="font-black text-[9px] uppercase tracking-wide" style={{ color: '#e63946' }}>
+          <View className="bg-red/10 border border-red/25 px-2.5 py-1.5 rounded-full min-h-[34px] justify-center">
+            <Text className="font-black text-[10px] uppercase tracking-wide text-[#EF4444]">
               {pendingSyncCount} Syncs
             </Text>
           </View>
         )}
       </View>
 
-      {(() => {
-        const getRoleLabel = () => {
-          if (!user) return 'Staff';
-          const roleLower = (user.role || '').toLowerCase();
-          if (roleLower === 'admin') return 'Admin';
-          if (roleLower === 'manager') return 'Partner';
-          if (roleLower === 'receptionist') return 'Receptionist';
-          if (roleLower === 'bartender') return 'Bartender';
-          return roleLower.charAt(0).toUpperCase() + roleLower.slice(1);
-        };
-        const label = getRoleLabel();
-        const icon = label === 'Admin' ? '👑' : (label === 'Partner' ? '👔' : (label === 'Bartender' ? '🍹' : '🍹'));
-        return (
-          <Text className="text-xs font-bold tracking-[0.5px] uppercase" style={{ color: colors.gold }}>
-            {icon} {label}
-          </Text>
-        );
-      })()}
+      {/* Center Role Badge */}
+      <View className="flex-row items-center gap-1.5">
+        <Text style={{ fontSize: 14 }}>🔔</Text>
+        <Text className="text-xs font-black tracking-widest uppercase" style={{ color: colors.gold }}>
+          {user ? (user.role || 'STAFF').toUpperCase() : 'RECEPTIONIST'}
+        </Text>
+      </View>
 
+      {/* Right Action Icons */}
       <View className="flex-row items-center gap-2">
         {/* Theme Toggle Button */}
         <TouchableOpacity 
-          className="w-10 h-10 rounded-full justify-center items-center border"
-          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+          className="w-10 h-10 rounded-full justify-center items-center border bg-[#171A22] border-white/10"
           onPress={toggleTheme}
           activeOpacity={0.8}
         >
           <Text style={{ fontSize: 16 }}>{isDark ? '☀️' : '🌙'}</Text>
         </TouchableOpacity>
 
-        {/* Shared manual Refresh Button next to Theme Toggle */}
+        {/* Notifications Icon Button with Dot Badge */}
         <TouchableOpacity 
-          className="w-10 h-10 rounded-full justify-center items-center border"
-          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, opacity: isRefreshing ? 0.6 : 1 }}
-          onPress={handleRefresh}
-          disabled={isRefreshing}
-          activeOpacity={0.8}
-        >
-          {isRefreshing ? (
-            <ActivityIndicator size="small" color={colors.text} />
-          ) : (
-            <AppIcon name="refresh" label="Refresh" color={colors.text} size={18} />
-          )}
-        </TouchableOpacity>
-
-        {/* Notifications Icon Button */}
-        <TouchableOpacity 
-          className="w-10 h-10 rounded-full justify-center items-center border relative"
-          style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}
+          className="w-10 h-10 rounded-full justify-center items-center border bg-[#171A22] border-white/10 relative"
           onPress={onOpenNotifs}
           activeOpacity={0.8}
         >
-          <AppIcon name="bell" label="Open Notifications" color={colors.text} size={18} />
+          <AppIcon name="bell" label="Open Notifications" color="#FFFFFF" size={18} />
           {unreadCount > 0 && (
-            <View className="absolute -top-0.5 -right-0.5 bg-red w-4 h-4 rounded-full justify-center items-center border" style={{ borderColor: colors.bg }}>
-              <Text className="text-[8px] font-black" style={{ color: colors.bg }}>{unreadCount}</Text>
-            </View>
+            <View className="absolute top-0 right-0 w-3 h-3 rounded-full bg-[#FF9F1C] border-2 border-[#08090D]" />
           )}
         </TouchableOpacity>
       </View>

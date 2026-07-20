@@ -548,46 +548,55 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
   return (
     <View className="flex-1 p-4" style={{ backgroundColor: colors.bg }}>
       {/* Screen Header */}
-      <View className="mb-4">
-        <View className="flex-row justify-between items-center">
-          <Text className="text-[10px] font-bold uppercase tracking-widest" style={{ color: colors.gold }}>RECEPTIONIST</Text>
-          <View className="flex-row items-center">
-            <View className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: colors.teal }} />
-            <Text className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.teal }}>Online</Text>
-          </View>
+      <View className="mb-5 flex-row justify-between items-start">
+        <View>
+          <Text className="text-2xl font-black tracking-tight" style={{ color: colors.text }}>New Check-in</Text>
+          <Text className="text-xs font-semibold mt-1" style={{ color: colors.muted }}>Let's check in your guest</Text>
         </View>
-        <Text className="text-2xl font-bold mt-1" style={{ color: colors.text }}>New Check-in</Text>
+        
+        <View className="flex-row items-center py-1.5 px-3 rounded-full border bg-[#06261B] border-[#10B981]/30">
+          <View className="w-2 h-2 rounded-full mr-2 bg-[#10B981]" />
+          <Text className="text-[10px] font-black uppercase tracking-wider text-[#10B981]">ONLINE</Text>
+        </View>
       </View>
       
-      {/* Step Progress Pills */}
-      <View className="flex-row justify-between mb-5 gap-2">
-        {(selectedDeliveryMode === 'EMAIL_QR' ? [1, 2, 3, 4] : [1, 2, 3]).map(s => {
-          let isDone = false;
-          let isActive = false;
-          if (selectedDeliveryMode === 'EMAIL_QR') {
-            if (s === 1) {
-              isDone = step === 2 || step === 5 || step === 3 || step === 4;
-              isActive = step === 1;
-            } else if (s === 2) {
-              isDone = step === 5 || step === 3 || step === 4;
-              isActive = step === 2;
-            } else if (s === 3) {
-              isDone = step === 3 || step === 4;
-              isActive = step === 5;
-            } else if (s === 4) {
-              isDone = step === 4;
-              isActive = step === 3;
-            }
-          } else {
-            isDone = step > s;
-            isActive = step === s;
-          }
+      {/* Circle & Line Step Progress Indicator */}
+      <View className="flex-row items-center justify-between mb-6 px-2">
+        {[
+          { num: 1, label: 'Guest Details' },
+          { num: 2, label: 'Table Selection' },
+          { num: 3, label: 'Confirmation' }
+        ].map((item, idx, arr) => {
+          const isDone = step > item.num;
+          const isActive = step === item.num || (item.num === 1 && step === 5);
           return (
-            <View 
-              key={s} 
-              className="flex-grow h-1.5 rounded-full"
-              style={{ backgroundColor: isDone ? colors.teal : isActive ? colors.gold : (isDark ? colors.border : '#E2E8F0') }}
-            />
+            <React.Fragment key={item.num}>
+              <View className="items-center">
+                <View 
+                  className="w-8 h-8 rounded-full items-center justify-center mb-1.5"
+                  style={{ 
+                    backgroundColor: isActive || isDone ? '#FF9F1C' : '#232733',
+                  }}
+                >
+                  <Text className="font-black text-xs" style={{ color: isActive || isDone ? '#08090D' : '#8E8E93' }}>
+                    {item.num}
+                  </Text>
+                </View>
+                <Text 
+                  className="text-[11px] font-bold text-center"
+                  style={{ color: isActive || isDone ? '#FF9F1C' : '#8E8E93' }}
+                >
+                  {item.label}
+                </Text>
+              </View>
+
+              {idx < arr.length - 1 && (
+                <View 
+                  className="flex-1 h-[2px] mx-2 -mt-5"
+                  style={{ backgroundColor: isDone ? '#FF9F1C' : '#232733' }}
+                />
+              )}
+            </React.Fragment>
           );
         })}
       </View>
@@ -854,10 +863,20 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
         )}        {/* STEP 1: CUSTOMER DETAILS */}
         {step === 1 && (
           <View 
-            className="rounded-[20px] p-5 shadow-xl border mb-4"
+            className="rounded-[24px] p-5 shadow-xl border mb-4"
             style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1.5 }}
           >
-            <Text className="text-[11px] font-bold uppercase tracking-wider mb-4" style={{ color: colors.gold }}>Step 1 — Guest Details</Text>
+            {/* Card Header matching mockup */}
+            <View className="flex-row items-center gap-3.5 mb-5">
+              <View className="w-12 h-12 rounded-2xl bg-[#2B2215] justify-center items-center border border-[#FF9F1C]/25">
+                <Text style={{ fontSize: 20 }}>👤</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-[10px] font-black uppercase tracking-widest text-[#FF9F1C]">STEP 1</Text>
+                <Text className="text-xl font-black" style={{ color: colors.text }}>Guest Details</Text>
+                <Text className="text-xs font-medium" style={{ color: colors.muted }}>Fill in the guest information to continue</Text>
+              </View>
+            </View>
             
             {/* Customer Name Input */}
             <View 
@@ -1099,24 +1118,27 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               )}
             </View>
 
-            {/* Next Action */}
+            {/* Next Action matching mockup button design */}
             <TouchableOpacity 
-              className="py-4 rounded-2xl items-center justify-center min-h-[52px] border"
+              className="py-4 rounded-xl flex-row items-center justify-between px-6 min-h-[52px] border shadow-xl"
               style={{
-                backgroundColor: !isStep1Valid ? (isDark ? '#27272A' : '#E4E4E7') : colors.gold,
-                borderColor: !isStep1Valid ? (isDark ? '#3F3F46' : '#D4D4D8') : colors.gold,
+                backgroundColor: !isStep1Valid ? (isDark ? '#27272A' : '#E4E4E7') : '#FF9F1C',
+                borderColor: !isStep1Valid ? (isDark ? '#3F3F46' : '#D4D4D8') : '#FF9F1C',
                 borderWidth: 1.5,
                 opacity: !isStep1Valid ? 0.6 : 1
               }}
               disabled={!isStep1Valid}
               onPress={handleStep1Submit}
+              activeOpacity={0.85}
             >
+              <View style={{ width: 20 }} />
               <Text 
-                className="font-extrabold text-base tracking-wide" 
-                style={{ color: !isStep1Valid ? colors.muted : colors.goldButtonText }}
+                className="font-black text-base tracking-wider uppercase text-center" 
+                style={{ color: !isStep1Valid ? colors.muted : '#08090D' }}
               >
-                Continue  ➔
+                Continue
               </Text>
+              <AppIcon name="arrow-right" label="Continue" color={!isStep1Valid ? colors.muted : '#08090D'} size={20} />
             </TouchableOpacity>
             
             {pendingSessions.length > 0 && (
