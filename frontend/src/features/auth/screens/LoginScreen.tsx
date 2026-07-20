@@ -187,11 +187,14 @@ export const LoginScreen: React.FC = () => {
 
     return (
       <View className="flex-grow bg-black justify-between" style={{ paddingTop: insets.top }}>
-        <View className="p-4 flex-row justify-between items-center bg-black/60 border-b border-white/10">
-          <Text className="text-white text-sm font-bold">Face Verification Required</Text>
+        <View className="px-5 py-3.5 flex-row justify-between items-center bg-black/80 border-b border-white/10">
+          <View className="flex-row items-center gap-2">
+            <Text style={{ fontSize: 16 }}>👤</Text>
+            <Text className="text-white text-sm font-bold">Face Verification Required</Text>
+          </View>
           <TouchableOpacity 
             onPress={() => setShowCamera(false)}
-            className="px-3 py-1.5 rounded-lg bg-white/10"
+            className="px-3.5 py-1.5 rounded-full bg-white/15 active:opacity-80"
           >
             <Text className="text-white text-xs font-semibold">Cancel</Text>
           </TouchableOpacity>
@@ -204,27 +207,33 @@ export const LoginScreen: React.FC = () => {
             style={{ width: '100%', height: '100%', position: 'absolute' }}
           />
           {/* Oval Guide Overlay */}
-          <View className="absolute inset-0 items-center justify-center bg-black/30">
+          <View className="absolute inset-0 items-center justify-center bg-black/45">
             <View 
               style={{
                 width: 240,
-                height: 320,
-                borderRadius: 160,
-                borderWidth: 2,
+                height: 300,
+                borderRadius: 150,
+                borderWidth: 2.5,
                 borderColor: '#D4AF37',
                 borderStyle: 'dashed',
-                backgroundColor: 'transparent'
+                backgroundColor: 'transparent',
+                shadowColor: '#D4AF37',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.4,
+                shadowRadius: 12,
               }}
             />
-            <Text className="text-white/80 text-xs font-bold mt-4 text-center px-6">
-              Align your face inside the golden oval
-            </Text>
+            <View className="mt-6 px-4 py-2 rounded-full bg-black/80 border border-white/10 shadow-lg">
+              <Text className="text-white/90 text-xs font-bold text-center">
+                Center your face in the golden oval & tap to log in
+              </Text>
+            </View>
           </View>
 
           {isSubmitting && (
-            <View className="absolute inset-0 bg-black/70 items-center justify-center">
+            <View className="absolute inset-0 bg-black/75 items-center justify-center">
               <ActivityIndicator size="large" color="#D4AF37" />
-              <Text className="text-white text-xs font-semibold mt-4">Verifying identity...</Text>
+              <Text className="text-white text-xs font-semibold mt-4">Verifying identity with FaceMark...</Text>
             </View>
           )}
         </View>
@@ -233,9 +242,10 @@ export const LoginScreen: React.FC = () => {
           <TouchableOpacity
             disabled={isSubmitting}
             onPress={handleCameraCaptureAndLogin}
-            className="w-16 h-16 rounded-full border-4 border-white bg-[#D4AF37] items-center justify-center"
+            className="w-18 h-18 rounded-full border-4 border-white bg-[#D4AF37] items-center justify-center shadow-xl active:opacity-85"
+            style={{ width: 68, height: 68, opacity: isSubmitting ? 0.6 : 1 }}
           >
-            <View className="w-10 h-10 rounded-full bg-white/30" />
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.35)' }} />
           </TouchableOpacity>
         </View>
       </View>

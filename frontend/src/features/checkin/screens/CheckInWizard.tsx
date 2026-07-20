@@ -689,36 +689,63 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                     zIndex: 10,
                     justifyContent: 'center',
                     alignItems: 'center',
-                    backgroundColor: 'transparent'
+                    backgroundColor: 'rgba(0,0,0,0.4)'
                   }}
                 >
-                  {/* Red scanning line in the middle */}
+                  {/* Top Bar Indicator */}
+                  <View style={{ position: 'absolute', top: 50, left: 20, right: 20, flexDirection: 'row', justifyContent: 'center', zIndex: 12 }}>
+                    <View className="px-4 py-2 rounded-full bg-black/80 border border-white/10 flex-row items-center gap-2">
+                      <Text style={{ fontSize: 14 }}>📷</Text>
+                      <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Scan Guest QR Code</Text>
+                    </View>
+                  </View>
+
+                  {/* Red scanning laser line */}
                   <View 
                     style={{
                       position: 'absolute',
-                      left: 16,
-                      right: 16,
-                      height: 1.5,
+                      left: '15%',
+                      right: '15%',
+                      height: 2,
                       backgroundColor: '#EF4444',
                       top: '50%',
-                      zIndex: 11
+                      zIndex: 11,
+                      shadowColor: '#EF4444',
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 8,
                     }}
                   />
 
                   {/* Centered target guide frame */}
-                  <View style={{ width: 250, height: 250, borderWidth: 2, borderColor: colors.gold, borderRadius: 16, backgroundColor: 'transparent' }} />
+                  <View 
+                    style={{ 
+                      width: 260, 
+                      height: 260, 
+                      borderWidth: 2.5, 
+                      borderColor: colors.gold, 
+                      borderRadius: 20, 
+                      backgroundColor: 'transparent',
+                      shadowColor: colors.gold,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.35,
+                      shadowRadius: 10,
+                    }} 
+                  />
                   
-                  <Text style={{ color: '#ffffff', marginTop: 24, fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1.5, textAlign: 'center', paddingHorizontal: 20 }}>
-                    Align QR Code within the frame
-                  </Text>
+                  <View className="mt-6 px-4 py-2 rounded-full bg-black/80 border border-white/10">
+                    <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' }}>
+                      Align QR Code within the golden frame
+                    </Text>
+                  </View>
                   
-                  {/* Cancel button placed identically to Bartender's */}
+                  {/* Cancel button */}
                   <TouchableOpacity 
-                    className="absolute bottom-6 bg-red px-6 py-3 rounded-xl border border-red"
+                    className="absolute bottom-10 bg-white/15 px-8 py-3.5 rounded-full border border-white/20 active:opacity-80 shadow-lg"
                     style={{ zIndex: 12 }}
                     onPress={() => setIsCameraActive(false)}
                   >
-                    <Text className="text-white font-bold text-xs uppercase tracking-wider">Cancel Scan</Text>
+                    <Text className="text-white font-extrabold text-xs uppercase tracking-wider">Cancel Scan</Text>
                   </TouchableOpacity>
                 </View>
               </View>

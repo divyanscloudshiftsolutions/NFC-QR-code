@@ -231,60 +231,65 @@ export const QuickAttendanceScreen: React.FC = () => {
           {/* Transparent Circular/Oval Overlay Guide */}
           <View style={StyleSheet.absoluteFill} className="items-center justify-center">
             {/* Dark Mask Top */}
-            <View style={{ flex: 1.2, width: '100%', backgroundColor: 'rgba(0,0,0,0.6)' }} />
+            <View style={{ flex: 1, width: '100%', backgroundColor: 'rgba(0,0,0,0.55)' }} />
             {/* Center Oval row */}
-            <View className="flex-row items-center" style={{ height: 280 }}>
-              <View style={{ flex: 1, height: '100%', backgroundColor: 'rgba(0,0,0,0.6)' }} />
+            <View className="flex-row items-center justify-center" style={{ height: 300 }}>
+              <View style={{ flex: 1, height: '100%', backgroundColor: 'rgba(0,0,0,0.55)' }} />
               {/* Oval outline container */}
               <View 
                 style={{ 
-                  width: 230, 
-                  height: 280, 
-                  borderRadius: 140, 
-                  borderWidth: 2, 
-                  borderColor: isSubmitting ? colors.gold : 'rgba(255,255,255,0.7)',
-                  borderStyle: 'dashed',
-                  backgroundColor: 'transparent'
+                  width: 240, 
+                  height: 300, 
+                  borderRadius: 150, 
+                  borderWidth: 2.5, 
+                  borderColor: isSubmitting ? colors.gold : '#D4AF37',
+                  borderStyle: isSubmitting ? 'solid' : 'dashed',
+                  backgroundColor: 'transparent',
+                  shadowColor: '#D4AF37',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 12,
                 }} 
               />
-              <View style={{ flex: 1, height: '100%', backgroundColor: 'rgba(0,0,0,0.6)' }} />
+              <View style={{ flex: 1, height: '100%', backgroundColor: 'rgba(0,0,0,0.55)' }} />
             </View>
             {/* Dark Mask Bottom */}
-            <View style={{ flex: 1.5, width: '100%', backgroundColor: 'rgba(0,0,0,0.6)' }} />
+            <View style={{ flex: 1.4, width: '100%', backgroundColor: 'rgba(0,0,0,0.55)' }} />
           </View>
 
           {/* Top Floating Control Bar */}
           <View className="absolute top-12 left-0 right-0 px-5 flex-row justify-between items-center z-10">
-            <View className="flex-row items-center gap-1.5">
-              <Text style={{ fontSize: 18 }}>🕒</Text>
-              <Text className="text-white text-xs font-black uppercase tracking-wider">Kiosk Mode</Text>
+            <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 border border-white/10">
+              <Text style={{ fontSize: 14 }}>🕒</Text>
+              <Text className="text-white text-xs font-black uppercase tracking-wider">Kiosk Attendance</Text>
             </View>
             <TouchableOpacity 
-              className="px-4 py-2 border rounded-full bg-black/60"
-              style={{ borderColor: 'rgba(255,255,255,0.2)' }}
+              className="px-4 py-2 border rounded-full bg-black/70 border-white/20 active:opacity-80"
               onPress={() => setScreen('login')}
             >
-              <Text className="text-white text-[10px] font-bold uppercase tracking-wider">Return to Login</Text>
+              <Text className="text-white text-[11px] font-bold uppercase tracking-wider">Return to Login</Text>
             </TouchableOpacity>
           </View>
 
           {/* Bottom Floating Instructions & Capture Controls */}
           <View className="absolute bottom-10 left-0 right-0 items-center px-6 z-10">
-            <Text className="text-white text-[11px] font-black tracking-wide text-center mb-5 opacity-90">
-              Align your face inside the oval and tap below
-            </Text>
+            <View className="px-4 py-1.5 rounded-full bg-black/70 border border-white/10 mb-4">
+              <Text className="text-white/90 text-xs font-bold tracking-wide text-center">
+                Center your face in the golden oval & tap to mark
+              </Text>
+            </View>
             
             <TouchableOpacity
-              className="w-full max-w-[280px] py-4 rounded-full items-center justify-center min-h-[50px] shadow-2xl"
+              className="w-full max-w-[280px] py-4 rounded-full items-center justify-center min-h-[52px] shadow-2xl"
               style={{ 
                 backgroundColor: isSubmitting ? '#4A4D55' : colors.gold,
                 shadowColor: colors.gold,
-                shadowOpacity: 0.3,
-                shadowRadius: 10
+                shadowOpacity: 0.35,
+                shadowRadius: 12
               }}
               onPress={handleCaptureAndMark}
               disabled={isSubmitting}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
               {isSubmitting ? (
                 <View className="flex-row items-center gap-2">

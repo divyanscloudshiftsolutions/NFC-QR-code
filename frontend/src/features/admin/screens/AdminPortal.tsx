@@ -3645,11 +3645,14 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       {showEnrollCamera && (
         <Modal visible={showEnrollCamera} animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'space-between', paddingTop: 40 }}>
-            <View style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
-              <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>Enroll Face: {enrollingUser?.fullName}</Text>
+            <View style={{ paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
+              <View className="flex-row items-center gap-2">
+                <Text style={{ fontSize: 16 }}>👤</Text>
+                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>Enroll Face: {enrollingUser?.fullName}</Text>
+              </View>
               <TouchableOpacity
                 onPress={() => { setShowEnrollCamera(false); setEnrollingUser(null); setCapturedImages([]); }}
-                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)' }}
+                style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)' }}
               >
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>Cancel</Text>
               </TouchableOpacity>
@@ -3662,27 +3665,33 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 style={{ width: '100%', height: '100%', position: 'absolute' }}
               />
               {/* Oval Guide Overlay */}
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}>
                 <View
                   style={{
                     width: 240,
-                    height: 320,
-                    borderRadius: 160,
-                    borderWidth: 2,
+                    height: 300,
+                    borderRadius: 150,
+                    borderWidth: 2.5,
                     borderColor: '#D4AF37',
                     borderStyle: 'dashed',
-                    backgroundColor: 'transparent'
+                    backgroundColor: 'transparent',
+                    shadowColor: '#D4AF37',
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 12,
                   }}
                 />
-                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 'bold', marginTop: 16, textAlign: 'center', paddingHorizontal: 24 }}>
-                  Take 3 photos from different angles ({capturedImages.length}/3 captured)
-                </Text>
+                <View className="mt-6 px-4 py-2 rounded-full bg-black/80 border border-white/10 shadow-lg">
+                  <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>
+                    Capture 3 photos from different angles ({capturedImages.length}/3)
+                  </Text>
+                </View>
               </View>
 
               {isEnrollingFace && (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' }}>
                   <ActivityIndicator size="large" color="#D4AF37" />
-                  <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginTop: 16 }}>Processing image...</Text>
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginTop: 16 }}>Processing image sample...</Text>
                 </View>
               )}
             </View>
@@ -3691,9 +3700,10 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               <TouchableOpacity
                 disabled={isEnrollingFace}
                 onPress={handleEnrollFaceCapture}
-                style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: 'white', backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 68, height: 68, borderRadius: 34, borderWidth: 4, borderColor: 'white', backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center', opacity: isEnrollingFace ? 0.6 : 1 }}
+                activeOpacity={0.8}
               >
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.35)' }} />
               </TouchableOpacity>
             </View>
           </View>

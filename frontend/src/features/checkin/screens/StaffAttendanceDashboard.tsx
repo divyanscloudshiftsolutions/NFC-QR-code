@@ -281,7 +281,7 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
               
               {isCameraActive ? (
                 <View className="gap-3">
-                  <View className="h-[280px] w-full rounded-2xl overflow-hidden relative border border-white/10 bg-black">
+                  <View className="h-[300px] w-full rounded-2xl overflow-hidden relative border border-white/10 bg-black">
                     <CameraView
                       ref={dashboardCameraRef}
                       facing="front"
@@ -289,16 +289,20 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
                     />
                     
                     {/* Oval overlay outline guide */}
-                    <View className="absolute inset-0 items-center justify-center bg-black/20">
+                    <View className="absolute inset-0 items-center justify-center bg-black/40">
                       <View
                         style={{
-                          width: 180,
-                          height: 240,
-                          borderRadius: 120,
-                          borderWidth: 2,
+                          width: 200,
+                          height: 250,
+                          borderRadius: 125,
+                          borderWidth: 2.5,
                           borderColor: '#D4AF37',
                           borderStyle: 'dashed',
-                          backgroundColor: 'transparent'
+                          backgroundColor: 'transparent',
+                          shadowColor: '#D4AF37',
+                          shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.35,
+                          shadowRadius: 10,
                         }}
                       />
                     </View>
@@ -306,26 +310,26 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
                     {isVerifyingFace && (
                       <View className="absolute inset-0 bg-black/85 justify-center items-center">
                         <ActivityIndicator size="small" color="#D4AF37" />
-                        <Text className="text-white text-[10px] mt-2">Processing...</Text>
+                        <Text className="text-white text-xs font-semibold mt-2">Verifying biometric template...</Text>
                       </View>
                     )}
                   </View>
 
-                  <View className="flex-row gap-2">
+                  <View className="flex-row gap-2.5">
                     <TouchableOpacity
                       disabled={isVerifyingFace}
                       onPress={() => handleFaceCheckInOut(isCheckedIn ? 'checkout' : 'checkin')}
-                      className="flex-grow py-3 bg-[#D4AF37] rounded-xl items-center min-h-[48px] justify-center"
+                      className="flex-grow py-3.5 bg-[#D4AF37] rounded-xl items-center min-h-[48px] justify-center active:opacity-85 shadow-lg"
                     >
                       <Text className="text-black font-extrabold text-xs uppercase tracking-wider">
-                        {isCheckedIn ? 'Capture Out' : 'Capture In'}
+                        {isCheckedIn ? '📷 Capture Out' : '📷 Capture In'}
                       </Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       disabled={isVerifyingFace}
                       onPress={() => setIsCameraActive(false)}
-                      className="px-6 py-3 bg-white/10 rounded-xl items-center min-h-[48px] justify-center"
+                      className="px-6 py-3.5 bg-white/10 rounded-xl items-center min-h-[48px] justify-center active:opacity-80"
                     >
                       <Text className="text-white font-extrabold text-xs uppercase tracking-wider">Cancel</Text>
                     </TouchableOpacity>
