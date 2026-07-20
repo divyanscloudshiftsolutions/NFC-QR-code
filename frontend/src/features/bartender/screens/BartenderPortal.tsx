@@ -624,13 +624,22 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
 
           {/* Main content label */}
           {isServing || isQueuedServe ? (
-            <Text className="text-gold text-sm font-bold">🍹 ⏳</Text>
+            <View className="flex-row items-center gap-1">
+              <AppIcon name="glass" color={colors.gold} size={16} />
+              <AppIcon name="clock" color={colors.gold} size={12} />
+            </View>
           ) : isUndoing || isQueuedUndo ? (
-            <Text className="text-xs font-bold" style={{ color: colors.muted }}>✓ ⏳</Text>
+            <View className="flex-row items-center gap-1">
+              <AppIcon name="check" color={colors.muted} size={14} />
+              <AppIcon name="clock" color={colors.muted} size={12} />
+            </View>
           ) : isRedeemed ? (
             <Text className="text-xs font-bold" style={{ color: colors.muted }}>✓ Served</Text>
           ) : (
-            <Text className="text-gold text-sm font-bold">🍹 Serve</Text>
+            <View className="flex-row items-center gap-1">
+              <AppIcon name="glass" color={colors.gold} size={14} />
+              <Text className="text-gold text-xs font-extrabold" style={{ color: colors.gold }}>Serve</Text>
+            </View>
           )}
         </TouchableOpacity>
       );

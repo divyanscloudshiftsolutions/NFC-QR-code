@@ -869,7 +869,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
             {/* Card Header matching mockup */}
             <View className="flex-row items-center gap-3.5 mb-5">
               <View className="w-12 h-12 rounded-2xl bg-[#2B2215] justify-center items-center border border-[#FF9F1C]/25">
-                <Text style={{ fontSize: 20 }}>👤</Text>
+                <AppIcon name="user" color="#FF9F1C" size={22} />
               </View>
               <View className="flex-1">
                 <Text className="text-[10px] font-black uppercase tracking-widest text-[#FF9F1C]">STEP 1</Text>
@@ -887,8 +887,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                 borderWidth: 1.5
               }}
             >
-              <View className="flex-row items-center mb-1">
-                <Text className="text-xs font-bold mr-1.5" style={{ color: colors.gold }}>👤</Text>
+              <View className="flex-row items-center mb-1 gap-1.5">
+                <AppIcon name="user" color={colors.gold} size={14} />
                 <Text className="text-xs font-bold" style={{ color: colors.gold }}>Full Name *</Text>
               </View>
               <TextInput 
@@ -908,8 +908,9 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                 importantForAutofill="yes"
               />
               {fullName.trim().length > 0 && !isNameOk && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Name must be between 2 and 100 characters, containing only letters and standard symbols.</Text>
+                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5 flex-row items-center gap-1.5">
+                  <AppIcon name="alert-triangle" color="#EF4444" size={12} />
+                  <Text className="text-red text-[10px] leading-3.5">Name must be between 2 and 100 characters.</Text>
                 </View>
               )}
             </View>
@@ -923,8 +924,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                 borderWidth: 1.5
               }}
             >
-              <View className="flex-row items-center mb-1">
-                <Text className="text-xs font-bold mr-1.5" style={{ color: colors.gold }}>📞</Text>
+              <View className="flex-row items-center mb-1 gap-1.5">
+                <AppIcon name="phone" color={colors.gold} size={14} />
                 <Text className="text-xs font-bold" style={{ color: colors.gold }}>Phone Number *</Text>
               </View>
               <TextInput 
@@ -946,13 +947,9 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                 importantForAutofill="yes"
               />
               {phone.trim().length > 0 && !isValidPhoneNumber(phone) && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Must be a valid 10-digit number starting with 6-9 (e.g. 9876543210 or +919876543210).</Text>
-                </View>
-              )}
-              {isPhoneActive && (
-                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5">
-                  <Text className="text-red text-[10px] leading-3.5">⚠️ Email ID or phone number already has an active check-in. Please use another one.</Text>
+                <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5 flex-row items-center gap-1.5">
+                  <AppIcon name="alert-triangle" color="#EF4444" size={12} />
+                  <Text className="text-red text-[10px] leading-3.5">Must be a valid 10-digit number starting with 6-9.</Text>
                 </View>
               )}
             </View>
@@ -967,8 +964,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               }}
             >
               <View className="flex-row justify-between items-center mb-1">
-                <View className="flex-row items-center">
-                  <Text className="text-xs font-bold mr-1.5" style={{ color: colors.gold }}>✉️</Text>
+                <View className="flex-row items-center gap-1.5">
+                  <AppIcon name="mail" color={colors.gold} size={14} />
                   <Text className="text-xs font-bold" style={{ color: colors.gold }}>Email</Text>
                 </View>
                 <Text 
@@ -1030,8 +1027,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                     }}
                     onPress={() => setSelectedDeliveryMode('NFC_CARD')}
                   >
-                    <Text style={{ fontSize: 13, marginRight: 6 }}>💳</Text>
-                    <Text className="text-xs font-bold" style={{ color: selectedDeliveryMode === 'NFC_CARD' ? colors.gold : colors.muted }}>NFC Smart Card</Text>
+                    <AppIcon name="nfc" color={selectedDeliveryMode === 'NFC_CARD' ? colors.gold : colors.muted} size={16} />
+                    <Text className="text-xs font-bold ml-2" style={{ color: selectedDeliveryMode === 'NFC_CARD' ? colors.gold : colors.muted }}>NFC Smart Card</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     className="flex-1 flex-row items-center justify-center py-3 rounded-xl border min-h-[44px]"
@@ -1042,8 +1039,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                     }}
                     onPress={() => setSelectedDeliveryMode('EMAIL_QR')}
                   >
-                    <Text style={{ fontSize: 13, marginRight: 6 }}>📧</Text>
-                    <Text className="text-xs font-bold" style={{ color: selectedDeliveryMode === 'EMAIL_QR' ? colors.gold : colors.muted }}>Email QR Code</Text>
+                    <AppIcon name="mail" color={selectedDeliveryMode === 'EMAIL_QR' ? colors.gold : colors.muted} size={16} />
+                    <Text className="text-xs font-bold ml-2" style={{ color: selectedDeliveryMode === 'EMAIL_QR' ? colors.gold : colors.muted }}>Email QR Code</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1054,8 +1051,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               className="rounded-2xl p-4 mb-5 border"
               style={{ backgroundColor: colors.secondarySurface, borderColor: isDark ? colors.border : '#CBD5E1', borderWidth: 1.5 }}
             >
-              <View className="flex-row items-center mb-3">
-                <Text className="text-xs font-bold mr-1.5" style={{ color: colors.gold }}>👥</Text>
+              <View className="flex-row items-center mb-3 gap-1.5">
+                <AppIcon name="users" color={colors.gold} size={14} />
                 <Text className="text-xs font-bold" style={{ color: colors.gold }}>Number of Persons *</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>

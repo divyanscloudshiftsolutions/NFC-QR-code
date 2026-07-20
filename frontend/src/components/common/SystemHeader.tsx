@@ -112,7 +112,7 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
 
       {/* Center Role Badge */}
       <View className="flex-row items-center gap-1.5">
-        <Text style={{ fontSize: 14 }}>🔔</Text>
+        <AppIcon name="bell" color={colors.gold} size={14} />
         <Text className="text-xs font-black tracking-widest uppercase" style={{ color: colors.gold }}>
           {user ? (user.role || 'STAFF').toUpperCase() : 'RECEPTIONIST'}
         </Text>
@@ -126,7 +126,7 @@ export const SystemHeader: React.FC<SystemHeaderProps> = ({ onOpenNotifs }) => {
           onPress={toggleTheme}
           activeOpacity={0.8}
         >
-          <Text style={{ fontSize: 16 }}>{isDark ? '☀️' : '🌙'}</Text>
+          <AppIcon name={isDark ? 'sun' : 'moon'} color="#FF9F1C" size={18} />
         </TouchableOpacity>
 
         {/* Notifications Icon Button with Dot Badge */}

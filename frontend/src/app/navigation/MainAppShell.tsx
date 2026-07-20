@@ -302,7 +302,9 @@ export const MainAppShell: React.FC = () => {
                 onPress={() => setTab('checkin')}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 20, color: activeTab === 'checkin' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>📋</Text>
+                <View className="mb-1">
+                  <AppIcon name="checkin" color={activeTab === 'checkin' ? '#FF9F1C' : '#8E8E93'} size={20} />
+                </View>
                 <Text 
                   className="text-[10px] font-black uppercase tracking-wider mb-1" 
                   style={{ color: activeTab === 'checkin' ? '#FF9F1C' : '#8E8E93' }}
@@ -319,7 +321,9 @@ export const MainAppShell: React.FC = () => {
                 onPress={() => setTab('bartender')}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 20, color: activeTab === 'bartender' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>🍺</Text>
+                <View className="mb-1">
+                  <AppIcon name="bartender" color={activeTab === 'bartender' ? '#FF9F1C' : '#8E8E93'} size={20} />
+                </View>
                 <Text 
                   className="text-[10px] font-black uppercase tracking-wider mb-1" 
                   style={{ color: activeTab === 'bartender' ? '#FF9F1C' : '#8E8E93' }}
@@ -336,7 +340,9 @@ export const MainAppShell: React.FC = () => {
                 onPress={() => setTab('tables')}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 20, color: activeTab === 'tables' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>🗺️</Text>
+                <View className="mb-1">
+                  <AppIcon name="tables" color={activeTab === 'tables' ? '#FF9F1C' : '#8E8E93'} size={20} />
+                </View>
                 <Text 
                   className="text-[10px] font-black uppercase tracking-wider mb-1" 
                   style={{ color: activeTab === 'tables' ? '#FF9F1C' : '#8E8E93' }}
@@ -353,7 +359,9 @@ export const MainAppShell: React.FC = () => {
                 onPress={() => setTab('admin')}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 20, color: activeTab === 'admin' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>📈</Text>
+                <View className="mb-1">
+                  <AppIcon name="admin" color={activeTab === 'admin' ? '#FF9F1C' : '#8E8E93'} size={20} />
+                </View>
                 <Text 
                   className="text-[10px] font-black uppercase tracking-wider mb-1" 
                   style={{ color: activeTab === 'admin' ? '#FF9F1C' : '#8E8E93' }}
@@ -370,7 +378,9 @@ export const MainAppShell: React.FC = () => {
                 onPress={() => setTab('attendance')}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 20, color: activeTab === 'attendance' ? '#FF9F1C' : '#8E8E93', marginBottom: 2 }}>📅</Text>
+                <View className="mb-1">
+                  <AppIcon name="attendance" color={activeTab === 'attendance' ? '#FF9F1C' : '#8E8E93'} size={20} />
+                </View>
                 <Text 
                   className="text-[10px] font-black uppercase tracking-wider mb-1" 
                   style={{ color: activeTab === 'attendance' ? '#FF9F1C' : '#8E8E93' }}

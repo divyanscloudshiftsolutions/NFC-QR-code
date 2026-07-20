@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNfcBar } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { AppIcon } from '../../../components/common/AppIcon';
 
 export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isActive }) => {
   const { colors, isDark } = useTheme();
@@ -319,10 +320,11 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
                     <TouchableOpacity
                       disabled={isVerifyingFace}
                       onPress={() => handleFaceCheckInOut(isCheckedIn ? 'checkout' : 'checkin')}
-                      className="flex-grow py-3.5 bg-[#D4AF37] rounded-xl items-center min-h-[48px] justify-center active:opacity-85 shadow-lg"
+                      className="flex-grow py-3.5 bg-[#FF9F1C] rounded-xl flex-row items-center justify-center gap-2 min-h-[48px] active:opacity-85 shadow-lg"
                     >
-                      <Text className="text-black font-extrabold text-xs uppercase tracking-wider">
-                        {isCheckedIn ? '📷 Capture Out' : '📷 Capture In'}
+                      <AppIcon name="camera" color="#08090D" size={16} />
+                      <Text className="text-[#08090D] font-black text-xs uppercase tracking-wider">
+                        {isCheckedIn ? 'Capture Out' : 'Capture In'}
                       </Text>
                     </TouchableOpacity>
                     
@@ -338,9 +340,10 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
               ) : (
                 <TouchableOpacity
                   onPress={startFaceVerification}
-                  className="py-3 bg-[#D4AF37] rounded-xl items-center min-h-[48px] justify-center"
+                  className="py-3.5 bg-[#FF9F1C] rounded-xl flex-row items-center justify-center gap-2 min-h-[48px]"
                 >
-                  <Text className="text-black font-extrabold text-sm uppercase tracking-wider">
+                  <AppIcon name="camera" color="#08090D" size={18} />
+                  <Text className="text-[#08090D] font-black text-xs uppercase tracking-wider">
                     {isCheckedIn ? 'Start Face Clock-Out' : 'Start Face Clock-In'}
                   </Text>
                 </TouchableOpacity>

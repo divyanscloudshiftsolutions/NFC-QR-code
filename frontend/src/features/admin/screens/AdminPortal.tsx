@@ -722,37 +722,37 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
             {...(Platform.OS === 'web' ? { onWheel: (e: any) => e.stopPropagation() } : {})}
           >
             {[
-              { tab: 'tables', label: 'Tables', icon: '🪑' },
-              { tab: 'cards', label: 'Cards', icon: '💳' },
-              { tab: 'rates', label: 'Rates', icon: '💰' },
-              { tab: 'staff', label: 'Staff', icon: '👥' },
-              { tab: 'chart', label: 'Charts', icon: '📈' },
-              { tab: 'settings', label: 'Settings', icon: '⚙️' },
-              { tab: 'customers', label: 'Customers', icon: '👤' },
-              { tab: 'attendance', label: 'Attendance', icon: '📅' },
+              { tab: 'tables', label: 'Tables', icon: 'tables' },
+              { tab: 'cards', label: 'Cards', icon: 'credit-card' },
+              { tab: 'rates', label: 'Rates', icon: 'zap' },
+              { tab: 'staff', label: 'Staff', icon: 'users' },
+              { tab: 'chart', label: 'Charts', icon: 'admin' },
+              { tab: 'settings', label: 'Settings', icon: 'settings' },
+              { tab: 'customers', label: 'Customers', icon: 'user' },
+              { tab: 'attendance', label: 'Attendance', icon: 'attendance' },
             ].map((item) => {
               const isActive = adminSubTab === item.tab;
               return (
                 <TouchableOpacity
                   key={item.tab}
                   style={{
-                    backgroundColor: isActive ? (isDark ? 'rgba(245, 166, 35, 0.1)' : 'rgba(212, 175, 55, 0.1)') : colors.card,
+                    backgroundColor: isActive ? 'rgba(255, 159, 28, 0.12)' : colors.card,
                     borderWidth: 1,
-                    borderColor: isActive ? colors.gold : colors.border,
-                    borderRadius: 10,
+                    borderColor: isActive ? '#FF9F1C' : colors.border,
+                    borderRadius: 12,
                     paddingHorizontal: 12,
-                    paddingVertical: 7,
+                    paddingVertical: 8,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 4
+                    gap: 6
                   }}
                   onPress={() => {
                     setAdminSubTab(item.tab as any);
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={{ fontSize: 11 }}>{item.icon}</Text>
-                  <Text style={{ fontSize: 9, fontWeight: 'bold', color: isActive ? colors.gold : colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  <AppIcon name={item.icon} color={isActive ? '#FF9F1C' : colors.muted} size={13} />
+                  <Text style={{ fontSize: 10, fontWeight: 'bold', color: isActive ? '#FF9F1C' : colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                     {item.label}
                   </Text>
                 </TouchableOpacity>
