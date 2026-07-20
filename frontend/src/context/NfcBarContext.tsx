@@ -73,6 +73,7 @@ interface NfcBarContextType {
     tableId?: string;
     tableNumber?: string;
     tokenNumber?: string;
+    deliveryMode?: 'NFC_CARD' | 'EMAIL_QR';
   }) => Promise<SessionToken | null>;
   verifyQrCode: (tokenNumber: string) => Promise<SessionToken | null>;
   activatePendingSession: (
@@ -1141,6 +1142,7 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     tableId?: string;
     tableNumber?: string;
     tokenNumber?: string;
+    deliveryMode?: 'NFC_CARD' | 'EMAIL_QR';
   }): Promise<SessionToken | null> => {
     try {
       const activeToken = userToken || await AsyncStorage.getItem('nfc_bar_user_token');

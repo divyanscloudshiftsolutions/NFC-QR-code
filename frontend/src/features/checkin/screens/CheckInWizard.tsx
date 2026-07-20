@@ -314,7 +314,8 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
           placeType,
           placeTypeId: rates.find(r => r.placeType === placeType)?.id,
           tableNumber: selectedTableNum || undefined,
-          tokenNumber: pendingToken || undefined
+          tokenNumber: pendingToken || undefined,
+          deliveryMode: selectedDeliveryMode
         });
         stopAction();
         setIsActivating(false);
@@ -471,9 +472,16 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
     setQrVerificationSuccess(false);
     setQrVerificationError(null);
 
+    // Strictly restore the original check-in method (NFC vs QR)
+    let activeMode: 'NFC_CARD' | 'EMAIL_QR' = selectedDeliveryMode;
     if (pending.deliveryMode) {
-      setSelectedDeliveryMode(pending.deliveryMode);
+      activeMode = pending.deliveryMode;
+    } else if (pending.cardUid || pending.deliveryMode === 'NFC_CARD') {
+      activeMode = 'NFC_CARD';
+    } else if (pending.email || pending.tokenNumber?.startsWith('BAR-')) {
+      activeMode = 'EMAIL_QR';
     }
+    setSelectedDeliveryMode(activeMode);
 
     if (pending.tableNumber && !isAvailable) {
       // Clear selected table and redirect to table selection (Step 2)
@@ -482,16 +490,13 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
       showToast(`Table ${pending.tableNumber} is no longer available. Please select another table.`, 'warning');
     } else {
       setSelectedTableNum(pending.tableNumber || null);
-      // Determine the resume step:
+      // Determine the resume step based on preserved activeMode:
       if (!pending.tableNumber) {
-        // 1. Pending at table selection
         setStep(2);
-      } else if (pending.emailSent === false) {
-        // 2. Pending at QR generation
-        setStep(5);
+      } else if (activeMode === 'EMAIL_QR') {
+        setStep(3); // Step 3: QR Scan for QR flow
       } else {
-        // 3. Pending at payment
-        setStep(3);
+        setStep(3); // Step 3: Payment Collection for NFC flow
       }
     }
   };
@@ -1187,9 +1192,17 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
                     <Text className="text-[11px] mb-1" style={{ color: colors.muted }}>
                       📞 {pending.phoneNumber} {pending.email ? `• ✉️ ${pending.email}` : ''}
                     </Text>
-                    <Text className="text-[10px] font-bold uppercase" style={{ color: colors.gold }}>
-                      {pending.placeType.replace('_', ' ')} • {pending.persons} Pax • {pending.tableNumber ? `Table ${pending.tableNumber}` : 'Waiting List'}
-                    </Text>
+                    <View className="flex-row items-center justify-between mt-1">
+                      <Text className="text-[10px] font-bold uppercase" style={{ color: colors.gold }}>
+                        {pending.placeType.replace('_', ' ')} • {pending.persons} Pax • {pending.tableNumber ? `Table ${pending.tableNumber}` : 'Waiting List'}
+                      </Text>
+                      <View className="px-2 py-0.5 rounded border bg-black/30 border-white/10 flex-row items-center gap-1">
+                        <AppIcon name={pending.deliveryMode === 'NFC_CARD' ? 'nfc' : 'mail'} color={colors.gold} size={10} />
+                        <Text className="text-[9px] font-black text-gold uppercase">
+                          {pending.deliveryMode === 'NFC_CARD' ? 'NFC' : 'QR'}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
                 ))}
               </View>
