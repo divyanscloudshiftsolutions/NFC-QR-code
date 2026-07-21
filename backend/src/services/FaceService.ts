@@ -143,6 +143,70 @@ export class FaceService {
   }
 
   /**
+   * Performs facial recognition using external FaceMark Quick Attendance API.
+   * Path: POST /api/attendance/quick
+   */
+  public static async callQuickAttendanceApi(imageBuffer: Buffer): Promise<{ userId: string; confidence: number; action?: string }> {
+    const apiBase = this.getApiBase();
+    const token = this.getBearerToken();
+    const formData = new globalThis.FormData();
+    const blob = new globalThis.Blob([imageBuffer], { type: 'image/jpeg' });
+    formData.append('file', blob, 'capture.jpg');
+
+    const url = `${apiBase}/api/attendance/quick`;
+    const headers: Record<string, string> = {};
+    if (token && token.trim().length > 0 && token !== 'your_staging_bearer_token_here') {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers
+      });
+    } catch (err: any) {
+      return this.handleFetchError(err);
+    }
+
+    if (!response.ok) {
+      // Fallback: If external /api/attendance/quick returns 404 on older FaceMark instance, fallback to /api/face/recognize
+      if (response.status === 404) {
+        return this.recognizeFace(imageBuffer);
+      }
+      return this.handleResponseError(response, false);
+    }
+
+    let data: any;
+    try {
+      data = await response.json();
+    } catch (err) {
+      throw new FaceMarkError(
+        'PROCESSING_ERROR',
+        "We couldn't process your request at the moment. Please try again."
+      );
+    }
+
+    const recognizedId = data.userId || data.user_id || data.id || (data.user && (data.user.id || data.user.userId));
+    const confidence = typeof data.confidence === 'number' ? data.confidence : (typeof data.similarity === 'number' ? data.similarity : 1.0);
+    const action = data.action || data.status;
+
+    if (!recognizedId) {
+      throw new FaceMarkError(
+        'USER_NOT_REGISTERED',
+        'Your face has not been registered yet. Please contact the administrator to complete face registration.'
+      );
+    }
+
+    return {
+      userId: recognizedId,
+      confidence,
+      action
+    };
+  }
+
+  /**
    * Performs face recognition using FaceMark staging API.
    * Path: POST /api/face/recognize
    */
@@ -197,7 +261,7 @@ export class FaceService {
    * Verifies if a captured face matches a target user ID using recognize endpoint
    */
   public static async verifyUserFace(userId: string, imageBuffer: Buffer): Promise<{ isMatch: boolean; confidence: number }> {
-    const match = await this.recognizeFace(imageBuffer);
+    const match = await this.callQuickAttendanceApi(imageBuffer);
     const isMatch = match.userId.toLowerCase() === userId.toLowerCase();
     if (!isMatch) {
       throw new FaceMarkError(

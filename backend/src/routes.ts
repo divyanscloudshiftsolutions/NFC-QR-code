@@ -4351,7 +4351,7 @@ router.post('/attendance/quick', upload.single('file'), async (req: Request, res
   }
 
   try {
-    const match = await FaceService.recognizeFace(req.file.buffer);
+    const match = await FaceService.callQuickAttendanceApi(req.file.buffer);
 
     // Look up the recognized user ID locally
     const matchedUser = await prisma.user.findUnique({
