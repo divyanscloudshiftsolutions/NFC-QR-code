@@ -189,7 +189,7 @@ async function main() {
   const userSpecs = [
     {
       username: 'admin',
-      fullName: 'System Admin',
+      fullName: 'Divyan',
       passwordHash: await bcrypt.hash('admin123', 12),
       roleId: dbRoles['admin'],
       isActive: true,

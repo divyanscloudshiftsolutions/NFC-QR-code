@@ -484,7 +484,7 @@ export const LoginScreen: React.FC = () => {
                 </TouchableOpacity>
                 <TouchableOpacity className="w-[48%] border rounded-xl p-3 flex-row items-center gap-2 min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => handleQuickLogin('ADM-03', '8888')}>
                   <AppIcon name="shield" color={colors.gold} size={16} />
-                  <Text className="text-[10px] font-bold" style={{ color: colors.text }}>Alex (Admin)</Text>
+                  <Text className="text-[10px] font-bold" style={{ color: colors.text }}>Divyan (Admin)</Text>
                 </TouchableOpacity>
                 <TouchableOpacity className="w-[48%] border rounded-xl p-3 flex-row items-center gap-2 min-h-[48px]" style={{ backgroundColor: colors.input, borderColor: colors.border }} onPress={() => handleQuickLogin('MGR-04', '9999')}>
                   <AppIcon name="user" color={colors.gold} size={16} />
