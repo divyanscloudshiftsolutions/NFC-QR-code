@@ -4,7 +4,7 @@ import {
   ActivityIndicator, TextInput, Alert, Platform
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNfcBar } from '../../../context/NfcBarContext';
+import { useNfcBar, getBackendUrl } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { AppIcon } from '../../../components/common/AppIcon';
@@ -30,21 +30,6 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
 
   // Live Timer states
   const [elapsedTimeStr, setElapsedTimeStr] = useState('00:00:00');
-
-  const getBackendUrl = () => {
-    const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (envApiUrl && envApiUrl.trim().length > 0) {
-      let cleaned = envApiUrl.trim();
-      if (cleaned.endsWith('/')) {
-        cleaned = cleaned.slice(0, -1);
-      }
-      if (Platform.OS === 'web' && !cleaned.endsWith('/api')) {
-        cleaned = `${cleaned}/api`;
-      }
-      return cleaned;
-    }
-    return 'https://nfc-qr-code-production.up.railway.app/api';
-  };
 
   const BACKEND_URL = getBackendUrl();
 

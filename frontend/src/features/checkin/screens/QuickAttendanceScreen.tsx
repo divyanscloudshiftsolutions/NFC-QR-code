@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNfcBar } from '../../../context/NfcBarContext';
+import { useNfcBar, getBackendUrl } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useResponsive } from '../../../utils/responsive';
 import { AppIcon } from '../../../components/common/AppIcon';
@@ -71,9 +71,7 @@ export const QuickAttendanceScreen: React.FC = () => {
       }
 
       // Send to Quick Attendance backend API
-      const envApiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://nfc-qr-code-production.up.railway.app/api';
-      const cleanApiUrl = envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl;
-      const endpoint = cleanApiUrl.endsWith('/api') ? `${cleanApiUrl}/attendance/quick` : `${cleanApiUrl}/api/attendance/quick`;
+      const endpoint = `${getBackendUrl()}/attendance/quick`;
 
       const response = await fetch(endpoint, {
         method: 'POST',

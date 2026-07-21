@@ -143,32 +143,22 @@ const generateUUID = () => {
 
 import { NativeModules } from 'react-native';
 
-const getBackendUrl = () => {
-  if (Platform.OS === 'web') {
-    const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (envApiUrl && envApiUrl.trim().length > 0) {
-      let cleaned = envApiUrl.trim();
-      if (cleaned.endsWith('/')) {
-        cleaned = cleaned.slice(0, -1);
-      }
-      if (!cleaned.endsWith('/api')) {
-        cleaned = `${cleaned}/api`;
-      }
-      return cleaned;
-    }
-    // Web fallback pointing to Railway backend production URL
-    return 'https://nfc-qr-code-production.up.railway.app/api';
-  }
-
-  // Non-web platforms use the existing logic exactly as before
+export const getBackendUrl = () => {
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envApiUrl && envApiUrl.trim().length > 0) {
-    return envApiUrl.trim();
+    let cleaned = envApiUrl.trim();
+    while (cleaned.endsWith('/')) {
+      cleaned = cleaned.slice(0, -1);
+    }
+    if (!cleaned.endsWith('/api')) {
+      cleaned = `${cleaned}/api`;
+    }
+    return cleaned;
   }
   return 'https://nfc-qr-code-production.up.railway.app/api';
 };
 
-const BACKEND_URL = getBackendUrl();
+export const BACKEND_URL = getBackendUrl();
 
 export const getFriendlyErrorMessage = (errData: any, fallback: string): string => {
   if (!errData) return fallback;
@@ -830,24 +820,29 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return true;
         }
       } else {
+        let serverErrorMsg = 'Invalid credentials. Please try again.';
         try {
-          const errorData = await res.json();
-          if (errorData && errorData.error && errorData.error.message) {
-            showToast(errorData.error.message, 'danger');
-            return false;
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const errorData = await res.json();
+            serverErrorMsg = getFriendlyErrorMessage(errorData, serverErrorMsg);
+          } else {
+            const textErr = await res.text();
+            serverErrorMsg = `Server error (${res.status}): ${textErr.slice(0, 80)}`;
           }
-        } catch (jsonErr) {
-          // Ignore json parse error and let fallback handle it
-        }
+        } catch (_) {}
+        showToast(serverErrorMsg, 'danger');
+        return false;
       }
-    } catch (err) {
-      console.log('Online login failed, trying fallback:', err);
+    } catch (err: any) {
+      console.warn('Online login failed, attempting offline check:', err);
     }
-    // Fallback to local cache validation of the last logged-in user
+
+    // Fallback to local cache validation ONLY if network is disconnected
     try {
       const netState = await NetInfo.fetch();
-      const isActualFailure = netState.isConnected === false || netState.isInternetReachable === false;
-      if (isActualFailure) {
+      const isOffline = netState.isConnected === false || netState.isInternetReachable === false;
+      if (isOffline) {
         const savedUserStr = await AsyncStorage.getItem('nfc_bar_user');
         if (savedUserStr) {
           const savedUser = JSON.parse(savedUserStr);
@@ -872,10 +867,10 @@ export const NfcBarProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         }
       } else {
-        showToast('Unable to log in. Please check your network connection and try again.', 'danger');
+        showToast('Unable to connect to login server. Please verify server status.', 'danger');
       }
     } catch (cacheErr) {
-      console.log('Offline login fallback failed:', cacheErr);
+      console.warn('Offline login fallback error:', cacheErr);
     }
 
     return false;

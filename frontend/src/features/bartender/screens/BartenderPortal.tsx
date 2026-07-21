@@ -5,7 +5,7 @@ import {
   ActivityIndicator, StyleSheet, Modal, Platform, Animated
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useNfcBar, getFriendlyErrorMessage } from '../../../context/NfcBarContext';
+import { useNfcBar, getFriendlyErrorMessage, getBackendUrl } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SessionToken, TokenStatus } from '../../../types/nfc_bar';
@@ -218,27 +218,6 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
     }
   }, [sessions]);
 
-  const getBackendUrl = () => {
-    if (Platform.OS === 'web') {
-      const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (envApiUrl && envApiUrl.trim().length > 0) {
-        let cleaned = envApiUrl.trim();
-        if (cleaned.endsWith('/')) {
-          cleaned = cleaned.slice(0, -1);
-        }
-        if (!cleaned.endsWith('/api')) {
-          cleaned = `${cleaned}/api`;
-        }
-        return cleaned;
-      }
-      return 'https://nfc-qr-code-production.up.railway.app/api';
-    }
-    const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (envApiUrl && envApiUrl.trim().length > 0) {
-      return envApiUrl.trim();
-    }
-    return 'https://nfc-qr-code-production.up.railway.app/api';
-  };
   const BACKEND_URL = getBackendUrl();
 
   const fetchRedemptionsHistory = async (tokenNum: string) => {
@@ -949,7 +928,7 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
                   zIndex: 1
                 }}
                 facing="back"
-                onBarcodeScanned={({ data }) => {
+                onBarcodeScanned={({ data }: { data: string }) => {
                   if (data && data !== scannedCardUid) {
                     setScannedCardUid(data);
                     handleTokenLookup(data);
@@ -1386,7 +1365,7 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
             <CameraView
               style={StyleSheet.absoluteFill}
               facing="back"
-              onBarcodeScanned={({ data }) => {
+              onBarcodeScanned={({ data }: { data: string }) => {
                 if (data) {
                   handleQrCodeScannedForClose(data);
                 }

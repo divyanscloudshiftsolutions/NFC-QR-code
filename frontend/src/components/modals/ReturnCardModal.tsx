@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Platform, ScrollView, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNfcBar } from '../../context/NfcBarContext';
+import { useNfcBar, getBackendUrl } from '../../context/NfcBarContext';
 import { useTheme } from '../../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SessionToken, TokenStatus } from '../../types/nfc_bar';
@@ -75,27 +75,6 @@ export const ReturnCardModal: React.FC<ReturnCardModalProps> = ({ onClose }) => 
     };
   }, [returnStep, isSanitizing, onClose]);
 
-  const getBackendUrl = () => {
-    if (Platform.OS === 'web') {
-      const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (envApiUrl && envApiUrl.trim().length > 0) {
-        let cleaned = envApiUrl.trim();
-        if (cleaned.endsWith('/')) {
-          cleaned = cleaned.slice(0, -1);
-        }
-        if (!cleaned.endsWith('/api')) {
-          cleaned = `${cleaned}/api`;
-        }
-        return cleaned;
-      }
-      return 'https://nfc-qr-code-production.up.railway.app/api';
-    }
-    const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (envApiUrl && envApiUrl.trim().length > 0) {
-      return envApiUrl.trim();
-    }
-    return 'https://nfc-qr-code-production.up.railway.app/api';
-  };
   const BACKEND_URL = getBackendUrl();
 
   const fetchRedemptionsHistory = async (tokenNum: string) => {

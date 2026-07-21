@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useNfcBar } from '../../../context/NfcBarContext';
+import { useNfcBar, getBackendUrl } from '../../../context/NfcBarContext';
 import { Table, PlaceType, TableStatus, TokenStatus, StaffMember, InventoryCard, CardStatus, RateCard, SessionToken } from '../../../types/nfc_bar';
 import { AppIcon } from '../../../components/common/AppIcon';
 import { useTheme } from '../../../context/ThemeContext';
@@ -133,21 +133,6 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
     } finally {
       stopAction();
     }
-  };
-
-  const getBackendUrl = () => {
-    const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (envApiUrl && envApiUrl.trim().length > 0) {
-      let cleaned = envApiUrl.trim();
-      if (cleaned.endsWith('/')) {
-        cleaned = cleaned.slice(0, -1);
-      }
-      if (Platform.OS === 'web' && !cleaned.endsWith('/api')) {
-        cleaned = `${cleaned}/api`;
-      }
-      return cleaned;
-    }
-    return 'https://nfc-qr-code-production.up.railway.app/api';
   };
 
   const BACKEND_URL = getBackendUrl();
