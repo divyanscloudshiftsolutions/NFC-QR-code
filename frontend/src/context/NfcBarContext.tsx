@@ -147,6 +147,9 @@ export const getBackendUrl = () => {
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envApiUrl && envApiUrl.trim().length > 0) {
     let cleaned = envApiUrl.trim();
+    while ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+      cleaned = cleaned.slice(1, -1).trim();
+    }
     while (cleaned.endsWith('/')) {
       cleaned = cleaned.slice(0, -1);
     }

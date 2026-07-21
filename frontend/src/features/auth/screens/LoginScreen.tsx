@@ -159,9 +159,12 @@ export const LoginScreen: React.FC = () => {
     setErrorMsg('');
     setIsSubmitting(true);
     try {
-      await login(id, code);
-    } catch (err) {
-      setErrorMsg('Shortcut login failed.');
+      const success = await login(id, code);
+      if (!success) {
+        setErrorMsg('Shortcut login failed. Unable to authenticate.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred during shortcut login.');
     } finally {
       setIsSubmitting(false);
     }
