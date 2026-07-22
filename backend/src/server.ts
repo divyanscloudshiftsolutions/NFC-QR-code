@@ -7,6 +7,7 @@ import RedisStore from 'rate-limit-redis';
 import Redis from 'ioredis';
 import { tokenService } from './services/TokenService';
 
+// Trigger Railway rebuild: verified active tokens index fix
 dotenv.config();
 
 const app = express();
