@@ -298,7 +298,7 @@ export const MainAppShell: React.FC = () => {
           >
             {(isUserAdmin || isUserRecep) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1 px-4 min-w-[76px]" 
+                className="items-center justify-center py-1 px-2 flex-1" 
                 onPress={() => setTab('checkin')}
                 activeOpacity={0.8}
               >
@@ -306,18 +306,18 @@ export const MainAppShell: React.FC = () => {
                   <AppIcon name="checkin" color={activeTab === 'checkin' ? '#FF9F1C' : '#8E8E93'} size={20} />
                 </View>
                 <Text 
-                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1 text-center" 
                   style={{ color: activeTab === 'checkin' ? '#FF9F1C' : '#8E8E93' }}
                 >
                   CHECK-IN
                 </Text>
-                {activeTab === 'checkin' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
+                <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: activeTab === 'checkin' ? '#FF9F1C' : 'transparent' }} />
               </TouchableOpacity>
             )}
 
             {(isUserAdmin || isUserBartender || isUserRecep) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1 px-4 min-w-[76px]" 
+                className="items-center justify-center py-1 px-2 flex-1" 
                 onPress={() => setTab('bartender')}
                 activeOpacity={0.8}
               >
@@ -325,18 +325,18 @@ export const MainAppShell: React.FC = () => {
                   <AppIcon name="bartender" color={activeTab === 'bartender' ? '#FF9F1C' : '#8E8E93'} size={20} />
                 </View>
                 <Text 
-                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1 text-center" 
                   style={{ color: activeTab === 'bartender' ? '#FF9F1C' : '#8E8E93' }}
                 >
                   BARTENDER
                 </Text>
-                {activeTab === 'bartender' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
+                <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: activeTab === 'bartender' ? '#FF9F1C' : 'transparent' }} />
               </TouchableOpacity>
             )}
 
             {(isUserAdmin || isUserRecep || isUserManager) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1 px-4 min-w-[76px]" 
+                className="items-center justify-center py-1 px-2 flex-1" 
                 onPress={() => setTab('tables')}
                 activeOpacity={0.8}
               >
@@ -344,18 +344,18 @@ export const MainAppShell: React.FC = () => {
                   <AppIcon name="tables" color={activeTab === 'tables' ? '#FF9F1C' : '#8E8E93'} size={20} />
                 </View>
                 <Text 
-                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1 text-center" 
                   style={{ color: activeTab === 'tables' ? '#FF9F1C' : '#8E8E93' }}
                 >
                   TABLES
                 </Text>
-                {activeTab === 'tables' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
+                <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: activeTab === 'tables' ? '#FF9F1C' : 'transparent' }} />
               </TouchableOpacity>
             )}
 
             {(isUserAdmin || isUserManager) && (
               <TouchableOpacity 
-                className="items-center justify-center py-1 px-4 min-w-[76px]" 
+                className="items-center justify-center py-1 px-2 flex-1" 
                 onPress={() => setTab('admin')}
                 activeOpacity={0.8}
               >
@@ -363,18 +363,18 @@ export const MainAppShell: React.FC = () => {
                   <AppIcon name="admin" color={activeTab === 'admin' ? '#FF9F1C' : '#8E8E93'} size={20} />
                 </View>
                 <Text 
-                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1 text-center" 
                   style={{ color: activeTab === 'admin' ? '#FF9F1C' : '#8E8E93' }}
                 >
                   ADMIN
                 </Text>
-                {activeTab === 'admin' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
+                <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: activeTab === 'admin' ? '#FF9F1C' : 'transparent' }} />
               </TouchableOpacity>
             )}
 
             {user && (
               <TouchableOpacity 
-                className="items-center justify-center py-1 px-4 min-w-[76px]" 
+                className="items-center justify-center py-1 px-2 flex-1" 
                 onPress={() => setTab('attendance')}
                 activeOpacity={0.8}
               >
@@ -382,12 +382,12 @@ export const MainAppShell: React.FC = () => {
                   <AppIcon name="attendance" color={activeTab === 'attendance' ? '#FF9F1C' : '#8E8E93'} size={20} />
                 </View>
                 <Text 
-                  className="text-[10px] font-black uppercase tracking-wider mb-1" 
+                  className="text-[10px] font-black uppercase tracking-wider mb-1 text-center" 
                   style={{ color: activeTab === 'attendance' ? '#FF9F1C' : '#8E8E93' }}
                 >
                   ATTENDANCE
                 </Text>
-                {activeTab === 'attendance' && <View className="w-1.5 h-1.5 rounded-full bg-[#FF9F1C]" />}
+                <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: activeTab === 'attendance' ? '#FF9F1C' : 'transparent' }} />
               </TouchableOpacity>
             )}
           </View>

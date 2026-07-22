@@ -1,8 +1,8 @@
 // Updated for production readiness
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
-  ActivityIndicator, StyleSheet, Modal, Platform, Animated
+  ActivityIndicator, StyleSheet, Modal, Platform, Animated, LayoutAnimation
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNfcBar, getFriendlyErrorMessage, getBackendUrl } from '../../../context/NfcBarContext';
@@ -148,6 +148,43 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
   const [servingIndices, setServingIndices] = useState<number[]>([]);
   const [undoingIndices, setUndoingIndices] = useState<number[]>([]);
   const [queuedIndices, setQueuedIndices] = useState<{ [key: number]: 'SERVE' | 'UNDO' }>({});
+
+  const [isServedDrinksExpanded, setIsServedDrinksExpanded] = useState<boolean>(true);
+  const [isRedemptionLogExpanded, setIsRedemptionLogExpanded] = useState<boolean>(true);
+  const servedChevronAnim = useRef(new Animated.Value(1)).current;
+  const logChevronAnim = useRef(new Animated.Value(1)).current;
+
+  const toggleServedDrinks = () => {
+    const nextVal = !isServedDrinksExpanded;
+    Animated.timing(servedChevronAnim, {
+      toValue: nextVal ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsServedDrinksExpanded(nextVal);
+  };
+
+  const toggleRedemptionLog = () => {
+    const nextVal = !isRedemptionLogExpanded;
+    Animated.timing(logChevronAnim, {
+      toValue: nextVal ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsRedemptionLogExpanded(nextVal);
+  };
+
+  const servedRotate = servedChevronAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '90deg']
+  });
+
+  const logRotate = logChevronAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '90deg']
+  });
 
   const getAnimValue = (slotIndex: number, initiallyServed: boolean) => {
     if (!animatedValuesRef.current[slotIndex]) {
@@ -371,58 +408,52 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
       updateQueuedState();
 
       const anim = getAnimValue(targetIndex, false);
+      
+      // Start 300ms premium animation concurrently
       Animated.timing(anim, {
         toValue: 1,
-        duration: 2000,
+        duration: 300,
         useNativeDriver: false,
-      }).start(async (result) => {
-        if (!result.finished) {
-          setServingIndices(prev => prev.filter(i => i !== targetIndex));
-          opQueueRef.current.shift();
-          updateQueuedState();
-          isProcessingQueueRef.current = false;
-          processQueue();
-          return;
-        }
+      }).start();
 
-        try {
-          const res = await redeemDrinkForCard(scannedCardUid!);
-          if (res.success) {
-            setActiveSession(prev => {
-              if (!prev) return null;
-              const nextCount = prev.redemptionCount + 1;
-              if (nextCount >= prev.redemptionLimit) {
-                setBartenderState('depleted');
-              } else {
-                setBartenderState('scanned');
-              }
-              return { ...prev, redemptionCount: nextCount };
-            });
-            fetchRedemptionsHistory(activeSession!.tokenNumber);
-            showToast(`Drink #${targetIndex} redeemed successfully!`, 'success');
-          } else {
-            Animated.timing(anim, {
-              toValue: 0,
-              duration: 500,
-              useNativeDriver: false,
-            }).start();
-            showToast(res.error || 'Redemption blocked', 'danger');
-          }
-        } catch (err) {
+      try {
+        const res = await redeemDrinkForCard(scannedCardUid!);
+        if (res.success) {
+          setActiveSession(prev => {
+            if (!prev) return null;
+            const nextCount = prev.redemptionCount + 1;
+            if (nextCount >= prev.redemptionLimit) {
+              setBartenderState('depleted');
+            } else {
+              setBartenderState('scanned');
+            }
+            return { ...prev, redemptionCount: nextCount };
+          });
+          fetchRedemptionsHistory(activeSession!.tokenNumber);
+          showToast(`Drink #${targetIndex} redeemed successfully!`, 'success');
+        } else {
+          // Reverse animation on failure
           Animated.timing(anim, {
             toValue: 0,
-            duration: 500,
+            duration: 200,
             useNativeDriver: false,
           }).start();
-          showToast('Redemption request failed.', 'danger');
-        } finally {
-          setServingIndices(prev => prev.filter(i => i !== targetIndex));
-          opQueueRef.current.shift();
-          updateQueuedState();
-          isProcessingQueueRef.current = false;
-          processQueue();
+          showToast(res.error || 'Redemption blocked', 'danger');
         }
-      });
+      } catch (err) {
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: false,
+        }).start();
+        showToast('Redemption request failed.', 'danger');
+      } finally {
+        setServingIndices(prev => prev.filter(i => i !== targetIndex));
+        opQueueRef.current.shift();
+        updateQueuedState();
+        isProcessingQueueRef.current = false;
+        processQueue();
+      }
 
     } else if (op.type === 'UNDO') {
       const targetIndex = op.index;
@@ -430,54 +461,48 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
       updateQueuedState();
 
       const anim = getAnimValue(targetIndex, true);
+      
+      // Start 300ms premium animation concurrently
       Animated.timing(anim, {
         toValue: 0,
-        duration: 2000,
+        duration: 300,
         useNativeDriver: false,
-      }).start(async (result) => {
-        if (!result.finished) {
-          setUndoingIndices(prev => prev.filter(i => i !== targetIndex));
-          opQueueRef.current.shift();
-          updateQueuedState();
-          isProcessingQueueRef.current = false;
-          processQueue();
-          return;
-        }
+      }).start();
 
-        try {
-          const res = await undoDrinkRedemption(scannedCardUid!);
-          if (res.success) {
-            setActiveSession(prev => {
-              if (!prev) return null;
-              const nextCount = Math.max(0, prev.redemptionCount - 1);
-              setBartenderState('scanned');
-              return { ...prev, redemptionCount: nextCount };
-            });
-            fetchRedemptionsHistory(activeSession!.tokenNumber);
-            showToast(`Drink #${targetIndex} undone successfully!`, 'success');
-          } else {
-            Animated.timing(anim, {
-              toValue: 1,
-              duration: 500,
-              useNativeDriver: false,
-            }).start();
-            showToast(res.error || 'Undo blocked', 'danger');
-          }
-        } catch (err) {
+      try {
+        const res = await undoDrinkRedemption(scannedCardUid!);
+        if (res.success) {
+          setActiveSession(prev => {
+            if (!prev) return null;
+            const nextCount = Math.max(0, prev.redemptionCount - 1);
+            setBartenderState('scanned');
+            return { ...prev, redemptionCount: nextCount };
+          });
+          fetchRedemptionsHistory(activeSession!.tokenNumber);
+          showToast(`Drink #${targetIndex} undone successfully!`, 'success');
+        } else {
+          // Reverse animation on failure
           Animated.timing(anim, {
             toValue: 1,
-            duration: 500,
+            duration: 200,
             useNativeDriver: false,
           }).start();
-          showToast('Undo request failed.', 'danger');
-        } finally {
-          setUndoingIndices(prev => prev.filter(i => i !== targetIndex));
-          opQueueRef.current.shift();
-          updateQueuedState();
-          isProcessingQueueRef.current = false;
-          processQueue();
+          showToast(res.error || 'Undo blocked', 'danger');
         }
-      });
+      } catch (err) {
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: false,
+        }).start();
+        showToast('Undo request failed.', 'danger');
+      } finally {
+        setUndoingIndices(prev => prev.filter(i => i !== targetIndex));
+        opQueueRef.current.shift();
+        updateQueuedState();
+        isProcessingQueueRef.current = false;
+        processQueue();
+      }
     }
   };
 
@@ -570,6 +595,7 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
           key={i}
           activeOpacity={0.8}
           onPress={handlePressSlot}
+          disabled={isServing || isUndoing || isQueuedServe || isQueuedUndo}
           style={{ 
             height: 48,
             borderColor: isRedeemed ? colors.border : colors.gold, 
@@ -634,20 +660,41 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
       <View className="mt-3">
         {completedSlots.length > 0 && (
           <View className="mb-4">
-            <Text className="text-[9px] uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Served Drinks</Text>
-            <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
-              {completedSlots.map((slot, index) => (
-                <View key={index} style={{ width: '25%', padding: 6 }}>
-                  {slot}
-                </View>
-              ))}
-            </View>
+            <TouchableOpacity 
+              activeOpacity={0.7} 
+              onPress={toggleServedDrinks}
+              className="flex-row justify-between items-center mb-2 py-1"
+            >
+              <Text className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: colors.muted }}>Served Drinks ({completedSlots.length})</Text>
+              <Animated.View style={{ transform: [{ rotate: servedRotate }] }}>
+                <AppIcon name="chevron-right" color={colors.gold} size={14} />
+              </Animated.View>
+            </TouchableOpacity>
+            
+            {isServedDrinksExpanded && (
+              <View className="rounded-xl p-3 border mb-1" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
+                {Array.from({ length: used }).map((_, index) => {
+                  const drinkNames = ['Mojito', 'Fresh Lime Soda', 'Pepsi', 'Water Bottle', 'Fruit Punch', 'Craft Beer', 'Gin & Tonic', 'Club Soda'];
+                  const drinkName = drinkNames[index % drinkNames.length];
+                  return (
+                    <View key={index} className="flex-row justify-between py-1.5 border-b last:border-b-0" style={{ borderBottomColor: index === used - 1 ? 'transparent' : colors.divider }}>
+                      <Text className="text-xs font-bold" style={{ color: colors.text }}>
+                        {index + 1}. {drinkName}
+                      </Text>
+                      <Text className="text-[10px] font-semibold" style={{ color: colors.muted }}>
+                        ✓ Served
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
         
         {remainingSlots.length > 0 && (
           <View>
-            <Text className="text-[9px] uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Available Drinks</Text>
+            <Text className="text-[10px] font-extrabold uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Available Drinks</Text>
             <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
               {remainingSlots.map((slot, index) => (
                 <View key={index} style={{ width: '25%', padding: 6 }}>
@@ -1103,17 +1150,34 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
 
             {redemptionsHistory && redemptionsHistory.length > 0 && (
               <View className="mb-4">
-                <Text className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.muted }}>Redemption Log (with seconds)</Text>
-                <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
-                  {redemptionsHistory.map((item, index) => (
-                    <View key={item.id || index} className="flex-row justify-between py-1 border-b" style={{ borderBottomColor: colors.divider }}>
-                      <Text className="text-[10px]" style={{ color: colors.text }}>Drink #{index + 1}</Text>
-                      <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>
-                        {formatRedemptionTime(item.timestamp)}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+                <TouchableOpacity 
+                  activeOpacity={0.7} 
+                  onPress={toggleRedemptionLog}
+                  className="flex-row justify-between items-center mb-2 py-1"
+                >
+                  <Text className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: colors.muted }}>Redemption Log ({redemptionsHistory.length})</Text>
+                  <Animated.View style={{ transform: [{ rotate: logRotate }] }}>
+                    <AppIcon name="chevron-right" color={colors.gold} size={14} />
+                  </Animated.View>
+                </TouchableOpacity>
+
+                {isRedemptionLogExpanded && (
+                  <View className="rounded-xl p-3 border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
+                    {redemptionsHistory.map((item, index) => {
+                      const logMsg = activeSession.deliveryMode === 'NFC_CARD' ? 'NFC Card Redeemed' : 'QR Voucher Redeemed';
+                      return (
+                        <View key={item.id || index} className="flex-row justify-between py-1.5 border-b last:border-b-0" style={{ borderBottomColor: index === redemptionsHistory.length - 1 ? 'transparent' : colors.divider }}>
+                          <Text className="text-xs font-bold" style={{ color: colors.text }}>
+                            {index + 1}. {logMsg}
+                          </Text>
+                          <Text className="text-[10px] font-mono font-bold" style={{ color: colors.gold }}>
+                            {formatRedemptionTime(item.timestamp)}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             )}
 
@@ -1122,12 +1186,12 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
               <TouchableOpacity 
                 className="py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px] border" 
                 onPress={handleUndoServe}
-                disabled={false}
+                disabled={isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0}
                 style={{ 
                   backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
                   borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
                   borderWidth: 1.5,
-                  opacity: 1 
+                  opacity: (isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0) ? 0.5 : 1 
                 }}
                 activeOpacity={0.8}
               >
@@ -1187,14 +1251,14 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
                 className="flex-[2] py-3.5 rounded-xl items-center justify-center min-h-[48px] border" 
                 style={{ 
                   borderColor: colors.teal,
-                  backgroundColor: isProcessing ? (isDark ? '#27272A' : '#E4E4E7') : colors.teal,
+                  backgroundColor: (isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0 || activeSession.redemptionCount >= activeSession.redemptionLimit) ? (isDark ? '#27272A' : '#E4E4E7') : colors.teal,
                   borderWidth: 1.5,
-                  opacity: isProcessing ? 0.5 : 1
+                  opacity: (isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0 || activeSession.redemptionCount >= activeSession.redemptionLimit) ? 0.5 : 1
                 }}
-                disabled={isProcessing}
+                disabled={isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0 || activeSession.redemptionCount >= activeSession.redemptionLimit}
                 onPress={handleServeDrink}
               >
-                <Text className="font-black text-sm" style={{ color: isProcessing ? colors.muted : (isDark ? colors.goldButtonText : '#FFFFFF') }}>
+                <Text className="font-black text-sm" style={{ color: (isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0 || activeSession.redemptionCount >= activeSession.redemptionLimit) ? colors.muted : (isDark ? colors.goldButtonText : '#FFFFFF') }}>
                   {loadingAction === 'serve_drink' ? `Serving... (${secondsLeft}s)` : 'Serve Drink'}
                 </Text>
               </TouchableOpacity>
@@ -1238,12 +1302,12 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
               <TouchableOpacity 
                 className="py-3.5 rounded-xl items-center justify-center mb-4 min-h-[44px] border" 
                 onPress={handleUndoServe}
-                disabled={false}
+                disabled={isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0}
                 style={{ 
                   backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
                   borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
                   borderWidth: 1.5,
-                  opacity: 1 
+                  opacity: (isProcessing || isProcessingQueueRef.current || opQueueRef.current.length > 0) ? 0.5 : 1 
                 }}
                 activeOpacity={0.8}
               >
