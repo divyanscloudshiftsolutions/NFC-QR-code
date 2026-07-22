@@ -239,6 +239,10 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
   const [nfcWriteState, setNfcWriteState] = useState<'idle' | 'success' | 'error'>('idle');
   const [activationError, setActivationError] = useState<string | null>(null);
 
+  // Refs to avoid duplicate duplicate-check alert spam
+  const lastAlertedPhoneRef = useRef<string>('');
+  const lastAlertedEmailRef = useRef<string>('');
+
   // Business check: Phone active session warning (normalize phone input to start with +91)
   const normalizedInputPhone = phone.trim().startsWith('+91') ? phone.trim() : `+91${phone.trim()}`;
   const isPhoneActive = sessions.some(s => 
@@ -249,6 +253,38 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
     s.email && s.email.trim().toLowerCase() === email.trim().toLowerCase() && 
     (s.status === TokenStatus.ACTIVE || s.status === TokenStatus.EXTENDED)
   ) : false;
+
+  useEffect(() => {
+    if (phone.trim().length > 0 && isValidPhoneNumber(phone) && isPhoneActive) {
+      const normalized = phone.trim();
+      if (lastAlertedPhoneRef.current !== normalized) {
+        Alert.alert(
+          'Active Check-In Found',
+          'This phone number or email already has an active check-in. Please complete the existing session or use different details.',
+          [{ text: 'OK' }]
+        );
+        lastAlertedPhoneRef.current = normalized;
+      }
+    } else if (phone.trim().length === 0 || !isPhoneActive) {
+      lastAlertedPhoneRef.current = '';
+    }
+  }, [phone, isPhoneActive]);
+
+  useEffect(() => {
+    if (email.trim().length > 0 && isValidEmail(email) && isEmailActive) {
+      const normalized = email.trim().toLowerCase();
+      if (lastAlertedEmailRef.current !== normalized) {
+        Alert.alert(
+          'Active Check-In Found',
+          'This phone number or email already has an active check-in. Please complete the existing session or use different details.',
+          [{ text: 'OK' }]
+        );
+        lastAlertedEmailRef.current = normalized;
+      }
+    } else if (email.trim().length === 0 || !isEmailActive) {
+      lastAlertedEmailRef.current = '';
+    }
+  }, [email, isEmailActive]);
   const activeRate = rates.find(r => r.placeType === placeType);
 
   const isValidPhoneNumber = (num: string) => {
