@@ -188,7 +188,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: { code: 'VAL_001', message: 'Username and password are required' } });
   }
 
-  const email = username;
+  const email = username.includes('@') ? username : `${username.toLowerCase()}@cloudshiftsolutions.in`;
   let externalSuccess = false;
   let externalUser: any = null;
 
@@ -198,7 +198,11 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email, password, tenant_code: 'cloud-shift-solutions' })
+      body: JSON.stringify({ 
+        Email: email, 
+        Password: password, 
+        tenant_code: 'cloud-shift-solutions' 
+      })
     }, 2000);
 
     if (response.ok) {
@@ -556,8 +560,8 @@ router.post('/auth/register', authenticate, authorize(['admin']), async (req: Re
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        email,
-        password: finalPassword,
+        Email: email,
+        Password: finalPassword,
         full_name: finalFullName,
         tenant_code: 'cloud-shift-solutions'
       })
