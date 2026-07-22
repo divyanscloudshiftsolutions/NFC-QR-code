@@ -35,32 +35,41 @@ export const AppInput: React.FC<AppInputProps> = ({
           },
         ]}
       >
-        <View style={styles.topRow}>
-          {icon && (
-            <View style={styles.iconContainer}>
-              <AppIcon name={icon} color={colors.gold} size={16} />
-            </View>
-          )}
+        {icon && (
+          <View 
+            style={[
+              styles.iconContainerLeft, 
+              { 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.015)',
+                borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+                borderWidth: 1 
+              }
+            ]}
+          >
+            <AppIcon name={icon} color={colors.gold} size={18} />
+          </View>
+        )}
 
+        <View style={styles.rightCol}>
           <Text style={[styles.label, { color: colors.gold }]}>
             {label} {required && <Text style={{ color: '#EF4444' }}>*</Text>}
           </Text>
-        </View>
 
-        <View style={styles.inputRow}>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                color: colors.text,
-              },
-            ]}
-            placeholderTextColor={colors.placeholder}
-            accessibilityLabel={label}
-            accessibilityRole="text"
-            {...props}
-          />
-          {rightElement}
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                },
+              ]}
+              placeholderTextColor={colors.placeholder}
+              accessibilityLabel={label}
+              accessibilityRole="text"
+              {...props}
+            />
+            {rightElement}
+          </View>
         </View>
       </View>
 
@@ -80,24 +89,30 @@ const styles = StyleSheet.create({
   },
   container: {
     borderRadius: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-  },
-  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 6,
+    gap: 12,
   },
-  iconContainer: {
-    justifyContent: 'center',
+  iconContainerLeft: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rightCol: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
   },
   label: {
-    fontSize: 11,
+    fontSize: 9.5,
     fontWeight: '800',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    marginBottom: 1,
   },
   inputRow: {
     flexDirection: 'row',
@@ -105,9 +120,9 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    paddingVertical: 4,
+    paddingVertical: 0,
   },
   errorBox: {
     flexDirection: 'row',
