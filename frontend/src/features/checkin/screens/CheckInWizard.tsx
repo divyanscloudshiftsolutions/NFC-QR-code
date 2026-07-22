@@ -969,7 +969,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               {phone.trim().length > 0 && isValidPhoneNumber(phone) && isPhoneActive && (
                 <View className="bg-red/5 border border-red/10 rounded-lg p-2 mt-1.5 flex-row items-center gap-1.5">
                   <AppIcon name="alert-triangle" color="#EF4444" size={12} />
-                  <Text className="text-red text-[10px] leading-3.5">This phone number is already registered with an active session.</Text>
+                  <Text className="text-red text-[10px] leading-3.5">This phone number already has an active check-in. Please use a different phone number or complete the existing session before creating a new check-in.</Text>
                 </View>
               )}
             </View>
