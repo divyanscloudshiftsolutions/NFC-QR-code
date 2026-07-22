@@ -426,6 +426,9 @@ export const TablesPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true
         <TouchableOpacity 
           className="flex-1 py-[13px] items-center rounded-lg"
           style={selectedPlace === 'STANDING_BAR' ? { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border } : {}}
+          accessibilityRole="tab"
+          accessibilityLabel="Standing Bar place type"
+          accessibilityState={{ selected: selectedPlace === 'STANDING_BAR' }}
           onPress={() => setSelectedPlace('STANDING_BAR')}
         >
           <Text 
@@ -438,6 +441,9 @@ export const TablesPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true
         <TouchableOpacity 
           className="flex-1 py-[13px] items-center rounded-lg"
           style={selectedPlace === 'PREMIUM_LOUNGE' ? { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border } : {}}
+          accessibilityRole="tab"
+          accessibilityLabel="Premium Lounge place type"
+          accessibilityState={{ selected: selectedPlace === 'PREMIUM_LOUNGE' }}
           onPress={() => setSelectedPlace('PREMIUM_LOUNGE')}
         >
           <Text 

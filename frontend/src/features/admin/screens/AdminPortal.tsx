@@ -720,6 +720,9 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
               return (
                 <TouchableOpacity
                   key={item.tab}
+                  accessibilityRole="tab"
+                  accessibilityLabel={`${item.label} sub-tab`}
+                  accessibilityState={{ selected: isActive }}
                   style={{
                     backgroundColor: isActive ? 'rgba(255, 159, 28, 0.12)' : colors.card,
                     borderWidth: 1,
@@ -749,17 +752,18 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
         {/* Full-width Search Bar fixed under tabs */}
         {adminSubTab === 'cards' && (
           <View style={{ flexDirection: 'row', backgroundColor: colors.input, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12, marginTop: 4, alignItems: 'center' }}>
-            <AppIcon name="search" label="Search cards" size={12} color={colors.muted} />
-            <TextInput
+            <AppIcon name="search" label="Search cards" size={12} color={colors.muted} />             <TextInput
               style={{ flex: 1, marginLeft: 6, color: colors.text, fontSize: 11, padding: 0 }}
               placeholder="Search by card UID..."
               placeholderTextColor={colors.placeholder}
               value={cardSearch}
               onChangeText={setCardSearch}
               autoCapitalize="characters"
+              accessibilityLabel="Search by card UID input"
+              accessibilityRole="text"
             />
             {cardSearch ? (
-              <TouchableOpacity onPress={() => setCardSearch('')}>
+              <TouchableOpacity onPress={() => setCardSearch('')} accessibilityRole="button" accessibilityLabel="Clear card search">
                 <AppIcon name="x" label="Clear search" size={12} color={colors.muted} />
               </TouchableOpacity>
             ) : null}
@@ -776,9 +780,11 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 placeholderTextColor={colors.placeholder}
                 value={customerSearch}
                 onChangeText={setCustomerSearch}
+                accessibilityLabel="Search sessions input"
+                accessibilityRole="text"
               />
               {customerSearch ? (
-                <TouchableOpacity onPress={() => setCustomerSearch('')}>
+                <TouchableOpacity onPress={() => setCustomerSearch('')} accessibilityRole="button" accessibilityLabel="Clear customer search">
                   <AppIcon name="x" label="Clear search" size={12} color={colors.muted} />
                 </TouchableOpacity>
               ) : null}

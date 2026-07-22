@@ -56,6 +56,8 @@ export const AppInput: React.FC<AppInputProps> = ({
               },
             ]}
             placeholderTextColor={colors.placeholder}
+            accessibilityLabel={label}
+            accessibilityRole="text"
             {...props}
           />
           {rightElement}

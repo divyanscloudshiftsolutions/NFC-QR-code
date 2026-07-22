@@ -309,6 +309,9 @@ export const LoginScreen: React.FC = () => {
                   key={role}
                   className="flex-1 py-2.5 rounded-lg items-center justify-center min-h-[40px]"
                   style={isSel ? { backgroundColor: colors.gold } : {}}
+                  accessibilityRole="tab"
+                  accessibilityLabel={`${roleLabels[role]} role selector`}
+                  accessibilityState={{ selected: isSel }}
                   onPress={() => {
                     setSelectedRole(role);
                     setErrorMsg('');
@@ -334,6 +337,9 @@ export const LoginScreen: React.FC = () => {
                 borderColor: activeField === 'id' ? colors.gold : colors.inputBorder,
                 borderWidth: 1
               }}
+              accessibilityRole="combobox"
+              accessibilityLabel="Employee ID entry field"
+              accessibilityState={{ expanded: activeField === 'id' }}
               onPress={() => setActiveField('id')}
               activeOpacity={0.9}
             >
@@ -359,6 +365,9 @@ export const LoginScreen: React.FC = () => {
                 borderColor: activeField === 'pin' ? colors.gold : colors.inputBorder,
                 borderWidth: 1
               }}
+              accessibilityRole="combobox"
+              accessibilityLabel="PIN input field"
+              accessibilityState={{ expanded: activeField === 'pin' }}
               onPress={() => setActiveField('pin')}
               activeOpacity={0.9}
             >
@@ -389,6 +398,8 @@ export const LoginScreen: React.FC = () => {
                     <TouchableOpacity
                       key={key}
                       className="flex-1 rounded-xl items-center justify-center border"
+                      accessibilityRole="keyboardkey"
+                      accessibilityLabel={key === '⌫' ? 'backspace' : key === 'C' ? 'clear input' : `number ${key}`}
                       style={{ 
                         height: numpadHeight,
                         backgroundColor: isAction ? colors.input : colors.surface,
@@ -415,6 +426,9 @@ export const LoginScreen: React.FC = () => {
           {/* Remember device toggle */}
           <TouchableOpacity 
             className="flex-row items-center mb-5 mt-1 min-h-[44px]"
+            accessibilityRole="checkbox"
+            accessibilityLabel="Remember this device checkbox"
+            accessibilityState={{ checked: rememberMe }}
             onPress={() => setRememberMe(!rememberMe)}
             activeOpacity={0.8}
           >
@@ -437,6 +451,9 @@ export const LoginScreen: React.FC = () => {
               backgroundColor: (idSuffix.length !== 2 || enteredPin.length !== 4 || isSubmitting) ? colors.input : colors.gold,
               borderColor: (idSuffix.length !== 2 || enteredPin.length !== 4 || isSubmitting) ? colors.border : colors.gold
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign In Shift button"
+            accessibilityState={{ disabled: idSuffix.length !== 2 || enteredPin.length !== 4 || isSubmitting }}
             onPress={handleSignIn}
             disabled={idSuffix.length !== 2 || enteredPin.length !== 4 || isSubmitting}
             activeOpacity={0.8}

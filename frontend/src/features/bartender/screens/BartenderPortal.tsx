@@ -790,6 +790,8 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
                 <TouchableOpacity 
                   className="w-full rounded-[20px] py-5 items-center justify-center shadow-xl border"
                   style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Start physical smart card scan"
                   onPress={handlePhysicalScan}
                   activeOpacity={0.85}
                 >
@@ -818,10 +820,14 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
                     onChangeText={setEnteredToken}
                     autoCapitalize="characters"
                     autoCorrect={false}
+                    accessibilityLabel="Enter token number"
+                    accessibilityRole="text"
                   />
                   <TouchableOpacity 
                     className="px-5 py-3 rounded-xl min-h-[48px] justify-center items-center border"
                     style={{ backgroundColor: colors.gold, borderColor: colors.gold }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Validate token"
                     onPress={() => handleTokenLookup(enteredToken)}
                   >
                     <Text className="font-extrabold text-xs" style={{ color: colors.goldButtonText }}>VALIDATE</Text>
@@ -833,6 +839,8 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
               <TouchableOpacity 
                 className="w-full rounded-[20px] py-4 items-center justify-center shadow-xl border mb-3"
                 style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }}
+                accessibilityRole="button"
+                accessibilityLabel="Start camera QR code scan"
                 onPress={handleQrScan}
                 activeOpacity={0.85}
               >
@@ -846,6 +854,8 @@ export const BartenderPortal: React.FC<{ isActive?: boolean }> = ({ isActive = t
               <TouchableOpacity 
                 className="w-full rounded-[20px] py-4 items-center justify-center shadow-xl border mb-4"
                 style={{ backgroundColor: colors.gold, borderColor: colors.gold, borderWidth: 1.5 }}
+                accessibilityRole="button"
+                accessibilityLabel="Start card NFC scan"
                 onPress={handlePhysicalScan}
                 activeOpacity={0.85}
               >

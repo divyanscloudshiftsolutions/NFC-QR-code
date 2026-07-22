@@ -89,6 +89,9 @@ export const AppButton: React.FC<AppButtonProps> = ({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.82}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading }}
       style={[
         styles.button,
         {

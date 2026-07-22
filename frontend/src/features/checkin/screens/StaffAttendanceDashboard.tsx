@@ -8,6 +8,7 @@ import { useNfcBar, getBackendUrl } from '../../../context/NfcBarContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { AppIcon } from '../../../components/common/AppIcon';
+import { SkeletonLoader } from '../../../components/common/SkeletonLoader';
 
 export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isActive }) => {
   const { colors, isDark } = useTheme();
@@ -304,6 +305,9 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
                   <View className="flex-row gap-2.5">
                     <TouchableOpacity
                       disabled={isVerifyingFace}
+                      accessibilityRole="button"
+                      accessibilityLabel={isCheckedIn ? 'Capture photo for clock out' : 'Capture photo for clock in'}
+                      accessibilityState={{ disabled: isVerifyingFace }}
                       onPress={() => handleFaceCheckInOut(isCheckedIn ? 'checkout' : 'checkin')}
                       className="flex-grow py-3.5 bg-[#FF9F1C] rounded-xl flex-row items-center justify-center gap-2 min-h-[48px] active:opacity-85 shadow-lg"
                     >
@@ -315,6 +319,8 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
                     
                     <TouchableOpacity
                       disabled={isVerifyingFace}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel face camera"
                       onPress={() => setIsCameraActive(false)}
                       className="px-6 py-3.5 bg-white/10 rounded-xl items-center min-h-[48px] justify-center active:opacity-80"
                     >
@@ -325,6 +331,8 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
               ) : (
                 <TouchableOpacity
                   onPress={startFaceVerification}
+                  accessibilityRole="button"
+                  accessibilityLabel={isCheckedIn ? 'Start Face Clock-Out verification' : 'Start Face Clock-In verification'}
                   className="py-3.5 bg-[#FF9F1C] rounded-xl flex-row items-center justify-center gap-2 min-h-[48px]"
                 >
                   <AppIcon name="camera" color="#08090D" size={18} />
@@ -340,6 +348,8 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
               {isCheckedIn ? (
                 <TouchableOpacity
                   onPress={triggerManualCheckOut}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close Attendance shift manually"
                   className="py-3 bg-red/20 border border-red/40 rounded-xl items-center min-h-[48px] justify-center"
                 >
                   <Text className="text-red font-extrabold text-sm uppercase tracking-wider">Close Attendance</Text>
@@ -347,6 +357,8 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
               ) : (
                 <TouchableOpacity
                   onPress={triggerManualCheckIn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Register shift presence manually"
                   className="py-3 bg-emerald-600 rounded-xl items-center min-h-[48px] justify-center"
                 >
                   <Text className="text-white font-extrabold text-sm uppercase tracking-wider">Yes, I am Present</Text>
@@ -356,7 +368,7 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
           )}
         </View>
       </View>
-
+ 
       {/* 2. STATS CARDS PANEL */}
       <View className="flex-row flex-wrap justify-between mb-4">
         {[
@@ -373,7 +385,7 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
           </View>
         ))}
       </View>
-
+ 
       {/* 3. HISTORY FILTER LOG PANEL */}
       <View className="mb-4">
         <View className="flex-row justify-between items-center mb-3">
@@ -389,6 +401,9 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
             ].map(f => (
               <TouchableOpacity
                 key={f.key}
+                accessibilityRole="tab"
+                accessibilityLabel={`Show history for ${f.val}`}
+                accessibilityState={{ selected: historyFilter === f.key }}
                 onPress={() => setHistoryFilter(f.key as any)}
                 className={`px-2 py-1 rounded-md ${historyFilter === f.key ? 'bg-[#D4AF37]' : ''}`}
               >
@@ -419,7 +434,7 @@ export const StaffAttendanceDashboard: React.FC<{ isActive: boolean }> = ({ isAc
         )}
 
         {isLoadingPersonal ? (
-          <ActivityIndicator size="small" color="#D4AF37" className="my-6" />
+          <SkeletonLoader type="list-item" count={3} />
         ) : (
           <View>
             {personalHistory.length === 0 ? (
