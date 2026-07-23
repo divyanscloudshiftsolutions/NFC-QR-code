@@ -22,7 +22,7 @@ export class FaceService {
   }
 
   private static getBearerToken(): string {
-    return process.env.FACEMARK_BEARER_TOKEN || process.env.KIOSK_API_TOKEN || process.env.FACEMARK_KIOSK_TOKEN || '';
+    return process.env.FACEMARK_BEARER_TOKEN || process.env.KIOSK_API_TOKEN || process.env.FACEMARK_KIOSK_TOKEN || process.env.VITE_KIOSK_TOKEN || '';
   }
 
   private static handleFetchError(err: any): never {
