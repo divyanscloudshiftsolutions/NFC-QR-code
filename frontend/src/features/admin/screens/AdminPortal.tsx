@@ -294,33 +294,26 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
       });
 
       if (photo && photo.base64) {
-        const nextImages = [...capturedImages, photo.base64];
-        setCapturedImages(nextImages);
+        const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
+        const res = await fetch(`${BACKEND_URL}/attendance/admin/enroll-face/${enrollingUser.id}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${activeToken}`
+          },
+          body: JSON.stringify({ imagesBase64: [photo.base64] })
+        });
 
-        if (nextImages.length >= 3) {
-          const activeToken = await AsyncStorage.getItem('nfc_bar_user_token');
-          const res = await fetch(`${BACKEND_URL}/attendance/admin/enroll-face/${enrollingUser.id}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${activeToken}`
-            },
-            body: JSON.stringify({ imagesBase64: nextImages })
-          });
-
-          const data = await res.json();
-          if (res.ok && data.success) {
-            showToast(`Face registered successfully for ${enrollingUser.fullName}!`, 'success');
-          } else {
-            showToast(data.error?.message || 'Something went wrong while registering your face. Please try again or contact the administrator if the problem continues.', 'danger', 5000);
-          }
-
-          setShowEnrollCamera(false);
-          setEnrollingUser(null);
-          setCapturedImages([]);
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Face registered successfully for ${enrollingUser.fullName}!`, 'success');
         } else {
-          showToast(`Sample ${nextImages.length}/3 captured. Take another.`, 'warning');
+          showToast(data.error?.message || 'Something went wrong while registering your face. Please try again or contact the administrator if the problem continues.', 'danger', 5000);
         }
+
+        setShowEnrollCamera(false);
+        setEnrollingUser(null);
+        setCapturedImages([]);
       }
     } catch (err: any) {
       showToast('Unable to connect to the face verification service. Please check your internet connection and try again.', 'danger', 5000);
@@ -3674,7 +3667,7 @@ export const AdminPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true 
                 />
                 <View className="mt-6 px-4 py-2 rounded-full bg-black/80 border border-white/10 shadow-lg">
                   <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>
-                    Capture 3 photos from different angles ({capturedImages.length}/3)
+                    Align your face inside the guide and capture
                   </Text>
                 </View>
               </View>
