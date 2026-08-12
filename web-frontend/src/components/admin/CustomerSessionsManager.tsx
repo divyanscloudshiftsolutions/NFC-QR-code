@@ -87,7 +87,7 @@ export const CustomerSessionsManager: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Search & Filter Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 glass-panel p-3 sm:p-4 rounded-2xl border border-border-main">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6">
         <div className="relative w-full md:w-auto md:flex-1 max-w-md">
           <Search className="absolute left-3.5 top-3 text-text-muted" size={16} />
           <input
@@ -227,11 +227,11 @@ export const CustomerSessionsManager: React.FC = () => {
 
       {/* EXTEND SESSION MODAL */}
       {extendingToken && (
-        <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
-          <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 shadow-2xl relative text-text-main animate-fadeIn max-h-full overflow-y-auto custom-scrollbar">
+        <div className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0">
+          <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main animate-none h-[100dvh] pointer-events-auto flex flex-col">
             <button 
               onClick={() => setExtendingToken(null)}
-              className="absolute top-4 sm:top-6 right-4 sm:right-6 text-text-muted hover:text-text-main bg-bg-surface rounded-full z-10"
+              className="absolute top-4 sm:top-6 right-4 sm:right-6 text-text-muted hover:text-text-main bg-bg-surface rounded-full z-10 p-0 hover:bg-bg-card"
             >
               <X size={18} />
             </button>
@@ -300,11 +300,11 @@ export const CustomerSessionsManager: React.FC = () => {
 
       {/* DEACTIVATE SESSION MODAL */}
       {deactivatingToken && (
-        <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
-          <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 shadow-2xl relative text-text-main animate-fadeIn max-h-full overflow-y-auto custom-scrollbar">
+        <div className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0">
+          <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main animate-none h-[100dvh] pointer-events-auto flex flex-col">
             <button 
               onClick={() => setDeactivatingToken(null)}
-              className="absolute top-4 sm:top-6 right-4 sm:right-6 text-text-muted hover:text-text-main bg-bg-surface rounded-full z-10"
+              className="absolute top-4 sm:top-6 right-4 sm:right-6 text-text-muted hover:text-text-main bg-bg-surface rounded-full z-10 p-0 hover:bg-bg-card"
             >
               <X size={18} />
             </button>

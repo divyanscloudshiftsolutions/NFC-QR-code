@@ -149,15 +149,7 @@ export class EmailNotificationService {
     const sendRealEmails = process.env.SEND_REAL_EMAILS !== 'false' && !isTesting;
 
     if (!sendRealEmails) {
-      console.info(`[Email Worker] Mocking email dispatch to ${to} (token: ${tokenNumber}) [real send skipped: SEND_REAL_EMAILS is set to false or NODE_ENV is test]`);
-      await prisma.token.update({
-        where: { tokenNumber },
-        data: {
-          emailSent: true,
-          emailSentAt: new Date(),
-          emailDeliveryStatus: 'SENT'
-        }
-      }).catch(() => {});
+      console.warn(`[Email Worker] Email dispatch to ${to} (token: ${tokenNumber}) skipped. Real emails are disabled in environment.`);
       return;
     }
 

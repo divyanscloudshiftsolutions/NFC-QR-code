@@ -1,9 +1,12 @@
 const { Client } = require("pg");
 
 (async () => {
+  if (!process.env.DATABASE_URL) {
+    console.error("Missing DATABASE_URL environment variable.");
+    process.exit(1);
+  }
   const c = new Client({
-    connectionString:
-      "postgresql://dev_user:Sabari%402026@192.168.1.150:5432/nfcregistry",
+    connectionString: process.env.DATABASE_URL,
   });
   await c.connect();
   const r = await c.query(`

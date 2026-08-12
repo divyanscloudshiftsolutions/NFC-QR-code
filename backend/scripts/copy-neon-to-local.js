@@ -4,10 +4,13 @@
  */
 const { Client } = require("pg");
 
-const SOURCE_URL =
-  "postgresql://neondb_owner:npg_5Rg2pVkinGIB@ep-dry-snow-aon2oy5o-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
-const TARGET_URL =
-  "postgresql://dev_user:Sabari%402026@192.168.1.150:5432/nfcregistry";
+const SOURCE_URL = process.env.NEON_DATABASE_URL;
+const TARGET_URL = process.env.LOCAL_DATABASE_URL;
+
+if (!SOURCE_URL || !TARGET_URL) {
+  console.error("Missing NEON_DATABASE_URL or LOCAL_DATABASE_URL environment variable.");
+  process.exit(1);
+}
 
 // Parent tables first (FK-safe insert order)
 const TABLES = [

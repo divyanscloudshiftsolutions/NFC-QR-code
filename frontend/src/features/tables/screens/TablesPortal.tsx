@@ -829,22 +829,6 @@ export const TablesPortal: React.FC<{ isActive?: boolean }> = ({ isActive = true
               ))}
             </View>
 
-            {/* Static Dummy QR Code for UPI */}
-            {extendPaymentMode === 'UPI' && (
-              <View className="items-center justify-center mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.secondarySurface, borderColor: colors.border, borderWidth: 1.5 }}>
-                <Text className="text-[11px] font-bold mb-2" style={{ color: colors.gold }}>Scan dummy QR to pay</Text>
-                <Image
-                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=NFCBar&am=${(() => {
-                    const rateCard = rates.find(r => r.placeType === selectedSession.placeType);
-                    const rate = rateCard ? rateCard.ratePerPerson : (selectedSession.placeType === 'PREMIUM_LOUNGE' ? 1200 : 500);
-                    const duration = rateCard?.durationHours || 2;
-                    return (rate * selectedSession.persons * (1 / duration)).toFixed(0);
-                  })()}` }}
-                  style={{ width: 150, height: 150, borderRadius: 8 }}
-                />
-                <Text className="text-[9px] font-semibold mt-2" style={{ color: colors.muted }}>Demo purposes only • No actual verification</Text>
-              </View>
-            )}
 
             {/* Actions */}
             <View className="flex-row gap-3">

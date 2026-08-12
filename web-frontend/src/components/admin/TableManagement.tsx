@@ -8,477 +8,489 @@ import { TableDiagram } from '../TableDiagram';
 import { SeatingRow } from '../SeatingRow';
 
 export const TableManagement: React.FC = () => {
-  const { showToast, isDark } = useAuth();
-  const { tables, tokens, isLoading, refreshTables, refreshTokens } = useData();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPlace, setSelectedPlace] = useState<'STANDING_BAR' | 'PREMIUM_LOUNGE'>('STANDING_BAR');
+ const { showToast, isDark } = useAuth();
+ const { tables, tokens, isLoading, refreshTables, refreshTokens } = useData();
+ const [isModalOpen, setIsModalOpen] = useState(false);
+ const [selectedPlace, setSelectedPlace] = useState<'STANDING_BAR' | 'PREMIUM_LOUNGE'>('STANDING_BAR');
 
-  // Fetch tables and tokens on component mount
-  useEffect(() => {
-    refreshTables();
-    refreshTokens();
-  }, []);
+ // Fetch tables and tokens on component mount
+ useEffect(() => {
+ refreshTables();
+ refreshTokens();
+ }, []);
 
-  // Form State
-  const [tableNumber, setTableNumber] = useState('S-01');
-  const [capacity, setCapacity] = useState('4');
-  const [placeType, setPlaceType] = useState('STANDING_BAR');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+ // Form State
+ const [tableNumber, setTableNumber] = useState('S-01');
+ const [capacity, setCapacity] = useState('4');
+ const [placeType, setPlaceType] = useState('STANDING_BAR');
+ const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Inspection Dialog Modal State
-  const [inspectingTable, setInspectingTable] = useState<Table | null>(null);
+ // Inspection Dialog Modal State
+ const [inspectingTable, setInspectingTable] = useState<Table | null>(null);
 
-  const filteredTables = tables.filter(tb => {
-    const p = (tb.placeTypeId || tb.categoryName || tb.tableNumber || '').toUpperCase();
-    if (selectedPlace === 'STANDING_BAR') {
-      return p.includes('STANDING') || p.includes('BAR') || tb.tableNumber.startsWith('S-');
-    }
-    return p.includes('PREMIUM') || p.includes('LOUNGE') || tb.tableNumber.startsWith('L-');
-  });
+ const filteredTables = tables.filter(tb => {
+ const p = (tb.placeTypeId || tb.categoryName || tb.tableNumber || '').toUpperCase();
+ if (selectedPlace === 'STANDING_BAR') {
+ return p.includes('STANDING') || p.includes('BAR') || tb.tableNumber.startsWith('S-');
+ }
+ return p.includes('PREMIUM') || p.includes('LOUNGE') || tb.tableNumber.startsWith('L-');
+ });
 
-  // Real-time validations
-  const isTableNumberValid = /^[SL]-\d{2,3}$/.test(tableNumber.trim().toUpperCase());
-  const capVal = parseInt(capacity, 10);
-  const isCapacityValid = !isNaN(capVal) && capVal >= 1 && capVal <= 100;
-  const isFormValid = isTableNumberValid && isCapacityValid;
+ // Real-time validations
+ const isTableNumberValid = /^[SL]-\d{2,3}$/.test(tableNumber.trim().toUpperCase());
+ const capVal = parseInt(capacity, 10);
+ const isCapacityValid = !isNaN(capVal) && capVal >= 1 && capVal <= 100;
+ const isFormValid = isTableNumberValid && isCapacityValid;
 
-  const handleCreateTable = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isFormValid) return;
+ const handleCreateTable = async (e: React.FormEvent) => {
+ e.preventDefault();
+ if (!isFormValid) return;
 
-    setIsSubmitting(true);
-    try {
-      await api.createTable({
-        tableNumber: tableNumber.trim().toUpperCase(),
-        capacity: parseInt(capacity, 10),
-        placeTypeId: placeType,
-      });
-      showToast(`Table ${tableNumber} created successfully!`, 'success');
-      setIsModalOpen(false);
-      refreshTables();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to create table.', 'danger');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+ setIsSubmitting(true);
+ try {
+ await api.createTable({
+ tableNumber: tableNumber.trim().toUpperCase(),
+ capacity: parseInt(capacity, 10),
+ placeTypeId: placeType,
+ });
+ showToast(`Table ${tableNumber} created successfully!`, 'success');
+ setIsModalOpen(false);
+ refreshTables();
+ } catch (err: any) {
+ showToast(err.message || 'Failed to create table.', 'danger');
+ } finally {
+ setIsSubmitting(false);
+ }
+ };
 
-  const handleRelease = async (tableId: string) => {
-    try {
-      await api.releaseTable(tableId);
-      showToast('Table released successfully!', 'success');
-      if (inspectingTable && inspectingTable.id === tableId) {
-        setInspectingTable(null);
-      }
-      refreshTables();
-      refreshTokens();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to release table.', 'danger');
-    }
-  };
+ const handleRelease = async (tableId: string) => {
+ try {
+ await api.releaseTable(tableId);
+ showToast('Table released successfully!', 'success');
+ if (inspectingTable && inspectingTable.id === tableId) {
+ setInspectingTable(null);
+ }
+ refreshTables();
+ refreshTokens();
+ } catch (err: any) {
+ showToast(err.message || 'Failed to release table.', 'danger');
+ }
+ };
 
-  const inspectingToken = inspectingTable 
-    ? tokens.find(tk => tk.tableId === inspectingTable.id || (tk.table && tk.table.id === inspectingTable.id))
-    : null;
+ const inspectingToken = inspectingTable 
+ ? tokens.find(tk => tk.tableId === inspectingTable.id || (tk.table && tk.table.id === inspectingTable.id))
+ : null;
 
-  return (
-    <div className="space-y-5 sm:space-y-6">
-      {/* Top Bar with Place Type Tabs */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 glass-panel p-3 sm:p-4 rounded-2xl border border-border-main">
-        <div className="flex flex-nowrap overflow-x-auto custom-scrollbar gap-2 w-full md:w-auto pb-1 md:pb-0">
-          <button
-            onClick={() => setSelectedPlace('STANDING_BAR')}
-            className={`px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all premium-tab-primary active:scale-95 shrink-0 whitespace-nowrap ${
-              selectedPlace === 'STANDING_BAR' ? 'active' : ''
-            }`}
-          >
-            <span className="hidden sm:inline">Standard Zone (Standing Bar)</span>
-            <span className="sm:hidden">Standard Zone</span>
-          </button>
+ return (
+ <div className="space-y-5 sm:space-y-6">
+ {/* Top Bar with Place Type Tabs */}
+ <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6">
+ <div className="flex flex-nowrap overflow-x-auto custom-scrollbar gap-2 w-full md:w-auto pb-1 md:pb-0">
+ <button
+ onClick={() => setSelectedPlace('STANDING_BAR')}
+ className={`px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all premium-tab-primary active:scale-95 shrink-0 whitespace-nowrap ${
+ selectedPlace === 'STANDING_BAR' ? 'active' : ''
+ }`}
+ >
+ <span className="hidden sm:inline">Standard Zone (Standing Bar)</span>
+ <span className="sm:hidden">Standard Zone</span>
+ </button>
 
-          <button
-            onClick={() => setSelectedPlace('PREMIUM_LOUNGE')}
-            className={`px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all premium-tab-primary active:scale-95 shrink-0 whitespace-nowrap ${
-              selectedPlace === 'PREMIUM_LOUNGE' ? 'active' : ''
-            }`}
-          >
-            <span className="hidden sm:inline">Premium Zone (Lounge)</span>
-            <span className="sm:hidden">Premium Zone</span>
-          </button>
-        </div>
+ <button
+ onClick={() => setSelectedPlace('PREMIUM_LOUNGE')}
+ className={`px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all premium-tab-primary active:scale-95 shrink-0 whitespace-nowrap ${
+ selectedPlace === 'PREMIUM_LOUNGE' ? 'active' : ''
+ }`}
+ >
+ <span className="hidden sm:inline">Premium Zone (Lounge)</span>
+ <span className="sm:hidden">Premium Zone</span>
+ </button>
+ </div>
 
-        <div className="flex flex-row items-center gap-2 w-full md:w-auto shrink-0">
-          <button
-            onClick={() => { refreshTables(); refreshTokens(); }}
-            className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 transition-all premium-btn-secondary shrink-0 whitespace-nowrap"
-          >
-            <div className="nav-icon-badge">
-              <RefreshCw size={12} />
-            </div>
-            <span className="hidden sm:inline">Refresh Data</span>
-            <span className="sm:hidden">Refresh</span>
-          </button>
+ <div className="flex flex-row items-center gap-2 w-full md:w-auto shrink-0">
+ <button
+ onClick={() => { refreshTables(); refreshTokens(); }}
+ className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 transition-all premium-btn-secondary shrink-0 whitespace-nowrap"
+ >
+ <div className="nav-icon-badge">
+ <RefreshCw size={12} />
+ </div>
+ <span className="hidden sm:inline">Refresh Data</span>
+ <span className="sm:hidden">Refresh</span>
+ </button>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl primary-btn text-[11px] sm:text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 shadow-lg shrink-0 whitespace-nowrap"
-          >
-            <div className="nav-icon-badge">
-              <Plus size={14} />
-            </div>
-            <span className="hidden sm:inline">Add New Table</span>
-            <span className="sm:hidden">Add Table</span>
-          </button>
-        </div>
-      </div>
+ <button
+ onClick={() => setIsModalOpen(true)}
+ className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl primary-btn text-[11px] sm:text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap"
+ >
+ <div className="nav-icon-badge">
+ <Plus size={14} />
+ </div>
+ <span className="hidden sm:inline">Add New Table</span>
+ <span className="sm:hidden">Add Table</span>
+ </button>
+ </div>
+ </div>
 
-      {/* Tables Grid */}
-      {isLoading ? (
-        <div className="py-12 text-center text-text-muted text-sm">Loading floor tables...</div>
-      ) : filteredTables.length === 0 ? (
-        <div className="glass-panel p-12 rounded-3xl border border-border-main text-center space-y-3">
-          <Grid3X3 className="mx-auto text-text-muted" size={32} />
-          <p className="text-sm font-bold text-text-muted">No Seating Tables Available</p>
-          <p className="text-xs text-text-muted">There are no tables matching the selected zone filter right now.</p>
-        </div>
-      ) : (
-        <div className="space-y-6 sm:space-y-8">
-          {Array.from(new Set(filteredTables.map(tb => tb.capacity || 4)))
-            .sort((a, b) => b - a)
-            .map(cap => {
-              const capTables = filteredTables
-                .filter(tb => (tb.capacity || 4) === cap)
-                .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true, sensitivity: 'base' }));
+ {/* Tables Grid */}
+ {isLoading ? (
+ <div className="py-12 text-center text-text-muted text-sm">Loading floor tables...</div>
+ ) : filteredTables.length === 0 ? (
+ <div className="glass-panel p-12 rounded-3xl border border-border-main text-center space-y-3">
+ <Grid3X3 className="mx-auto text-text-muted" size={32} />
+ <p className="text-sm font-bold text-text-muted">No Seating Tables Available</p>
+ <p className="text-xs text-text-muted">There are no tables matching the selected zone filter right now.</p>
+ </div>
+ ) : (
+ <div className="space-y-6 sm:space-y-8">
+ {Array.from(new Set(filteredTables.map(tb => tb.capacity || 4)))
+ .sort((a, b) => b - a)
+ .map(cap => {
+ const capTables = filteredTables
+ .filter(tb => (tb.capacity || 4) === cap)
+ .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true, sensitivity: 'base' }));
 
-              if (capTables.length === 0) return null;
+ if (capTables.length === 0) return null;
 
-              return (
-                <SeatingRow key={cap} capacity={cap} tableCount={capTables.length}>
-                  {capTables.map(tb => {
-                    const isOccupied = tb.status === 'occupied';
-                    const capacity = tb.capacity || 4;
-                    const assignedToken = tokens.find(tk => tk.tableId === tb.id || (tk.table && tk.table.id === tb.id));
-                    const occupiedCount = assignedToken ? (assignedToken.personsCount || 1) : (isOccupied ? capacity : 0);
-                    const sizeCategory = capacity <= 2 ? 'Small' : capacity <= 4 ? 'Medium' : capacity <= 6 ? 'Large' : 'VIP Executive';
+ return (
+ <SeatingRow key={cap} capacity={cap} tableCount={capTables.length}>
+ {capTables.map(tb => {
+ const isOccupied = tb.status === 'occupied';
+ const capacity = tb.capacity || 4;
+ const assignedToken = tokens.find(tk => tk.tableId === tb.id || (tk.table && tk.table.id === tb.id));
+ const occupiedCount = assignedToken ? (assignedToken.personsCount || 1) : (isOccupied ? capacity : 0);
+ const sizeCategory = capacity <= 2 ? 'Small' : capacity <= 4 ? 'Medium' : capacity <= 6 ? 'Large' : 'VIP Executive';
 
-                    const isFull = isOccupied && occupiedCount >= capacity;
-                    const isPartial = isOccupied && occupiedCount > 0 && occupiedCount < capacity;
+ const isFull = isOccupied && occupiedCount >= capacity;
+ const isPartial = isOccupied && occupiedCount > 0 && occupiedCount < capacity;
 
-                    return (
-                      <div
-                        key={tb.id}
-                        onClick={() => setInspectingTable(tb)}
-                        className={`w-[290px] shrink-0 snap-start p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between gap-3 min-h-[295px] ${
-                          isFull
-                            ? 'bg-bg-surface/50 border-red-500/30 shadow-lg shadow-red-500/5'
-                            : isPartial
-                            ? 'bg-bg-surface/50 border-amber-500/30 shadow-md shadow-amber-500/5'
-                            : tb.status === 'reserved'
-                            ? 'bg-bg-surface border-blue-500/20 shadow-md'
-                            : tb.status === 'maintenance'
-                            ? 'bg-bg-surface/50 border-border-main opacity-60 shadow-sm'
-                            : 'bg-bg-surface border-emerald-500/30 dark:hover:border-[#8D6CE5]/50 hover:border-primary/50 dark:hover:shadow-[#8D6CE5]/5 hover:shadow-primary/5 shadow-md'
-                        }`}
-                      >
-                        {/* Header: Table Number & Semantic Status Pill */}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-mono dark:text-[#8D6CE5] text-primary font-black text-xl tracking-wider">{tb.tableNumber}</span>
-                            <p className="text-[10px] text-text-muted/80 font-bold uppercase tracking-widest block mt-0.5">
-                              {selectedPlace === 'STANDING_BAR' ? 'Standard Zone' : 'Premium Zone'}
-                            </p>
-                          </div>
+ return (
+ <div
+ key={tb.id}
+ onClick={() => setInspectingTable(tb)}
+ className={`w-full max-w-[320px] mx-auto shrink-0 p-3 rounded-[20px] dark:rounded-xl border transition-all relative overflow-hidden flex flex-col justify-between gap-3 dark:bg-[#1C1C1E] ${
+ inspectingTable?.id === tb.id ? 'dark:border-primary' : 'dark:border-[rgba(255,255,255,0.1)]'
+ } ${
+ isFull
+ ? 'bg-bg-surface/50 border-red-500/30 '
+ : isPartial
+ ? 'bg-bg-surface/50 border-amber-500/30 '
+ : tb.status === 'reserved'
+ ? 'bg-bg-surface border-blue-500/20 '
+ : tb.status === 'maintenance'
+ ? 'bg-bg-surface/50 border-border-main opacity-60 '
+ : 'bg-bg-surface border-emerald-500/30 hover:border-primary/50 '
+ }`}
+ >
+ {/* Header: Table Number & Semantic Status Pill */}
+ <div className="flex items-center justify-between">
+ <div>
+ <span className="font-mono dark:text-[#D4AF37] text-primary font-black text-xl tracking-wider">{tb.tableNumber}</span>
+ <p className="text-[10px] text-text-muted/80 font-bold uppercase tracking-widest block mt-0.5">
+ {selectedPlace === 'STANDING_BAR' ? 'Standard Zone' : 'Premium Zone'}
+ </p>
+ </div>
 
-                          <span
-                            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                              isFull
-                                ? 'dark:bg-red-500/15 bg-red-500/10 dark:text-red-400 text-red-700 border border-red-500/30'
-                                : isPartial
-                                ? 'dark:bg-amber-500/15 bg-amber-500/10 dark:text-amber-400 text-amber-700 border border-amber-500/30'
-                                : tb.status === 'reserved'
-                                ? 'dark:bg-blue-500/15 bg-blue-500/10 dark:text-blue-400 text-blue-700 border border-blue-500/30'
-                                : tb.status === 'maintenance'
-                                ? 'dark:bg-zinc-800/50 bg-zinc-200/50 text-text-muted border border-border-main'
-                                : 'dark:bg-emerald-500/15 bg-emerald-500/10 dark:text-emerald-400 text-emerald-700 border border-emerald-500/30'
-                            }`}
-                          >
-                            {isOccupied ? <Users size={12} /> : <CheckCircle2 size={12} />}
-                            <span className="capitalize">
-                              {isFull ? 'Occupied (Full)' : isPartial ? 'Partially Occupied' : tb.status}
-                            </span>
-                          </span>
-                        </div>
+ <span
+ className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+ isFull
+ ? 'dark:bg-red-500/15 bg-red-500/10 dark:text-red-400 text-red-700 border border-red-500/30'
+ : isPartial
+ ? 'dark:bg-amber-500/15 bg-amber-500/10 dark:text-amber-400 text-amber-700 border border-amber-500/30'
+ : tb.status === 'reserved'
+ ? 'dark:bg-blue-500/15 bg-blue-500/10 dark:text-blue-400 text-blue-700 border border-blue-500/30'
+ : tb.status === 'maintenance'
+ ? 'dark:bg-zinc-800/50 bg-zinc-200/50 text-text-muted border border-border-main'
+ : 'dark:bg-emerald-500/15 bg-emerald-500/10 dark:text-emerald-400 text-emerald-700 border border-emerald-500/30'
+ }`}
+ >
+ {isOccupied ? <Users size={12} /> : <CheckCircle2 size={12} />}
+ <span className="capitalize">
+ {isFull ? 'Occupied (Full)' : isPartial ? 'Partially Occupied' : tb.status}
+ </span>
+ </span>
+ </div>
 
-                        {/* Central Dynamic Table Diagram Container */}
-                        <div className="py-1 px-2 rounded-2xl bg-bg-primary/90 border border-border-sidebar/40 flex items-center justify-center h-28 relative">
-                          <TableDiagram
-                            capacity={capacity}
-                            occupiedCount={occupiedCount}
-                            status={tb.status}
-                            tableNumber={tb.tableNumber}
-                          />
-                        </div>
+ {/* Central Dynamic Table Diagram Container */}
+ <div className="py-1 px-2 rounded-2xl bg-bg-primary/90 border border-border-sidebar/40 flex items-center justify-center h-28 relative">
+ <TableDiagram
+ capacity={capacity}
+ occupiedCount={occupiedCount}
+ status={tb.status}
+ tableNumber={tb.tableNumber}
+ />
+ </div>
 
-                        {/* Info Bar - Size, Capacity & Token Metadata */}
-                        <div className="space-y-1 text-xs px-1">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-text-muted">
-                            <span className="uppercase text-[9px] tracking-widest text-text-muted/90">
-                              {sizeCategory} • <span className="font-black text-text-primary text-[10px]">{capacity}</span> Pax
-                            </span>
-                            <span className={
-                              isFull
-                                ? 'dark:text-red-400 text-red-700 font-black text-[10px]'
-                                : isPartial
-                                ? 'dark:text-amber-400 text-amber-700 font-black text-[10px]'
-                                : tb.status === 'reserved'
-                                ? 'dark:text-blue-400 text-blue-700 font-black text-[10px]'
-                                : 'dark:text-emerald-400 text-emerald-700 font-black text-[10px]'
-                            }>
-                              {occupiedCount} / {capacity} Seats
-                            </span>
-                          </div>
+ {/* Info Bar - Size, Capacity & Token Metadata */}
+ <div className="space-y-1 text-xs px-1">
+ <div className="flex items-center justify-between text-[11px] font-bold text-text-muted">
+ <span className="uppercase text-[9px] tracking-widest text-text-muted/90">
+ {sizeCategory} • <span className="font-black text-text-primary text-[10px]">{capacity}</span> Pax
+ </span>
+ <span className={
+ isFull
+ ? 'dark:text-red-400 text-red-700 font-black text-[10px]'
+ : isPartial
+ ? 'dark:text-amber-400 text-amber-700 font-black text-[10px]'
+ : tb.status === 'reserved'
+ ? 'dark:text-blue-400 text-blue-700 font-black text-[10px]'
+ : 'dark:text-emerald-400 text-emerald-700 font-black text-[10px]'
+ }>
+ {occupiedCount} / {capacity} Seats
+ </span>
+ </div>
 
-                          {assignedToken ? (
-                            <div className="flex items-center justify-between text-[11px] border-t border-border-main/40 pt-1 text-text-muted">
-                              <span className="font-semibold truncate max-w-[120px]">👤 {assignedToken.customer?.name || 'Guest'}</span>
-                              <span className="font-mono text-text-main font-black">{assignedToken.tokenNumber}</span>
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-text-muted border-t border-border-main/30 pt-1 flex justify-between">
-                              <span className="text-text-muted/70 uppercase text-[9px] tracking-wider">Rate Allowance:</span>
-                              <span className="font-mono font-black text-[10.5px] text-text-primary">₹500 / Session</span>
-                            </div>
-                          )}
-                        </div>
+ {assignedToken ? (
+ <div className="flex items-center justify-between text-[11px] border-t border-border-main/40 pt-1 text-text-muted">
+ <span className="font-semibold truncate max-w-[120px]">👤 {assignedToken.customer?.name || 'Guest'}</span>
+ <span className="font-mono text-text-main font-black">{assignedToken.tokenNumber}</span>
+ </div>
+ ) : (
+ <div className="text-[10px] text-text-muted border-t border-border-main/30 pt-1 flex justify-between">
+ <span className="text-text-muted/70 uppercase text-[9px] tracking-wider">Rate Allowance:</span>
+ <span className="font-mono font-black text-[10.5px] text-text-primary">₹500 / Session</span>
+ </div>
+ )}
+ </div>
 
-                        {/* Card Action Row */}
-                        <div className="pt-2 border-t border-border-main/50">
-                          {tb.status === 'occupied' ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRelease(tb.id);
-                              }}
-                              className={`w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${isDark ? 'primary-btn bg-red-500' : 'bg-red-500/10 text-red-700 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 border border-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-500/20'}`}
-                            >
-                              <div className="nav-icon-badge">
-                                <VideoOff size={12} />
-                              </div>
-                              <span>Release Table</span>
-                            </button>
-                          ) : tb.status === 'maintenance' ? (
-                            <div className="w-full py-2.5 text-center text-text-muted font-bold text-xs bg-bg-hover rounded-xl border border-border-main">
-                              Locked
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInspectingTable(tb);
-                              }}
-                              className="w-full py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow cursor-pointer"
-                            >
-                              <div className="nav-icon-badge">
-                                <Plus size={12} />
-                              </div>
-                              <span>Open for Seating</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </SeatingRow>
-              );
-            })}
-        </div>
-      )}
+ {/* Card Action Row */}
+ <div className="pt-2 border-t border-border-main/50">
+ {tb.status === 'occupied' ? (
+ <button
+ type="button"
+ onClick={(e) => {
+ e.stopPropagation();
+ handleRelease(tb.id);
+ }}
+ className={`w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${isDark ? 'primary-btn bg-red-500' : 'bg-red-500/10 text-red-700 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 border border-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-500/20'}`}
+ >
+ <div className="nav-icon-badge">
+ <VideoOff size={12} />
+ </div>
+ <span>Release Table</span>
+ </button>
+ ) : tb.status === 'maintenance' ? (
+ <div className="w-full py-2.5 text-center text-text-muted font-bold text-xs bg-bg-hover rounded-xl border border-border-main">
+ Locked
+ </div>
+ ) : (
+ <button
+ type="button"
+ onClick={(e) => {
+ e.stopPropagation();
+ setInspectingTable(tb);
+ }}
+ className="w-full py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+ >
+ <div className="nav-icon-badge">
+ <Plus size={12} />
+ </div>
+ <span>Open for Seating</span>
+ </button>
+ )}
+ </div>
+ </div>
+ );
+ })}
+ </SeatingRow>
+ );
+ })}
+ </div>
+ )}
 
-      {/* CENTERED TABLE INSPECTION DIALOG MODAL BOX */}
-      {inspectingTable && (() => {
-        const capacity = inspectingTable.capacity || 4;
-        const isOccupied = inspectingTable.status === 'occupied';
-        const occupiedCount = inspectingToken ? (inspectingToken.personsCount || 1) : (isOccupied ? capacity : 0);
+ {/* CENTERED TABLE INSPECTION DIALOG MODAL BOX -> CHANGED TO RIGHT DRAWER */}
+ {inspectingTable && (() => {
+ const capacity = inspectingTable.capacity || 4;
+ const isOccupied = inspectingTable.status === 'occupied';
+ const occupiedCount = inspectingToken ? (inspectingToken.personsCount || 1) : (isOccupied ? capacity : 0);
 
-        return (
-          <div className="fixed inset-0 z-50 dark:bg-black/80 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-            <div className="w-full max-w-lg bg-bg-surface border border-border-main rounded-3xl p-6 space-y-6 shadow-2xl relative animate-scaleUp">
-              
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-border-main">
-                <div className="flex items-center gap-2 text-text-main font-bold text-base">
-                  <Grid3X3 size={20} /> Table {inspectingTable.tableNumber} Inspection Dialog
-                </div>
-                <button 
-                  onClick={() => setInspectingTable(null)}
-                  className="p-1.5 rounded-lg bg-bg-primary hover:bg-black/5 dark:hover:bg-white/10 text-text-muted hover:text-text-main transition-all cursor-pointer"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+ return (
+ <div className="fixed inset-0 z-[100] dark:bg-transparent bg-slate-900/40 flex items-center justify-end p-0 animate-fadeIn pointer-events-none">
+ <div className="w-full md:w-[380px] bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 relative text-text-main animate-none h-[100dvh] pointer-events-auto flex flex-col">
+ 
+ {/* Header */}
+ <div className="flex items-center justify-between pb-4 dark:pb-5 border-b border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
+ <div className="flex items-center gap-2 text-text-main font-bold text-sm sm:text-base pr-2 dark:text-white">
+ <span className="hidden dark:block w-2.5 h-2.5 rounded-full bg-red-400" />
+ <span className="truncate dark:text-lg">T-{inspectingTable.tableNumber.padStart(2, '0')}</span>
+ <span className="hidden dark:block text-[10px] text-primary ml-2 uppercase">VIP Lounge</span>
+ </div>
+ <button 
+ onClick={() => setInspectingTable(null)}
+ className="p-0 rounded-lg dark:bg-transparent bg-bg-surface hover:bg-bg-card hover:bg-transparent text-text-muted hover:text-text-main transition-all cursor-pointer shrink-0"
+ >
+ <X size={20} />
+ </button>
+ </div>
 
-              {/* Top Center Visual Seating View using TableDiagram */}
-              <div className="p-5 rounded-2xl bg-bg-primary border border-border-main flex flex-col items-center justify-center space-y-3">
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">
-                  Visual Seating Alignment ({occupiedCount} / {capacity} Seats Occupied)
-                </p>
+ {/* Scrollable Content Area */}
+ <div className="flex-1 overflow-y-auto py-5 space-y-6 no-scrollbar">
+ 
+ {/* Top Center Visual Seating View using TableDiagram */}
+ <div className="dark:bg-transparent p-5 rounded-none bg-bg-primary border border-border-main dark:border-[rgba(255,255,255,0.1)] flex flex-col items-center justify-center space-y-3">
+ <p className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted">
+ Visual Seating Alignment ({occupiedCount} / {capacity} Seats Occupied)
+ </p>
 
-                <div className="w-full max-w-sm h-36 flex items-center justify-center">
-                  <TableDiagram
-                    capacity={capacity}
-                    occupiedCount={occupiedCount}
-                    status={inspectingTable.status}
-                    tableNumber={inspectingTable.tableNumber}
-                  />
-                </div>
-              </div>
+ <div className="w-full max-w-sm h-36 flex items-center justify-center">
+ <TableDiagram
+ capacity={capacity}
+ occupiedCount={occupiedCount}
+ status={inspectingTable.status}
+ tableNumber={inspectingTable.tableNumber}
+ />
+ </div>
+ </div>
 
-              {/* Table & Session Metrics */}
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3.5 rounded-2xl bg-bg-primary border border-border-main space-y-1">
-                  <span className="text-text-muted text-[10px] font-bold uppercase">Status</span>
-                  <p className={`font-bold text-sm uppercase ${inspectingTable.status === 'occupied' ? 'dark:text-amber-400 text-amber-700' : 'dark:text-emerald-400 text-emerald-700'}`}>
-                    {inspectingTable.status}
-                  </p>
-                </div>
+ {/* Table & Session Metrics */}
+ <div className="grid grid-cols-2 gap-3 text-xs">
+ <div className="p-3.5 rounded-2xl bg-bg-primary border border-border-main space-y-1">
+ <span className="text-text-muted text-[10px] font-bold uppercase">Status</span>
+ <p className={`font-bold text-sm uppercase ${inspectingTable.status === 'occupied' ? 'dark:text-amber-400 text-amber-700' : 'dark:text-emerald-400 text-emerald-700'}`}>
+ {inspectingTable.status}
+ </p>
+ </div>
 
-                <div className="p-3.5 rounded-2xl bg-bg-primary border border-border-main space-y-1">
-                  <span className="text-text-muted text-[10px] font-bold uppercase">Capacity Limit</span>
-                  <p className="font-bold text-sm text-text-main">{inspectingTable.capacity} Guests Max</p>
-                </div>
-              </div>
+ <div className="p-3.5 rounded-2xl bg-bg-primary border border-border-main space-y-1">
+ <span className="text-text-muted text-[10px] font-bold uppercase">Capacity Limit</span>
+ <p className="font-bold text-sm text-text-main">{inspectingTable.capacity} Guests Max</p>
+ </div>
+ </div>
 
-              {inspectingToken && (
-                <div className="p-4 rounded-2xl bg-bg-primary border border-border-main space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Assigned Customer:</span>
-                    <span className="font-bold text-text-main">{inspectingToken.customer?.name || 'Guest'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Phone Number:</span>
-                    <span className="font-mono text-text-main">{inspectingToken.customer?.phoneNumber || '—'}</span>
-                  </div>
-                  {inspectingToken.customer?.email && (
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Email Address:</span>
-                      <span className="font-mono text-text-main">{inspectingToken.customer.email}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Token Pass:</span>
-                    <span className="font-mono text-text-main font-bold">{inspectingToken.tokenNumber}</span>
-                  </div>
-                </div>
-              )}
+ {inspectingToken && (
+ <div className="p-4 rounded-2xl bg-bg-primary border border-border-main space-y-2 text-xs">
+ <div className="flex justify-between">
+ <span className="text-text-muted">Assigned Customer:</span>
+ <span className="font-bold text-text-main">{inspectingToken.customer?.name || 'Guest'}</span>
+ </div>
+ <div className="flex justify-between">
+ <span className="text-text-muted">Phone Number:</span>
+ <span className="font-mono text-text-main">{inspectingToken.customer?.phoneNumber || '—'}</span>
+ </div>
+ {inspectingToken.customer?.email && (
+ <div className="flex justify-between">
+ <span className="text-text-muted">Email Address:</span>
+ <span className="font-mono text-text-main">{inspectingToken.customer.email}</span>
+ </div>
+ )}
+ <div className="flex justify-between">
+ <span className="text-text-muted">Token Pass:</span>
+ <span className="font-mono text-text-main font-bold">{inspectingToken.tokenNumber}</span>
+ </div>
+ </div>
+ )}
 
-              {/* Action Buttons */}
-              <div className="pt-4 border-t border-border-main flex flex-col-reverse sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => setInspectingTable(null)}
-                  className="flex-1 py-3 rounded-xl text-xs font-bold transition-all premium-btn-secondary cancellation-btn dark:text-red-400 text-red-700 dark:border-red-500/30 border-red-500/30 dark:bg-red-500/5 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 cursor-pointer"
-                >
-                  Close Dialog
-                </button>
+ {/* Action Buttons */}
+ <div className="pt-4 border-t border-border-main flex flex-col gap-3">
+ {inspectingTable.status === 'occupied' && (
+ <>
+ <button
+ type="button"
+ onClick={() => handleRelease(inspectingTable.id)}
+ className="w-full py-2.5 rounded-md dark:rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer flex items-center justify-center gap-1.5"
+ >
+ <VideoOff size={14} />
+ Release Table
+ </button>
+ <div className="grid grid-cols-2 gap-3">
+ <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Transfer</button>
+ <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Extend</button>
+ </div>
+ </>
+ )}
 
-                {inspectingTable.status === 'occupied' && (
-                  <button
-                    type="button"
-                    onClick={() => handleRelease(inspectingTable.id)}
-                    className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${isDark ? 'primary-btn bg-red-500' : 'bg-red-500/10 text-red-700 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 border border-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-500/20'}`}
-                  >
-                    <div className="nav-icon-badge">
-                      <VideoOff size={12} />
-                    </div>
-                    <span>Release Table</span>
-                  </button>
-                )}
-              </div>
+ <button
+ type="button"
+ onClick={() => setInspectingTable(null)}
+ className="w-full py-2.5 rounded-md bg-transparent text-[11px] font-bold text-text-muted hover:text-text-main border border-border-main dark:border-[rgba(255,255,255,0.1)] cursor-pointer mt-2"
+ >
+ Close Drawer
+ </button>
+ </div>
 
-            </div>
-          </div>
-        );
-      })()}
+ </div>
+ </div>
+ </div>
+ );
+ })()}
 
-      {/* ADD TABLE MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-bg-surface border border-border-main rounded-3xl p-6 w-full max-w-md space-y-4 shadow-2xl relative">
-            <button 
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-text-muted hover:text-text-main"
-            >
-              <X size={18} />
-            </button>
+ {/* ADD TABLE MODAL */}
+ {isModalOpen && (
+ <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+ <div className="bg-bg-surface border border-border-main rounded-3xl p-6 w-full max-w-md space-y-4 relative">
+ <button 
+ onClick={() => setIsModalOpen(false)}
+ className="absolute top-4 right-4 text-text-muted hover:text-text-main"
+ >
+ <X size={18} />
+ </button>
 
-            <div className="flex items-center gap-2 text-text-main font-bold text-sm">
-              <Grid3X3 size={18} /> Add New Seating Table
-            </div>
+ <div className="flex items-center gap-2 text-text-main font-bold text-sm">
+ <Grid3X3 size={18} /> Add New Seating Table
+ </div>
 
-            <form onSubmit={handleCreateTable} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-text-muted mb-1">
-                  Table Number <span className="text-text-muted">(Must match pattern S-01, L-01)</span>
-                </label>
-                <input
-                  type="text"
-                  value={tableNumber}
-                  onChange={e => setTableNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g. S-01"
-                  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary"
-                  required
-                />
-              </div>
+ <form onSubmit={handleCreateTable} className="space-y-4">
+ <div>
+ <label className="block text-xs font-semibold text-text-muted mb-1">
+ Table Number <span className="text-text-muted">(Must match pattern S-01, L-01)</span>
+ </label>
+ <input
+ type="text"
+ value={tableNumber}
+ onChange={e => setTableNumber(e.target.value.toUpperCase())}
+ placeholder="e.g. S-01"
+ className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+ required
+ />
+ </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-text-muted mb-1">Guest Seat Capacity (1 - 100)</label>
-                <input
-                  type="number"
-                  value={capacity}
-                  onChange={e => setCapacity(e.target.value)}
-                  min={1}
-                  max={100}
-                  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary"
-                  required
-                />
-              </div>
+ <div>
+ <label className="block text-xs font-semibold text-text-muted mb-1">Guest Seat Capacity (1 - 100)</label>
+ <input
+ type="number"
+ value={capacity}
+ onChange={e => setCapacity(e.target.value)}
+ min={1}
+ max={100}
+ className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+ required
+ />
+ </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-text-muted mb-1">Place Type Category</label>
-                <select
-                  value={placeType}
-                  onChange={e => setPlaceType(e.target.value)}
-                  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary"
-                >
-                  <option value="STANDING_BAR">Standing Bar Zone</option>
-                  <option value="PREMIUM_LOUNGE">Premium Lounge Zone</option>
-                </select>
-              </div>
+ <div>
+ <label className="block text-xs font-semibold text-text-muted mb-1">Place Type Category</label>
+ <select
+ value={placeType}
+ onChange={e => setPlaceType(e.target.value)}
+ className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+ >
+ <option value="STANDING_BAR">Standing Bar Zone</option>
+ <option value="PREMIUM_LOUNGE">Premium Lounge Zone</option>
+ </select>
+ </div>
 
-              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-3 rounded-xl text-xs font-semibold transition-all premium-btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !isFormValid}
-                  title={isSubmitting ? "Creating..." : !isFormValid ? "Fill all fields" : undefined}
-                  className="flex-1 py-3 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Creating...' : 'Confirm Table'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+ <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
+ <button
+ type="button"
+ onClick={() => setIsModalOpen(false)}
+ className="flex-1 py-3 rounded-xl text-xs font-semibold transition-all premium-btn-secondary"
+ >
+ Cancel
+ </button>
+ <button
+ type="submit"
+ disabled={isSubmitting || !isFormValid}
+ title={isSubmitting ? "Creating..." : !isFormValid ? "Fill all fields" : undefined}
+ className="flex-1 py-3 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+ >
+ {isSubmitting ? 'Creating...' : 'Confirm Table'}
+ </button>
+ </div>
+ </form>
+ </div>
+ </div>
+ )}
+ </div>
+ );
 };
 

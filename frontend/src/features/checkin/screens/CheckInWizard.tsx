@@ -814,7 +814,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               <TextInput 
                 style={{ color: colors.text }}
                 className="text-base font-semibold py-1.5"
-                placeholder="Rahul Mehta"
+                placeholder="First Last"
                 placeholderTextColor={colors.placeholder}
                 value={fullName}
                 onChangeText={(text) => {
@@ -851,7 +851,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               <TextInput 
                 style={{ color: colors.text }}
                 className="text-base font-semibold py-1.5"
-                placeholder="+91 98765 43210"
+                placeholder="+91 99999 99999"
                 placeholderTextColor={colors.placeholder}
                 value={phone}
                 onChangeText={(text) => {
@@ -904,7 +904,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               <TextInput 
                 style={{ color: colors.text }}
                 className="text-base font-semibold py-1.5"
-                placeholder="rahul@email.com"
+                placeholder="name@example.com"
                 placeholderTextColor={colors.placeholder}
                 value={email}
                 onChangeText={(text) => {
@@ -1396,33 +1396,7 @@ export const CheckInWizard: React.FC<{ isActive?: boolean }> = ({ isActive = tru
               ))}
             </View>
 
-            {/* Static Dummy QR Code for UPI */}
-            {checkinPaymentMode === 'UPI' && (
-              <View style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: colors.secondarySurface,
-                borderWidth: 1.5,
-                borderColor: isDark ? colors.border : '#CBD5E1',
-                borderRadius: 20,
-                padding: 20,
-                marginBottom: 16,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.1,
-                shadowRadius: 8,
-                elevation: 4
-              }}>
-                <Text style={{ fontSize: 11, fontWeight: 'bold', color: colors.primary, marginBottom: 8 }}>Scan dummy QR to pay</Text>
-                <View style={{ padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12 }}>
-                  <Image
-                    source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=demo@upi&pn=BarManagementSystem&am=${totalPrice}` }}
-                    style={{ width: 150, height: 150, borderRadius: 8 }}
-                  />
-                </View>
-                <Text style={{ fontSize: 9, color: colors.muted, marginTop: 8, fontWeight: '600' }}>Demo purposes only • No actual verification</Text>
-              </View>
-            )}
+
 
             {/* Prompt Box */}
             <View style={{

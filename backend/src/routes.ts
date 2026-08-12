@@ -24,7 +24,10 @@ import multer from 'multer';
 
 const prisma = new PrismaClient();
 const upload = multer();
-const jwtSecret = process.env.JWT_SECRET || 'bar_super_secret_key_123!';
+if (!process.env.JWT_SECRET) {
+  throw new Error("FATAL: JWT_SECRET environment variable is not defined.");
+}
+const jwtSecret = process.env.JWT_SECRET;
 const authApiUrl = process.env.AUTH_API_URL || 'https://authapi.cloudshiftsolutions.in';
 const configuredTenantId = process.env.TENANT_ID;
 const configuredTenantCode = process.env.TENANT_CODE;

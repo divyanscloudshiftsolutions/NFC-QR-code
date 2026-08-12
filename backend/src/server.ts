@@ -72,18 +72,13 @@ app.use(cors({
     const isAllowed = allowedOrigins.some(allowed => {
       const normalizedAllowed = allowed.toLowerCase().trim();
       return normalizedOrigin === normalizedAllowed || 
-             normalizedOrigin === `${normalizedAllowed}/` ||
-             normalizedOrigin.startsWith(normalizedAllowed);
+             normalizedOrigin === `${normalizedAllowed}/`;
     });
     
-    // Check if origin is a local dev address or a Vercel deployment
-    const isLocalOrVercel = normalizedOrigin.includes('localhost') || 
-                            normalizedOrigin.includes('127.0.0.1') || 
-                            normalizedOrigin.startsWith('chrome-extension://') ||
-                            normalizedOrigin.endsWith('.vercel.app') ||
-                            normalizedOrigin.includes('.vercel.app');
+    // Explicitly allow mobile app schemes if needed or local chrome extension for dev
+    const isChromeExtension = normalizedOrigin.startsWith('chrome-extension://');
     
-    if (isAllowed || isLocalOrVercel) {
+    if (isAllowed || isChromeExtension) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
