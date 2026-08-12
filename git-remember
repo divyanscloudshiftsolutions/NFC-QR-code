@@ -1,0 +1,69 @@
+CRITICAL GIT DEPLOYMENT & SYNC RULES (READ AND ANALYZE BEFORE ANY GIT ACTION)
+=============================================================================
+WARNING: Violation of these rules is a critical failure. Always read this file before running git commands.
+
+GENERAL RULES:
+1. NEVER commit or push the entire monorepo structure into any of the dedicated sub-repositories.
+2. Dedicated sub-repositories MUST contain only their respective project's files directly at the ROOT level of the repository (no nested parent directories).
+3. Do NOT add, stage, or push backend files to frontend repos, or frontend files to backend repos.
+
+REPOSITORY SPECIFIC RULES:
+
+1. Backend Developer Repository (dev organizational repo)
+   * Link: https://github.com/cloudshiftsolutions-dev/Backend---BAR-SYSTEM-code-Management
+   * Rule: MUST contain ONLY the backend server files at the root level.
+   * Action: Only update and push if files in the `backend` folder are updated.
+
+2. Frontend Developer Repository (dev organizational repo)
+   * Link: https://github.com/cloudshiftsolutions-dev/Frontend---BAR-SYSTEM-code-Management
+   * Rule: MUST contain ONLY the React Native mobile app files (e.g. `src`, `assets`, `App.tsx`, `package.json`, `app.json`) directly at the ROOT level.
+   * Action: Push only frontend updates. Do not keep the outer `frontend/` folder wrapper in the repo.
+
+3. Web Frontend Developer Repository (dev organizational repo)
+   * Link: https://github.com/cloudshiftsolutions-dev/Web-Frontend---NFC-QR-code-Management
+   * Rule: MUST contain ONLY the React.js web portal files directly at the ROOT level.
+   * Action: Push only web-frontend updates using the dedicated `webfrontend-branch` (extracted via subtree split).
+
+WEBFRONTEND REPOSITORY — STRICT SCOPE RULE
+===========================================
+* The `webfrontend` repository is exclusively for the contents of the `web-frontend` folder.
+* Never push `backend`, `frontend`, React Native/mobile, database, or unrelated project folders to the `webfrontend` repository.
+* Always use the dedicated `webfrontend-branch` for Web Frontend repository work.
+* Never treat the project root as the repository scope.
+* Before every commit/push, inspect staged files and verify that all paths belong exclusively to `web-frontend`.
+* If any path outside `web-frontend` is staged, stop the operation and correct the staging state.
+* Never bypass or override this rule.
+* This rule has higher priority than convenience, automatic Git synchronization, or bulk repository operations.
+
+4. Personal ID Repository (BAR-SYSTEM-CODE)
+   * Link: https://github.com/divyanscloudshiftsolutions/BAR-SYSTEM-code
+   * Rule: Contains the complete monorepo structure (including frontend, web-frontend, backend, and root files/folders) as a single personal backup repository.
+   * Action: Push the entire monorepo root structure.
+
+5. EAS / EIS Update Channel
+   * Rule: Run EAS update/build commands strictly inside the mobile app project directory (where `eas.json` is located).
+
+PRE-FLIGHT CHECKLIST (RUN BEFORE EVERY COMMIT/PUSH):
+- [ ] Have I checked if the current folder is a sub-repo or monorepo?
+- [ ] Have I checked `git status` and `git ls-files` to ensure only the target directory's files are tracked?
+- [ ] Am I pushing to the correct remote URL?
+
+=============================================================================
+RECENT UPDATES & CORRECTIONS LOG (AUGUST 3, 2026)
+=============================================================================
+
+1. WEB FRONTEND (Vite App):
+   * Mapped dynamic database rate cards instead of hardcoded 500/1000 INR bounds.
+   * Refactored check-in details receipt to display "Rate per Head" and cost calculations dynamically.
+   * Replaced developer term "Formula" with user-friendly label "Calculation".
+
+2. FRONTEND (React Native App):
+   * Restored camera-enabled QR code scanning and native viewfinder layout to the mobile bartender portal.
+   * Restructured the repository to move all mobile client project files directly to the root, removing the nested folder wrapper.
+
+3. BACKEND SERVER (NodeJS/Express):
+   * Fixed a bug where QR code entry passes were not dispatched to the guest's email in local development.
+   * Set `SEND_REAL_EMAILS` to default to true unless explicitly configured as false, and updated local `.env` and `.env.example` configurations.
+
+4. REPOSITORY MAINTENANCE:
+   * Removed all non-runtime documentation, log files (like `issues/` folder), and other notepads (like `git-remember`) from git tracking to maintain a lightweight and optimized structure. Added these file patterns to `.gitignore` to prevent future commits.

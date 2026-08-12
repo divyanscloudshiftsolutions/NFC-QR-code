@@ -100,10 +100,10 @@
 
   /* Text Colors */
   --text-primary: #FFFFFF;
-  --text-secondary: #8E8E93;
-  --text-muted: #6B6B6B;
-  --text-placeholder: #52525B;
-  --text-disabled: #3F3F46;
+  --text-secondary: #D4D4D8;
+  --text-muted: #A1A1AA;
+  --text-placeholder: #8E8E93;
+  --text-disabled: #71717A;
   --text-inverse: #121212;
 
   /* Status Colors */

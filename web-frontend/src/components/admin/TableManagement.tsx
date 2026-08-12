@@ -12,6 +12,7 @@ export const TableManagement: React.FC = () => {
  const { tables, tokens, isLoading, refreshTables, refreshTokens } = useData();
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [selectedPlace, setSelectedPlace] = useState<'STANDING_BAR' | 'PREMIUM_LOUNGE'>('STANDING_BAR');
+ const [filter, setFilter] = useState<string>('all');
 
  // Fetch tables and tokens on component mount
  useEffect(() => {
@@ -28,12 +29,17 @@ export const TableManagement: React.FC = () => {
  // Inspection Dialog Modal State
  const [inspectingTable, setInspectingTable] = useState<Table | null>(null);
 
- const filteredTables = tables.filter(tb => {
+ const filteredTables = tables
+ .filter(tb => {
  const p = (tb.placeTypeId || tb.categoryName || tb.tableNumber || '').toUpperCase();
  if (selectedPlace === 'STANDING_BAR') {
  return p.includes('STANDING') || p.includes('BAR') || tb.tableNumber.startsWith('S-');
  }
  return p.includes('PREMIUM') || p.includes('LOUNGE') || tb.tableNumber.startsWith('L-');
+ })
+ .filter(tb => {
+ if (filter === 'all') return true;
+ return tb.status === filter;
  });
 
  // Real-time validations
@@ -83,54 +89,76 @@ export const TableManagement: React.FC = () => {
 
  return (
  <div className="space-y-5 sm:space-y-6">
- {/* Top Bar with Place Type Tabs */}
- <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6">
- <div className="flex flex-nowrap overflow-x-auto custom-scrollbar gap-2 w-full md:w-auto pb-1 md:pb-0">
- <button
- onClick={() => setSelectedPlace('STANDING_BAR')}
- className={`px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all premium-tab-primary active:scale-95 shrink-0 whitespace-nowrap ${
- selectedPlace === 'STANDING_BAR' ? 'active' : ''
- }`}
- >
- <span className="hidden sm:inline">Standard Zone (Standing Bar)</span>
- <span className="sm:hidden">Standard Zone</span>
- </button>
+  {/* Control Panel Container */}
+  <div className="dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6 space-y-4 w-full">
+  {/* Tier 1: Primary Zone Switcher Tabs & Total Tables */}
+  <div className="flex flex-wrap items-center justify-between gap-4 pt-3 pb-4 border-b border-border-main w-full">
+  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto px-4">
+  <button
+  onClick={() => setSelectedPlace('STANDING_BAR')}
+  className={`w-full sm:w-auto px-4 py-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all premium-tab-primary text-center shrink-0 ${
+  selectedPlace === 'STANDING_BAR' ? 'active' : ''
+  }`}
+  >
+  Standard Zone (Standing Bar)
+  </button>
 
- <button
- onClick={() => setSelectedPlace('PREMIUM_LOUNGE')}
- className={`px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all premium-tab-primary active:scale-95 shrink-0 whitespace-nowrap ${
- selectedPlace === 'PREMIUM_LOUNGE' ? 'active' : ''
- }`}
- >
- <span className="hidden sm:inline">Premium Zone (Lounge)</span>
- <span className="sm:hidden">Premium Zone</span>
- </button>
- </div>
+  <button
+  onClick={() => setSelectedPlace('PREMIUM_LOUNGE')}
+  className={`w-full sm:w-auto px-4 py-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all premium-tab-primary text-center shrink-0 ${
+  selectedPlace === 'PREMIUM_LOUNGE' ? 'active' : ''
+  }`}
+  >
+  Premium Zone (Lounge)
+  </button>
+  </div>
 
- <div className="flex flex-row items-center gap-2 w-full md:w-auto shrink-0">
- <button
- onClick={() => { refreshTables(); refreshTokens(); }}
- className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 sm:py-2.5 text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 transition-all premium-btn-secondary shrink-0 whitespace-nowrap"
- >
- <div className="nav-icon-badge">
- <RefreshCw size={12} />
- </div>
- <span className="hidden sm:inline">Refresh Data</span>
- <span className="sm:hidden">Refresh</span>
- </button>
+  <div className="text-xs font-bold text-text-muted w-full sm:w-auto text-left sm:text-right flex items-center justify-between sm:block px-4">
+  <span>Total Tables:</span> <span className="text-text-main font-mono text-sm sm:text-xs">{filteredTables.length}</span>
+  </div>
+  </div>
 
- <button
- onClick={() => setIsModalOpen(true)}
- className="flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl primary-btn text-[11px] sm:text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap"
- >
- <div className="nav-icon-badge">
- <Plus size={14} />
- </div>
- <span className="hidden sm:inline">Add New Table</span>
- <span className="sm:hidden">Add Table</span>
- </button>
- </div>
- </div>
+  {/* Tier 2: Secondary Status Filters & Actions */}
+  <div className="flex flex-wrap items-center justify-between gap-4 w-full px-4">
+  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+  <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider mr-1 w-full sm:w-auto block mb-1 sm:mb-0">Status Filter:</span>
+  {['all', 'available', 'occupied', 'reserved'].map(f => (
+  <button
+  key={f}
+  onClick={() => setFilter(f)}
+  className={`px-3 sm:px-3.5 py-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all premium-tab-secondary ${
+  filter === f ? 'active' : ''
+  }`}
+  >
+  {f}
+  </button>
+  ))}
+  </div>
+
+  <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+  <button
+  onClick={() => { refreshTables(); refreshTokens(); }}
+  className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-xs font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-all premium-btn-secondary active"
+  >
+  <div className="nav-icon-badge">
+  <RefreshCw size={12} />
+  </div>
+  <span>Refresh Data</span>
+  </button>
+
+  <button
+  onClick={() => setIsModalOpen(true)}
+  className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 rounded-xl primary-btn text-[10px] sm:text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap"
+  >
+  <div className="nav-icon-badge">
+  <Plus size={14} />
+  </div>
+  <span className="hidden sm:inline">Add New Table</span>
+  <span className="sm:hidden">Add Table</span>
+  </button>
+  </div>
+  </div>
+  </div>
 
  {/* Tables Grid */}
  {isLoading ? (
@@ -186,7 +214,7 @@ export const TableManagement: React.FC = () => {
  <div className="flex items-center justify-between">
  <div>
  <span className="font-mono dark:text-[#D4AF37] text-primary font-black text-xl tracking-wider">{tb.tableNumber}</span>
- <p className="text-[10px] text-text-muted/80 font-bold uppercase tracking-widest block mt-0.5">
+ <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest block mt-0.5">
  {selectedPlace === 'STANDING_BAR' ? 'Standard Zone' : 'Premium Zone'}
  </p>
  </div>
@@ -224,7 +252,7 @@ export const TableManagement: React.FC = () => {
  {/* Info Bar - Size, Capacity & Token Metadata */}
  <div className="space-y-1 text-xs px-1">
  <div className="flex items-center justify-between text-[11px] font-bold text-text-muted">
- <span className="uppercase text-[9px] tracking-widest text-text-muted/90">
+ <span className="uppercase text-[9px] tracking-widest text-text-muted">
  {sizeCategory} • <span className="font-black text-text-primary text-[10px]">{capacity}</span> Pax
  </span>
  <span className={
@@ -247,7 +275,7 @@ export const TableManagement: React.FC = () => {
  </div>
  ) : (
  <div className="text-[10px] text-text-muted border-t border-border-main/30 pt-1 flex justify-between">
- <span className="text-text-muted/70 uppercase text-[9px] tracking-wider">Rate Allowance:</span>
+ <span className="text-text-muted uppercase text-[9px] tracking-wider">Rate Allowance:</span>
  <span className="font-mono font-black text-[10.5px] text-text-primary">₹500 / Session</span>
  </div>
  )}

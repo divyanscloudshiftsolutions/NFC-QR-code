@@ -378,7 +378,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       } else {
         return res.status(403).json({
           success: false,
-          error: { code: 'AUTH_006', message: 'Access Denied: User is not authorized for the Bar Management System' }
+          error: { code: 'AUTH_006', message: 'Access Denied: User is not authorized for Open the Bottle' }
         });
       }
     }

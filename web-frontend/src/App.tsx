@@ -94,12 +94,14 @@ const AppContent: React.FC = () => {
   const getTabTitle = () => {
     if (activeTab === 'dashboard') return 'Executive Management Dashboard';
     if (activeTab === 'checkin') return 'Reception Check-In & Customer Registration';
-    if (activeTab === 'quick_attendance') return 'FaceMark Quick Facial Attendance Kiosk';
+    if (activeTab === 'quick_attendance') return 'Quick Facial Attendance Kiosk';
     if (activeTab.startsWith('bartender')) return 'Bartender Drink Service Station';
     if (activeTab.startsWith('tables')) return 'Live Seating Floor Plan & Tables';
     if (activeTab.startsWith('admin')) return 'System Administration & Staff Portal';
-    return 'Bar Management System';
+    return 'Open the Bottle';
   };
+
+
 
   return (
     <div className="flex h-[100dvh] dark:bg-gradient-to-br dark:from-[#141225] dark:via-[#1A1333] dark:to-[#080612] bg-gradient-to-br from-[#F5F3FA] via-[#FAF9FF] to-[#EDE9FE] text-text-primary font-sans overflow-hidden relative">

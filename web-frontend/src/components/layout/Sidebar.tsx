@@ -230,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
  <Martini size={20} className="text-white" />
  </div>
  <div className="flex flex-col">
- <span className="font-bold dark:text-primary text-primary text-base tracking-tight">BAR SYSTEM</span>
+ <span className="font-bold dark:text-primary text-primary text-base tracking-tight">OPEN THE BOTTLE</span>
  <span className="text-[9px] text-text-muted font-bold tracking-widest uppercase mt-0.5">Management Portal</span>
  </div>
  </div>

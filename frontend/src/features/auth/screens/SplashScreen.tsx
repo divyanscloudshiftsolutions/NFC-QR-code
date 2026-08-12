@@ -52,7 +52,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         </View>
       </Animated.View>
       <Text className="text-[26px] font-bold text-themeText tracking-wider mb-1.5" style={{ color: colors.text }}>NFC TAP & TOKEN</Text>
-      <Text className="text-[13px] tracking-widest" style={{ color: colors.muted }}>Bar Management System</Text>
+      <Text className="text-[13px] tracking-widest" style={{ color: colors.muted }}>Open the Bottle</Text>
     </Animated.View>
   );
 };

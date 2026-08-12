@@ -37,7 +37,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow NFC Bar Management System to access your camera to scan customer QR codes."
+          "cameraPermission": "Allow Open the Bottle to access your camera to scan customer QR codes."
         }
       ]
     ],

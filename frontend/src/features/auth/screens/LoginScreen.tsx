@@ -145,7 +145,7 @@ export const LoginScreen: React.FC = () => {
       >
         {/* Top Header Branding */}
         <View className="items-center mt-4">
-          <Text className="text-[26px] font-extrabold tracking-widest uppercase" style={{ color: colors.gold }}>🍹 NFC BAR SYSTEM</Text>
+          <Text className="text-[26px] font-extrabold tracking-widest uppercase" style={{ color: colors.gold }}>🍹 OPEN THE BOTTLE</Text>
           <Text className="text-[11px] tracking-wider uppercase mt-1" style={{ color: colors.muted }}>Enterprise Shift Management</Text>
         </View>
 

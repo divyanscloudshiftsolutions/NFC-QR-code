@@ -129,7 +129,7 @@ export const LoginPage: React.FC = () => {
  🍸
  </div>
  <div>
- <h1 className="text-lg lg:text-[27px] font-bold text-text-main tracking-wider uppercase leading-tight">BAR MANAGEMENT SYSTEM</h1>
+ <h1 className="text-lg lg:text-[27px] font-bold text-text-main tracking-wider uppercase leading-tight">OPEN THE BOTTLE</h1>
  <p className="text-[10px] lg:text-xs text-primary font-semibold mt-0.5 lg:mt-1 uppercase tracking-widest">Enterprise Terminal Gateway</p>
  </div>
  </div>

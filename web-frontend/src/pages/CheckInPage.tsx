@@ -528,7 +528,7 @@ export const CheckInPage: React.FC = () => {
  {isCompleted ? '✓' : step.num}
  </div>
  <span className={`text-[10px] uppercase tracking-wider font-extrabold transition-all hidden md:block ${
- isActive ? 'text-amber-700 dark:text-amber-300' : isCompleted ? 'text-amber-600 dark:text-amber-400/80' : 'text-text-muted/60'
+  isActive ? 'text-amber-700 dark:text-amber-300' : isCompleted ? 'text-amber-600 dark:text-amber-400/80' : 'text-text-muted'
  }`}>
  {step.label}
  </span>

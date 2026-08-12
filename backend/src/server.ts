@@ -99,7 +99,7 @@ app.use('/api', router);
 app.get('/', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'Bar Management System Backend API is running. Mount all requests on /api',
+    message: 'Open the Bottle Backend API is running. Mount all requests on /api',
     timestamp: new Date().toISOString()
   });
 });

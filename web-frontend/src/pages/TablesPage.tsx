@@ -18,7 +18,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  const { tables: realTables, tokens: realTokens, isLoading, refreshTables, refreshTokens } = useData();
 
  // Temporary mock data fallback for UI verification
- const useMockFallback = true; // Set to false to disable and restore real data
+ const useMockFallback = false; // Set to false to disable and restore real data
 
  const mockTables: Table[] = [
  { id: 'mock-t1', tableNumber: 'M1', placeTypeId: 'standing_bar', capacity: 4, status: 'available', isActive: true },
@@ -258,36 +258,34 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  {/* Non-Overlapping Structured Control Toolbar */}
  <div className="dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6 space-y-4">
  {/* Tier 1: Primary Zone Switcher Tabs */}
- <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-border-main">
- <div className="flex w-full sm:w-auto items-center gap-2">
+ <div className="flex flex-wrap items-center justify-between gap-4 pt-3 pb-4 border-b border-border-main w-full">
+ <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto px-4">
  <button
  onClick={() => setPlaceZone('STANDING_BAR')}
- className={`flex-1 px-2 py-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all premium-tab-primary text-center ${
+ className={`w-full sm:w-auto px-4 py-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all premium-tab-primary text-center shrink-0 ${
  placeZone === 'STANDING_BAR' ? 'active' : ''
  }`}
  >
- <span className="hidden sm:inline">Standard Zone (Standing Bar)</span>
- <span className="sm:hidden">Standard</span>
+ Standard Zone (Standing Bar)
  </button>
 
  <button
  onClick={() => setPlaceZone('PREMIUM_LOUNGE')}
- className={`flex-1 px-2 py-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all premium-tab-primary text-center ${
+ className={`w-full sm:w-auto px-4 py-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all premium-tab-primary text-center shrink-0 ${
  placeZone === 'PREMIUM_LOUNGE' ? 'active' : ''
  }`}
  >
- <span className="hidden sm:inline">Premium Zone (Lounge)</span>
- <span className="sm:hidden">Premium</span>
+ Premium Zone (Lounge)
  </button>
  </div>
 
- <div className="text-xs font-bold text-text-muted w-full sm:w-auto text-left sm:text-right flex items-center justify-between sm:block">
+ <div className="text-xs font-bold text-text-muted w-full sm:w-auto text-left sm:text-right flex items-center justify-between sm:block px-4">
  <span>Total Tables:</span> <span className="text-text-main font-mono text-sm sm:text-xs">{filteredTables.length}</span>
  </div>
  </div>
 
  {/* Tier 2: Secondary Status Filters & Refresh Action */}
- <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+ <div className="flex flex-wrap items-center justify-between gap-4 w-full px-4">
  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
  <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider mr-1 w-full sm:w-auto block mb-1 sm:mb-0">Status Filter:</span>
  {['all', 'available', 'occupied', 'reserved'].map(f => (
