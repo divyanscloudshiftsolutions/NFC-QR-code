@@ -1184,16 +1184,14 @@ router.post('/tables/assign', authenticate, authorize(['receptionist', 'admin'])
       where: { id: tokenId },
       include: { customer: true }
     });
-    if (token && token.status === TokenStatus.PENDING_PAYMENT && token.deliveryMode === 'EMAIL_QR') {
-      emailNotificationService.enqueueEmailJob(token.customer.email!, token.tokenNumber, token.customer.name);
+    if (token && token.status === TokenStatus.PENDING_PAYMENT && token.deliveryMode === 'EMAIL_QR' && !token.emailSent && token.emailDeliveryStatus !== 'PENDING') {
       await prisma.token.update({
         where: { id: tokenId },
         data: {
-          emailSent: true,
-          emailSentAt: new Date(),
-          emailDeliveryStatus: 'SENT'
+          emailDeliveryStatus: 'PENDING'
         }
       });
+      emailNotificationService.enqueueEmailJob(token.customer.email!, token.tokenNumber, token.customer.name);
     }
     await redisService.del('tables:all').catch(() => {});
     await redisService.del('tokens:active').catch(() => {});
@@ -1792,6 +1790,17 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
         resolvedTableId = table.id;
       }
 
+      // Update customer details if they changed
+      await prisma.customer.update({
+        where: { id: existingToken.customerId },
+        data: {
+          name: customerName,
+          email: finalEmail
+        }
+      });
+
+      const emailPending = resolvedTableId && !existingToken.emailSent && existingToken.emailDeliveryStatus !== 'PENDING';
+
       // Update token tableId and check-in details
       const updatedToken = await prisma.token.update({
         where: { id: existingToken.id },
@@ -1799,16 +1808,13 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
           tableId: resolvedTableId,
           personsCount: finalPersonsCount,
           placeTypeId: finalPlaceTypeId,
+          ...(emailPending ? { emailDeliveryStatus: 'PENDING' } : {})
         },
         include: { customer: true, placeType: true, table: true }
       });
 
       // Send email if table is assigned now and email wasn't sent
-      if (resolvedTableId && !existingToken.emailSent) {
-        await prisma.token.update({
-          where: { id: existingToken.id },
-          data: { emailSent: true, emailDeliveryStatus: 'SENT', emailSentAt: new Date() }
-        });
+      if (emailPending) {
         emailNotificationService.enqueueEmailJob(finalEmail, existingToken.tokenNumber, customerName);
       }
 
@@ -2036,13 +2042,11 @@ const activateSessionHandler = async (req: AuthenticatedRequest, res: Response) 
       createdAt: updatedToken.issuedAt.toISOString(),
     };
 
-    if (updatedToken.deliveryMode === 'EMAIL_QR' && updatedToken.customer.email && !updatedToken.emailSent) {
+    if (updatedToken.deliveryMode === 'EMAIL_QR' && updatedToken.customer.email && !updatedToken.emailSent && updatedToken.emailDeliveryStatus !== 'PENDING') {
       await prisma.token.update({
         where: { id: updatedToken.id },
         data: {
-          emailSent: true,
-          emailDeliveryStatus: 'SENT',
-          emailSentAt: new Date()
+          emailDeliveryStatus: 'PENDING'
         }
       }).catch(() => {});
 

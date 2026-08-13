@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Wine, Search, RotateCcw, Camera, CheckCircle2, AlertCircle, RefreshCw, VideoOff, Clock, LogOut, Users, Mail, Phone, X, QrCode } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import jsQR from 'jsqr';
 import type { Token } from '../types';
 
 interface BartenderPageProps {
@@ -34,6 +35,7 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  const videoRef = useRef<HTMLVideoElement | null>(null);
  const activeStreamRef = useRef<MediaStream | null>(null);
  const cameraRequestIdRef = useRef(0);
+ const lastScannedCodeRef = useRef<string | null>(null);
  const [cameraActive, setCameraActive] = useState(false);
  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
  const [cameraError, setCameraError] = useState<string | null>(null);
@@ -144,6 +146,59 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  stopCamera();
  };
  }, [activeTab, scannedToken]);
+
+ // Frame-by-frame loop for QR code detection using jsQR
+ useEffect(() => {
+   let animationFrameId: number;
+   let scanning = true;
+
+   const scanFrame = () => {
+     if (!scanning) return;
+
+     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+       const video = videoRef.current;
+       const canvas = document.createElement('canvas');
+       canvas.width = video.videoWidth;
+       canvas.height = video.videoHeight;
+       const ctx = canvas.getContext('2d');
+       if (ctx) {
+         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+         const code = jsQR(imageData.data, imageData.width, imageData.height, {
+           inversionAttempts: 'dontInvert',
+         });
+
+         if (code && code.data) {
+           const decoded = code.data.trim();
+           if (decoded && decoded !== lastScannedCodeRef.current) {
+             lastScannedCodeRef.current = decoded;
+             console.log("[Bartender QR Scanner] Decoded QR code:", decoded);
+             handleVerify(undefined, decoded);
+
+             // Allow scanning the same code again after 3 seconds if it was rejected/failed
+             setTimeout(() => {
+               if (lastScannedCodeRef.current === decoded) {
+                 lastScannedCodeRef.current = null;
+               }
+             }, 3000);
+           }
+         }
+       }
+     }
+
+     animationFrameId = requestAnimationFrame(scanFrame);
+   };
+
+   if (cameraActive && activeTab === 'bartender/scan' && !scannedToken) {
+     scanning = true;
+     animationFrameId = requestAnimationFrame(scanFrame);
+   }
+
+   return () => {
+     scanning = false;
+     cancelAnimationFrame(animationFrameId);
+   };
+ }, [cameraActive, activeTab, scannedToken]);
 
  // Page visibility & window focus camera lifecycle management
  const cameraActiveRef = useRef(cameraActive);
@@ -486,18 +541,34 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  }`}>
  {cameraActive ? (
  <>
- <video 
- ref={videoRef} 
- autoPlay 
- playsInline 
- muted 
- className="w-full h-full object-cover" 
- />
- <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
- <div className="w-48 h-48 border-2 dark:border-[#D4AF37] border-primary rounded-3xl animate-pulse flex items-center justify-center">
- <span className="text-[10px] dark:text-[#D4AF37] text-primary font-extrabold uppercase tracking-widest bg-black/60 px-2 py-1 rounded-md">Align QR Code</span>
- </div>
- </div>
+  <video 
+  ref={videoRef} 
+  autoPlay 
+  playsInline 
+  muted 
+  className="w-full h-full object-cover" 
+  />
+  <div className="absolute inset-0 pointer-events-none z-10">
+    {/* Ambient Scanning Line across the full view */}
+    <div className="absolute left-0 right-0 h-[2px] bg-emerald-500/60 top-1/2 -translate-y-1/2 shadow-[0_0_12px_#10B981] animate-pulse" />
+    
+    {/* Smart Full-Frame Corner Brackets */}
+    <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-emerald-400 rounded-tl-lg" />
+    <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg" />
+    <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg" />
+    <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-lg" />
+
+    {/* Ambient Text Identifier */}
+    <div className="absolute top-4 left-12 bg-black/60 px-2 py-0.5 rounded-md border border-white/10">
+      <span className="text-[9px] text-emerald-400 font-black uppercase tracking-wider">Full-Frame Auto Scanner</span>
+    </div>
+
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 w-[90%] sm:w-max px-4 py-1.5 rounded-full border border-border-main flex items-center justify-center">
+      <p className="text-[10px] text-text-main font-extrabold uppercase tracking-widest text-center leading-tight">
+        Place QR Code anywhere in the camera view
+      </p>
+    </div>
+  </div>
  </>
  ) : (
  <div className="text-center p-6 space-y-3">

@@ -275,11 +275,39 @@ class ApiService {
     placeTypeId: string;
     deliveryMode?: 'EMAIL_QR';
   }) {
-    return this.request<{ success: boolean; token: Token; customer: any }>('/check-in', {
+    const res = await this.request<any>('/check-in', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    return {
+      success: true,
+      token: {
+        id: res.id,
+        tokenNumber: res.tokenNumber,
+        customerId: '',
+        personsCount: res.persons,
+        placeTypeId: '',
+        amountPaid: Number(res.amountPaid || 0),
+        paymentVerified: res.paymentVerified,
+        startTime: res.startTime,
+        endTime: res.endTime,
+        totalRedemptionsAllowed: res.redemptionLimit,
+        redemptionsUsed: res.redemptionCount,
+        status: res.status,
+        issuedBy: '',
+        deliveryMode: 'EMAIL_QR',
+        customer: {
+          id: '',
+          phoneNumber: res.phoneNumber,
+          name: res.customerName,
+          email: res.email || undefined,
+          totalVisits: 1
+        }
+      } as Token
+    };
   }
+
+
 
   async extendToken(tokenNumber: string, extraMinutes: number, amount: number) {
     return this.request<{ success: boolean }>(`/tokens/${tokenNumber}/extend`, {

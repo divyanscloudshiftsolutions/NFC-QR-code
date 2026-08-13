@@ -21,6 +21,7 @@ import { api } from '../services/api';
 import type { Token } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import jsQR from 'jsqr';
 
 export const CheckInPage: React.FC = () => {
  const { showToast, preselectedTable, setPreselectedTable } = useAuth();
@@ -42,6 +43,7 @@ export const CheckInPage: React.FC = () => {
  const videoRef = useRef<HTMLVideoElement | null>(null);
  const activeStreamRef = useRef<MediaStream | null>(null);
  const cameraRequestIdRef = useRef(0);
+ const lastScannedCodeRef = useRef<string | null>(null);
  const [cameraActive, setCameraActive] = useState(false);
  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
  const [cameraError, setCameraError] = useState<string | null>(null);
@@ -58,8 +60,145 @@ export const CheckInPage: React.FC = () => {
  // Stage 5: Output Pass Ticket
  const [createdToken, setCreatedToken] = useState<Token | null>(null);
 
- // Pre-registered flow state
- const [activePendingToken, setActivePendingToken] = useState<Token | null>(null);
+  // Pre-registered flow state
+  const [activePendingToken, setActivePendingToken] = useState<Token | null>(null);
+
+  const [isSendingQr, setIsSendingQr] = useState(false);
+  const [showContinuePrompt, setShowContinuePrompt] = useState(false);
+  const [hasCheckedIncomplete, setHasCheckedIncomplete] = useState(false);
+
+  // Load incomplete check-in state on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('bar_incomplete_checkin');
+    if (saved && !hasCheckedIncomplete) {
+      setShowContinuePrompt(true);
+    }
+    setHasCheckedIncomplete(true);
+  }, []);
+
+  // Save incomplete check-in state to localStorage on change
+  useEffect(() => {
+    if (stage === 5 || createdToken) {
+      localStorage.removeItem('bar_incomplete_checkin');
+      return;
+    }
+
+    if (phoneNumber || customerName || email || selectedTableId) {
+      const state = {
+        phoneNumber,
+        customerName,
+        email,
+        personsCount,
+        selectedPlaceTypeId,
+        selectedTableId,
+        stage,
+        activePendingToken,
+        qrVerificationSuccess,
+        paymentMode
+      };
+      localStorage.setItem('bar_incomplete_checkin', JSON.stringify(state));
+    }
+  }, [phoneNumber, customerName, email, personsCount, selectedPlaceTypeId, selectedTableId, stage, activePendingToken, qrVerificationSuccess, paymentMode, createdToken]);
+
+  const handleContinueCheckIn = () => {
+    const saved = localStorage.getItem('bar_incomplete_checkin');
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        setPhoneNumber(state.phoneNumber || '');
+        setCustomerName(state.customerName || '');
+        setEmail(state.email || '');
+        setPersonsCount(state.personsCount || 2);
+        setSelectedPlaceTypeId(state.selectedPlaceTypeId || 'standing_bar');
+        setSelectedTableId(state.selectedTableId || '');
+        setStage(state.stage || 1);
+        setActivePendingToken(state.activePendingToken || null);
+        setQrVerificationSuccess(state.qrVerificationSuccess || false);
+        setPaymentMode(state.paymentMode || 'CASH');
+      } catch (e) {
+        console.error("Failed to parse incomplete check-in state", e);
+      }
+    }
+    setShowContinuePrompt(false);
+  };
+
+  const handleAbandonCheckIn = () => {
+    localStorage.removeItem('bar_incomplete_checkin');
+    setPhoneNumber('');
+    setCustomerName('');
+    setEmail('');
+    setPersonsCount(2);
+    setSelectedTableId('');
+    setStage(1);
+    setActivePendingToken(null);
+    setQrVerificationSuccess(false);
+    setPaymentMode('CASH');
+    setShowContinuePrompt(false);
+  };
+
+  const checkDetailsChanged = () => {
+    if (!activePendingToken) return true;
+    const activePhone = activePendingToken.customer?.phoneNumber || (activePendingToken as any).phoneNumber || '';
+    const activeName = activePendingToken.customer?.name || (activePendingToken as any).customerName || '';
+    const activeEmail = activePendingToken.customer?.email || (activePendingToken as any).email || '';
+    const activePersons = activePendingToken.personsCount || (activePendingToken as any).persons || 0;
+
+    const currentNormalizedPhone = phoneNumber.trim().startsWith('+91') ? phoneNumber.trim() : `+91${phoneNumber.trim()}`;
+    const activeNormalizedPhone = activePhone.trim().startsWith('+91') ? activePhone.trim() : `+91${activePhone.trim()}`;
+
+    return (
+      activeNormalizedPhone !== currentNormalizedPhone ||
+      activeName !== customerName.trim() ||
+      activeEmail.toLowerCase() !== email.trim().toLowerCase() ||
+      Number(activePersons) !== Number(personsCount) ||
+      activePendingToken.tableId !== selectedTableId ||
+      activePendingToken.placeTypeId !== selectedPlaceTypeId
+    );
+  };
+
+  const handleStage2Submit = async () => {
+    if (!checkDetailsChanged() && activePendingToken) {
+      setStage(3);
+      return;
+    }
+
+    setIsSendingQr(true);
+    try {
+      const selectedTable = tables.find(t => t.id === selectedTableId);
+      const tableNumber = selectedTable ? selectedTable.tableNumber : '';
+
+      const res = await api.createPendingCheckIn({
+        phoneNumber: phoneNumber.trim(),
+        customerName: customerName.trim(),
+        email: email.trim() || '',
+        personsCount: typeof personsCount === 'number' ? personsCount : 1,
+        placeTypeId: selectedPlaceTypeId,
+        tableId: selectedTableId || undefined,
+        tableNumber: tableNumber || undefined,
+        tokenNumber: activePendingToken?.tokenNumber || undefined
+      });
+
+      if (res && res.success && res.token) {
+        setActivePendingToken(res.token);
+        setQrVerificationSuccess(false);
+        showToast('QR Code generated and dispatched to guest email.', 'success');
+        setStage(3);
+      } else {
+        showToast('Failed to generate pending check-in. Please try again.', 'danger');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to generate pending check-in.', 'danger');
+    } finally {
+      setIsSendingQr(false);
+    }
+  };
+
+  const getStage2ButtonText = () => {
+    if (isSendingQr) return 'Sending QR...';
+    if (!activePendingToken) return 'Send QR';
+    if (checkDetailsChanged()) return 'Update & Send QR';
+    return 'Proceed to QR';
+  };
 
  // EXACT VALIDATION REGEXES MATCHING REACT NATIVE SOURCE OF TRUTH
  const isValidName = (name: string): boolean => {
@@ -188,10 +327,6 @@ export const CheckInPage: React.FC = () => {
  }
  };
 
- const handleStage2Next = () => {
- setStage(3);
- };
-
  // Camera & QR control methods
  const startCamera = async (mode: 'user' | 'environment' = facingMode) => {
  setCameraError(null);
@@ -286,17 +421,70 @@ export const CheckInPage: React.FC = () => {
  }
  }, [cameraActive, stream, stage]);
 
- // Automatically handle camera state based on active stage/subtab
- useEffect(() => {
- if (stage === 3) {
- startCamera();
- } else {
- stopCamera();
- }
- return () => {
- stopCamera();
- };
- }, [stage]);
+  // Automatically handle camera state based on active stage/subtab
+  useEffect(() => {
+  if (stage === 3) {
+  startCamera();
+  } else {
+  stopCamera();
+  }
+  return () => {
+  stopCamera();
+  };
+  }, [stage]);
+
+  // Frame-by-frame loop for QR code detection using jsQR
+  useEffect(() => {
+    let animationFrameId: number;
+    let scanning = true;
+
+    const scanFrame = () => {
+      if (!scanning) return;
+
+      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
+
+          if (code && code.data) {
+            const decoded = code.data.trim();
+            if (decoded && decoded !== lastScannedCodeRef.current) {
+              lastScannedCodeRef.current = decoded;
+              console.log("[QR Scanner] Decoded QR code:", decoded);
+              handleVerifyQR(decoded);
+
+              // Allow scanning the same code again after 3 seconds if it was rejected/failed
+              setTimeout(() => {
+                if (lastScannedCodeRef.current === decoded) {
+                  lastScannedCodeRef.current = null;
+                }
+              }, 3000);
+            }
+          }
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(scanFrame);
+    };
+
+    if (cameraActive && stage === 3) {
+      scanning = true;
+      animationFrameId = requestAnimationFrame(scanFrame);
+    }
+
+    return () => {
+      scanning = false;
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [cameraActive, stage]);
 
  // Page visibility & window focus camera lifecycle management
  const cameraActiveRef = useRef(cameraActive);
@@ -383,23 +571,28 @@ export const CheckInPage: React.FC = () => {
 
  try {
  const res = await api.verifyCheckInQR(cleanCode);
- if (res.success && res.token) {
- setQrVerificationSuccess(true);
- setActivePendingToken(res.token); // Store scanned pending token
- showToast(`Token #${res.token.tokenNumber} verified successfully!`, 'success');
- 
- // Populate inputs if verified pre-registered session returned
- if (res.token.customer?.name) setCustomerName(res.token.customer.name);
- if (res.token.customer?.phoneNumber) setPhoneNumber(res.token.customer.phoneNumber);
- if (res.token.customer?.email) setEmail(res.token.customer.email);
- if (res.token.personsCount) setPersonsCount(res.token.personsCount);
- 
- setStage(4); // Advance to payment
- stopCamera();
- } else {
- setQrVerificationError('Token verification failed.');
- showToast('Token QR verification failed.', 'danger');
- }
+  if (res.success && res.token) {
+  setQrVerificationSuccess(true);
+  setActivePendingToken(res.token); // Store scanned pending token
+  showToast(`Token #${res.token.tokenNumber} verified successfully!`, 'success');
+  
+  // Populate inputs if verified pre-registered session returned
+  const returnedName = res.token.customer?.name || (res.token as any).customerName;
+  const returnedPhone = res.token.customer?.phoneNumber || (res.token as any).phoneNumber;
+  const returnedEmail = res.token.customer?.email || (res.token as any).email;
+  const returnedPersons = res.token.personsCount || (res.token as any).persons;
+
+  if (returnedName) setCustomerName(returnedName);
+  if (returnedPhone) setPhoneNumber(returnedPhone);
+  if (returnedEmail) setEmail(returnedEmail);
+  if (returnedPersons) setPersonsCount(returnedPersons);
+  
+  setStage(4); // Advance to payment
+  stopCamera();
+  } else {
+  setQrVerificationError('Token verification failed.');
+  showToast('Token QR verification failed.', 'danger');
+  }
  } catch (err: any) {
  setQrVerificationError(err.message || 'Invalid or expired QR token.');
  showToast(err.message || 'Token verification failed.', 'danger');
@@ -469,17 +662,19 @@ export const CheckInPage: React.FC = () => {
  }
  };
 
- const handleResetWizard = () => {
- setStage(1);
- setPhoneNumber('');
- setCustomerName('');
- setEmail('');
- setPersonsCount(2);
- setSelectedTableId('');
- setCreatedToken(null);
- setPreselectedTable(null);
- setActivePendingToken(null);
- };
+  const handleResetWizard = () => {
+  localStorage.removeItem('bar_incomplete_checkin');
+  setStage(1);
+  setPhoneNumber('');
+  setCustomerName('');
+  setEmail('');
+  setPersonsCount(2);
+  setSelectedTableId('');
+  setCreatedToken(null);
+  setPreselectedTable(null);
+  setActivePendingToken(null);
+  setQrVerificationSuccess(false);
+  };
 
  // Filter available tables by place category & seating capacity compatibility matching React Native
  const compatibleAvailableTables = tables.filter(t => {
@@ -490,8 +685,41 @@ export const CheckInPage: React.FC = () => {
  : (t.placeTypeId === 'STANDING_BAR' || t.tableNumber.startsWith('S-') || !t.tableNumber.startsWith('L-'));
  return isAvailable && isCapacitySuitable && matchesCategory;
  });
- return (
- <div className="max-w-7xl mx-auto space-y-6">
+
+  if (showContinuePrompt) {
+    return (
+      <div className="max-w-md mx-auto my-12">
+        <div className="glass-panel p-6 rounded-3xl border border-amber-500/30 bg-amber-500/5 space-y-6 text-center shadow-xl">
+          <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto text-amber-500">
+            <AlertTriangle size={32} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-text-main">Incomplete Check-In Found</h2>
+            <p className="text-sm text-text-muted">
+              An incomplete check-in session for a customer is currently saved. Would you like to resume it?
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 pt-2">
+            <button
+              onClick={handleContinueCheckIn}
+              className="w-full py-3.5 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.98] transition-all"
+            >
+              Resume Check-In
+            </button>
+            <button
+              onClick={handleAbandonCheckIn}
+              className="w-full py-3.5 rounded-xl border border-border-main text-text-muted hover:text-text-main font-semibold text-sm hover:bg-bg-primary/50 active:scale-[0.98] transition-all"
+            >
+              Close & Start New
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+  <div className="max-w-7xl mx-auto space-y-6">
  
  {/* Wizard Progress Header Bar */}
  <div className="glass-panel p-4 rounded-2xl border border-border-main relative overflow-hidden">
@@ -540,13 +768,24 @@ export const CheckInPage: React.FC = () => {
  {/* Mobile-only status text tracker */}
  <div className="text-center mt-2.5 text-[10px] uppercase tracking-widest font-black text-amber-600 dark:text-amber-400 md:hidden">
  Step {stage} of 5: {[
- 'Customer Info',
+'Customer Info',
  'Table Seating',
  'QR Verification',
  'Payment Details',
  'Pass Generated'
  ][stage - 1]}
  </div>
+  {stage !== 5 && (phoneNumber || customerName || email || selectedTableId) && (
+    <div className="flex justify-end mt-2 px-2">
+      <button
+        type="button"
+        onClick={handleResetWizard}
+        className="text-[10px] uppercase tracking-wider font-extrabold text-red-500 hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer"
+      >
+        Close & Start New
+      </button>
+    </div>
+  )}
  </div>
 
  {/* Main Dual-Column Desktop Grid */}
@@ -893,15 +1132,16 @@ export const CheckInPage: React.FC = () => {
  <ChevronLeft size={16} /> Back
  </button>
 
- <button
- type="button"
- onClick={handleStage2Next}
- className="px-8 py-3.5 rounded-xl primary-btn flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider w-full sm:w-auto"
- >
- <span>Proceed to Payment</span>
- <ChevronRight size={16} />
- </button>
- </div>
+  <button
+  type="button"
+  disabled={!selectedTableId || isSendingQr}
+  onClick={handleStage2Submit}
+  className="px-8 py-3.5 rounded-xl primary-btn flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+  <span>{getStage2ButtonText()}</span>
+  <ChevronRight size={16} />
+  </button>
+  </div>
  </div>
  )}
 
@@ -930,17 +1170,23 @@ export const CheckInPage: React.FC = () => {
  className="w-full h-full object-cover" 
  />
  
- {/* Pulsing red laser scanner overlay */}
- <div className="absolute left-[15%] right-[15%] h-[2px] bg-red-500 top-1/2 -translate-y-1/2 z-20 0_0_8px_#EF4444] animate-pulse" />
+ {/* Ambient Scanning Line across the full view */}
+ <div className="absolute left-0 right-0 h-[2px] bg-emerald-500/60 top-1/2 -translate-y-1/2 z-20 shadow-[0_0_12px_#10B981] animate-pulse" />
  
- {/* Golden target guide frame overlay */}
- <div className="absolute w-44 h-44 border-2 border-[#D4AF37] rounded-3xl z-10 flex items-center justify-center bg-black/10 0_0_15px_rgba(212,175,55,0.25)]">
- <span className="text-[9px] text-[#D4AF37] font-black uppercase tracking-wider bg-black/60 px-2 py-0.5 rounded-md">Viewfinder</span>
+ {/* Smart Full-Frame Corner Brackets */}
+ <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-emerald-400 rounded-tl-lg pointer-events-none z-10" />
+ <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg pointer-events-none z-10" />
+ <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg pointer-events-none z-10" />
+ <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-lg pointer-events-none z-10" />
+
+ {/* Ambient Text Identifier */}
+ <div className="absolute top-4 left-12 z-10 bg-black/60 px-2 py-0.5 rounded-md border border-white/10">
+ <span className="text-[9px] text-emerald-400 font-black uppercase tracking-wider">Full-Frame Auto Scanner</span>
  </div>
 
  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 w-[90%] sm:w-max max-w-[280px] px-4 py-1.5 rounded-full border border-border-main z-30 flex items-center justify-center">
  <p className="text-[10px] text-text-main font-extrabold uppercase tracking-widest text-center leading-tight">
- Align QR Code within the golden frame
+ Place QR Code anywhere in the camera view
  </p>
  </div>
 
@@ -1040,18 +1286,23 @@ export const CheckInPage: React.FC = () => {
  <ChevronLeft size={16} /> Back
  </button>
 
- <button
- type="button"
- onClick={() => {
- stopCamera();
- setStage(4); // Manual proceed to Payment
- }}
- className="px-8 py-3.5 rounded-xl primary-btn flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider cursor-pointer w-full sm:w-auto"
- >
- <span>Proceed to Payment</span>
- <ChevronRight size={16} />
- </button>
- </div>
+  <button
+  type="button"
+  disabled={!qrVerificationSuccess}
+  onClick={() => {
+  stopCamera();
+  setStage(4);
+  }}
+  className={`px-8 py-3.5 rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider w-full sm:w-auto transition-all ${
+    qrVerificationSuccess 
+      ? 'primary-btn cursor-pointer' 
+      : 'bg-neutral-200 dark:bg-neutral-800 text-text-muted cursor-not-allowed opacity-50'
+  }`}
+  >
+  <span>Proceed to Payment</span>
+  <ChevronRight size={16} />
+  </button>
+  </div>
  </div>
  )}
 
@@ -1135,7 +1386,7 @@ export const CheckInPage: React.FC = () => {
  </div>
  <div>
  <h3 className="text-xl font-black text-text-main">Check-In Successful!</h3>
- <p className="text-xs text-text-muted mt-1">Pass Issued for {createdToken.customer?.name}</p>
+ <p className="text-xs text-text-muted mt-1">Pass Issued for {createdToken.customer?.name || (createdToken as any).customerName}</p>
  </div>
 
  <div className="glass-panel p-6 rounded-2xl border border-border-main text-left space-y-3 font-mono text-xs max-w-md mx-auto">
@@ -1145,11 +1396,11 @@ export const CheckInPage: React.FC = () => {
  </div>
  <div className="flex justify-between border-b border-border-main pb-2">
  <span className="text-text-muted">Customer Phone:</span>
- <span className="text-text-main">{createdToken.customer?.phoneNumber}</span>
+ <span className="text-text-main">{createdToken.customer?.phoneNumber || (createdToken as any).phoneNumber}</span>
  </div>
  <div className="flex justify-between border-b border-border-main pb-2">
  <span className="text-text-muted">Customer Email:</span>
- <span className="text-text-main truncate max-w-[200px]" title={createdToken.customer?.email}>{createdToken.customer?.email || '—'}</span>
+ <span className="text-text-main truncate max-w-[200px]" title={createdToken.customer?.email || (createdToken as any).email}>{createdToken.customer?.email || (createdToken as any).email || '—'}</span>
  </div>
  <div className="flex justify-between">
  <span className="text-text-muted">Drink Allowance:</span>

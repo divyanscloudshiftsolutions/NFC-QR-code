@@ -35,10 +35,10 @@ WEBFRONTEND REPOSITORY — STRICT SCOPE RULE
 * Never bypass or override this rule.
 * This rule has higher priority than convenience, automatic Git synchronization, or bulk repository operations.
 
-4. Personal ID Repository (BAR-SYSTEM-CODE)
-   * Link: https://github.com/divyanscloudshiftsolutions/BAR-SYSTEM-code
-   * Rule: Contains the complete monorepo structure (including frontend, web-frontend, backend, and root files/folders) as a single personal backup repository.
-   * Action: Push the entire monorepo root structure.
+4. Personal Central Repository (NFC-QR-code)
+   * Link: https://github.com/divyanscloudshiftsolutions/NFC-QR-code
+   * Rule: This is the central repository for all project updates. It must keep ONLY the `main` branch. All other branches must be deleted. No new branches should be created.
+   * Action: Commit and push all updates (Backend, React Native, Web frontend, UI/UX, docs, etc.) directly to the `main` branch of this repository.
 
 5. EAS / EIS Update Channel
    * Rule: Run EAS update/build commands strictly inside the mobile app project directory (where `eas.json` is located).

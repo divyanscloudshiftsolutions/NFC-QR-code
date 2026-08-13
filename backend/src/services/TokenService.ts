@@ -240,7 +240,7 @@ export class TokenService {
           issuedBy: request.issuedBy,
           deliveryMode: deliveryMode,
           emailSent: false,
-          emailDeliveryStatus: 'PENDING'
+          emailDeliveryStatus: request.tableId ? 'PENDING' : 'NOT_SENT'
         },
         include: {
           customer: true,
@@ -875,7 +875,7 @@ export class TokenService {
           issuedBy: request.issuedBy,
           deliveryMode: 'EMAIL_QR',
           emailSent: false,
-          emailDeliveryStatus: 'PENDING'
+          emailDeliveryStatus: resolvedTableId ? 'PENDING' : 'NOT_SENT'
         },
         include: {
           customer: true,
