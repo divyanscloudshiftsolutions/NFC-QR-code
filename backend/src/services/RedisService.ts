@@ -187,6 +187,16 @@ class RedisService {
       this.memoryLocks.delete(key);
     }
   }
+
+  async disconnect(): Promise<void> {
+    if (this.redis) {
+      try {
+        await this.redis.quit();
+      } catch (err: any) {
+        console.warn('Error quitting Redis client:', err.message);
+      }
+    }
+  }
 }
 
 export const redisService = new RedisService();

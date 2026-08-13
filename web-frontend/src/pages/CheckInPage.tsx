@@ -18,7 +18,7 @@ import {
  Plus
 } from 'lucide-react';
 import { api } from '../services/api';
-import type { Token } from '../types';
+import type { Token, Table } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import jsQR from 'jsqr';
@@ -38,6 +38,7 @@ export const CheckInPage: React.FC = () => {
 
  // Stage 2: Seating State
  const [selectedTableId, setSelectedTableId] = useState('');
+ const [originalTableStatus, setOriginalTableStatus] = useState<'available' | 'reserved' | ''>('');
 
  // Stage 3: Camera & QR Scanner State
  const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -69,6 +70,12 @@ export const CheckInPage: React.FC = () => {
 
   // Load incomplete check-in state on mount
   useEffect(() => {
+    const redirectOriginalStatus = localStorage.getItem('bar_checkin_original_status');
+    if (redirectOriginalStatus) {
+      setOriginalTableStatus(redirectOriginalStatus as 'available' | 'reserved');
+      localStorage.removeItem('bar_checkin_original_status');
+    }
+
     const saved = localStorage.getItem('bar_incomplete_checkin');
     if (saved && !hasCheckedIncomplete) {
       setShowContinuePrompt(true);
@@ -94,11 +101,12 @@ export const CheckInPage: React.FC = () => {
         stage,
         activePendingToken,
         qrVerificationSuccess,
-        paymentMode
+        paymentMode,
+        originalTableStatus
       };
       localStorage.setItem('bar_incomplete_checkin', JSON.stringify(state));
     }
-  }, [phoneNumber, customerName, email, personsCount, selectedPlaceTypeId, selectedTableId, stage, activePendingToken, qrVerificationSuccess, paymentMode, createdToken]);
+  }, [phoneNumber, customerName, email, personsCount, selectedPlaceTypeId, selectedTableId, stage, activePendingToken, qrVerificationSuccess, paymentMode, createdToken, originalTableStatus]);
 
   const handleContinueCheckIn = () => {
     const saved = localStorage.getItem('bar_incomplete_checkin');
@@ -115,6 +123,7 @@ export const CheckInPage: React.FC = () => {
         setActivePendingToken(state.activePendingToken || null);
         setQrVerificationSuccess(state.qrVerificationSuccess || false);
         setPaymentMode(state.paymentMode || 'CASH');
+        setOriginalTableStatus(state.originalTableStatus || '');
       } catch (e) {
         console.error("Failed to parse incomplete check-in state", e);
       }
@@ -122,7 +131,8 @@ export const CheckInPage: React.FC = () => {
     setShowContinuePrompt(false);
   };
 
-  const handleAbandonCheckIn = () => {
+  const handleAbandonCheckIn = async () => {
+    const tableToUnlock = selectedTableId;
     localStorage.removeItem('bar_incomplete_checkin');
     setPhoneNumber('');
     setCustomerName('');
@@ -133,7 +143,17 @@ export const CheckInPage: React.FC = () => {
     setActivePendingToken(null);
     setQrVerificationSuccess(false);
     setPaymentMode('CASH');
+    setOriginalTableStatus('');
     setShowContinuePrompt(false);
+
+    if (tableToUnlock) {
+      try {
+        await api.unlockTable(tableToUnlock);
+        refreshTables();
+      } catch (err: any) {
+        console.warn('Failed to release lock on table:', err);
+      }
+    }
   };
 
   const checkDetailsChanged = () => {
@@ -291,12 +311,47 @@ export const CheckInPage: React.FC = () => {
  const matchedCategory = preselectedTable.number.startsWith('L-') ? premiumId : standardId;
  setSelectedPlaceTypeId(preselectedTable.placeTypeId || matchedCategory);
  setSelectedTableId(preselectedTable.id);
- setPersonsCount(preselectedTable.capacity);
- showToast(`Table ${preselectedTable.number} (Max ${preselectedTable.capacity} guests) pre-selected for check-in.`, 'info');
- }
- }, [preselectedTable, standardId, premiumId]);
+setPersonsCount(preselectedTable.capacity);
+        showToast(`Table ${preselectedTable.number} (Max ${preselectedTable.capacity} guests) pre-selected for check-in.`, 'info');
+      }
+    }, [preselectedTable, standardId, premiumId]);
 
- // Derived current rate card
+  const handleTableSelect = async (tb: Table) => {
+    const isCurrentlySelected = selectedTableId === tb.id;
+    if (isCurrentlySelected) {
+      try {
+        await api.unlockTable(tb.id);
+        setSelectedTableId('');
+        setOriginalTableStatus('');
+        refreshTables();
+        showToast(`Table ${tb.tableNumber} released.`, 'info');
+      } catch (err: any) {
+        showToast(err.message || `Failed to release table ${tb.tableNumber}.`, 'danger');
+      }
+    } else {
+      const previousTableId = selectedTableId;
+      try {
+        await api.lockTable(tb.id);
+        
+        if (previousTableId) {
+          try {
+            await api.unlockTable(previousTableId);
+          } catch (unlockErr: any) {
+            console.warn(`Failed to unlock previous table ${previousTableId}:`, unlockErr);
+          }
+        }
+        
+        setSelectedTableId(tb.id);
+        setOriginalTableStatus(tb.status as any);
+        refreshTables();
+        showToast(`Table ${tb.tableNumber} locked for check-in.`, 'success');
+      } catch (err: any) {
+        showToast(err.message || `Failed to lock table ${tb.tableNumber} for check-in.`, 'danger');
+      }
+    }
+  };
+
+  // Derived current rate card
  const currentRateCard = rates.find(r => r.id === selectedPlaceTypeId) || {
  id: selectedPlaceTypeId,
  name: selectedPlaceTypeId === premiumId ? 'Premium Lounge' : 'Standing Bar',
@@ -662,29 +717,40 @@ export const CheckInPage: React.FC = () => {
  }
  };
 
-  const handleResetWizard = () => {
-  localStorage.removeItem('bar_incomplete_checkin');
-  setStage(1);
-  setPhoneNumber('');
-  setCustomerName('');
-  setEmail('');
-  setPersonsCount(2);
-  setSelectedTableId('');
-  setCreatedToken(null);
-  setPreselectedTable(null);
-  setActivePendingToken(null);
-  setQrVerificationSuccess(false);
+  const handleResetWizard = async () => {
+    const tableToUnlock = selectedTableId;
+    localStorage.removeItem('bar_incomplete_checkin');
+    setStage(1);
+    setPhoneNumber('');
+    setCustomerName('');
+    setEmail('');
+    setPersonsCount(2);
+    setSelectedTableId('');
+    setCreatedToken(null);
+    setPreselectedTable(null);
+    setActivePendingToken(null);
+    setQrVerificationSuccess(false);
+    setOriginalTableStatus('');
+    
+    if (tableToUnlock && !createdToken) {
+      try {
+        await api.unlockTable(tableToUnlock);
+        refreshTables();
+      } catch (err: any) {
+        console.warn('Failed to release lock on table:', err);
+      }
+    }
   };
 
  // Filter available tables by place category & seating capacity compatibility matching React Native
- const compatibleAvailableTables = tables.filter(t => {
- const isAvailable = t.status === 'available';
- const isCapacitySuitable = typeof personsCount === 'number' && t.capacity >= personsCount;
- const matchesCategory = selectedPlaceTypeId === premiumId
- ? (t.placeTypeId === 'PREMIUM_LOUNGE' || t.tableNumber.startsWith('L-'))
- : (t.placeTypeId === 'STANDING_BAR' || t.tableNumber.startsWith('S-') || !t.tableNumber.startsWith('L-'));
- return isAvailable && isCapacitySuitable && matchesCategory;
- });
+  const compatibleAvailableTables = tables.filter(t => {
+    const isAvailable = t.status === 'available' || t.id === selectedTableId;
+    const isCapacitySuitable = typeof personsCount === 'number' && t.capacity >= personsCount;
+    const matchesCategory = selectedPlaceTypeId === premiumId
+      ? (t.placeTypeId === 'PREMIUM_LOUNGE' || t.tableNumber.startsWith('L-'))
+      : (t.placeTypeId === 'STANDING_BAR' || t.tableNumber.startsWith('S-') || !t.tableNumber.startsWith('L-'));
+    return isAvailable && isCapacitySuitable && matchesCategory;
+  });
 
   if (showContinuePrompt) {
     return (
@@ -1107,7 +1173,7 @@ export const CheckInPage: React.FC = () => {
  <button
  key={tb.id}
  type="button"
- onClick={() => setSelectedTableId(isSel ? '' : tb.id)}
+ onClick={() => handleTableSelect(tb)}
  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
  isSel
  ? 'bg-emerald-500/20 border-emerald-400 dark:text-emerald-300 text-emerald-700 font-bold '

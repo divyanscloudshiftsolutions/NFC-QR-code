@@ -1420,7 +1420,7 @@ router.patch('/tables/:id/status', authenticate, async (req: Request, res: Respo
     return res.status(400).json({ success: false, error: { code: 'VAL_UUID', message: 'Invalid table ID UUID format.' } });
   }
 
-  const validStatuses = ['available', 'occupied', 'reserved', 'maintenance'];
+  const validStatuses = ['available', 'occupied', 'reserved', 'maintenance', 'in_checkin'];
   if (!status || !validStatuses.includes(status.toLowerCase())) {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` } });
   }
@@ -1439,6 +1439,14 @@ router.patch('/tables/:id/status', authenticate, async (req: Request, res: Respo
 
     if (!table) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Table not found' } });
+    }
+
+    // 0. Business Rule: Prevent changes if table is locked for check-in
+    if (table.status === 'in_checkin') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'CONFLICT_LOCKED', message: 'Table is currently locked for check-in and cannot be modified directly.' }
+      });
     }
 
     const hasActiveSession = table.tokens.length > 0;
@@ -1485,6 +1493,121 @@ router.patch('/tables/:id/status', authenticate, async (req: Request, res: Respo
     return res.json(updated);
   } catch (err: any) {
     return res.status(400).json({ success: false, error: { code: 'STATUS_ERR', message: err.message } });
+  }
+});
+
+// Lock Table for Check-In (Authenticated)
+router.post('/tables/:id/lock', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+
+  if (!isValidUUID(id)) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_UUID', message: 'Invalid table ID UUID format.' } });
+  }
+
+  const userId = req.user?.id || 'receptionist';
+
+  try {
+    const updatedTable = await prisma.$transaction(async (tx) => {
+      const table = await tx.table.findUnique({
+        where: { id }
+      });
+
+      if (!table) {
+        throw new Error('Table not found');
+      }
+
+      // Check current status in DB to ensure it is available or reserved
+      if (table.status !== 'available' && table.status !== 'reserved') {
+        throw new Error(`Table cannot be locked because its current status is '${table.status}'.`);
+      }
+
+      // Save lock metadata to Redis (authoritative lock)
+      const lockKey = `table:lock:${id}`;
+      await redisService.setex(lockKey, 3600, JSON.stringify({
+        lockedBy: userId,
+        originalStatus: table.status,
+        lockedAt: Date.now()
+      }));
+
+      // Update table status to in_checkin
+      const updated = await tx.table.update({
+        where: { id },
+        data: { status: 'in_checkin' },
+        include: { placeType: true }
+      });
+
+      return updated;
+    });
+
+    await redisService.del(`table:available:${updatedTable.placeTypeId}`);
+    await redisService.del('table:available:all');
+    await redisService.del('tables:all').catch(() => {});
+
+    return res.json({ success: true, table: updatedTable });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { code: 'LOCK_ERR', message: err.message } });
+  }
+});
+
+// Unlock Table/Release Check-In (Authenticated)
+router.post('/tables/:id/unlock', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+
+  if (!isValidUUID(id)) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_UUID', message: 'Invalid table ID UUID format.' } });
+  }
+
+  const userId = req.user?.id || 'receptionist';
+  const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+
+  try {
+    const updatedTable = await prisma.$transaction(async (tx) => {
+      const table = await tx.table.findUnique({
+        where: { id }
+      });
+
+      if (!table) {
+        throw new Error('Table not found');
+      }
+
+      // Must be currently in_checkin status to unlock
+      if (table.status !== 'in_checkin') {
+        throw new Error(`Table cannot be unlocked because its current status is '${table.status}'.`);
+      }
+
+      // Verify lock ownership in Redis
+      const lockKey = `table:lock:${id}`;
+      const lockDataStr = await redisService.get(lockKey);
+      let originalStatus = 'available';
+
+      if (lockDataStr) {
+        const lockData = JSON.parse(lockDataStr);
+        if (lockData.lockedBy !== userId && !isAdmin) {
+          throw new Error('You do not own the lock on this table.');
+        }
+        originalStatus = lockData.originalStatus || 'available';
+      }
+
+      // Delete lock metadata from Redis
+      await redisService.del(lockKey);
+
+      // Revert status to originalStatus
+      const updated = await tx.table.update({
+        where: { id },
+        data: { status: originalStatus },
+        include: { placeType: true }
+      });
+
+      return updated;
+    });
+
+    await redisService.del(`table:available:${updatedTable.placeTypeId}`);
+    await redisService.del('table:available:all');
+    await redisService.del('tables:all').catch(() => {});
+
+    return res.json({ success: true, table: updatedTable });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { code: 'UNLOCK_ERR', message: err.message } });
   }
 });
 

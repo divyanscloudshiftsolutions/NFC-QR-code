@@ -26,3 +26,12 @@
 {"timestamp":"2026-08-05T15:17:21.397Z","tokenNumber":"BAR-20260805-00002","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: MANUAL","initiatedBy":"53bb8f66-be58-470d-bd82-720c1d29c818"}
 {"timestamp":"2026-08-05T15:17:21.544Z","tokenNumber":"BAR-20260805-00003","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"53bb8f66-be58-470d-bd82-720c1d29c818"}
 {"timestamp":"2026-08-05T15:17:21.564Z","tokenNumber":"BAR-20260805-00003","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: QR_SCAN","initiatedBy":"53bb8f66-be58-470d-bd82-720c1d29c818"}
+{"timestamp":"2026-08-13T16:53:32.040Z","tokenNumber":"BAR-20260813-00003","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"bb74c0d5-2c69-4b5b-96bb-a61bb44beb1b"}
+{"timestamp":"2026-08-13T17:12:31.128Z","tokenNumber":"BAR-20260813-00001","oldStatus":"PENDING_PAYMENT","newStatus":"EXPIRED","reason":"chronological pending auto-expiration","initiatedBy":"system_reconciler"}
+{"timestamp":"2026-08-13T17:17:37.767Z","tokenNumber":"BAR-20260813-00002","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T17:18:05.042Z","tokenNumber":"BAR-20260813-00003","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: CHECKOUT","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T17:57:29.499Z","tokenNumber":"BAR-20260813-00001","oldStatus":"EXPIRED","newStatus":"CLOSED","reason":"session closed: CHECKOUT","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T17:57:39.723Z","tokenNumber":"BAR-20260813-00002","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T17:57:39.747Z","tokenNumber":"BAR-20260813-00002","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: MANUAL","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T17:57:40.177Z","tokenNumber":"BAR-20260813-00003","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T17:57:40.230Z","tokenNumber":"BAR-20260813-00003","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: QR_SCAN","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}

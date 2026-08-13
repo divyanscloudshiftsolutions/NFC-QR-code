@@ -238,6 +238,25 @@ class ApiService {
     });
   }
 
+  async lockTable(tableId: string) {
+    return this.request<{ success: boolean; table: Table }>(`/tables/${tableId}/lock`, {
+      method: 'POST',
+    });
+  }
+
+  async unlockTable(tableId: string) {
+    return this.request<{ success: boolean; table: Table }>(`/tables/${tableId}/unlock`, {
+      method: 'POST',
+    });
+  }
+
+  async patchTableStatus(tableId: string, status: string) {
+    return this.request<{ success: boolean; table: Table }>(`/tables/${tableId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
   // Customer & Tokens APIs
   async getActiveTokens(): Promise<Token[]> {
     try {

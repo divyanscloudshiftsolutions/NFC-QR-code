@@ -195,11 +195,15 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  });
 
  const filteredTables = zoneFilteredTables.filter(t => {
- if (filter === 'available') return t.status === 'available';
- if (filter === 'occupied') return t.status === 'occupied';
- if (filter === 'reserved') return t.status === 'reserved';
- return true;
- });
+    if (activeTab === 'tables/reservations') {
+      return t.status === 'reserved' || t.status === 'in_checkin';
+    } else {
+      if (t.status === 'reserved' || t.status === 'in_checkin') return false;
+      if (layoutFilter === 'available') return t.status === 'available';
+      if (layoutFilter === 'occupied') return t.status === 'occupied';
+      return true;
+    }
+  });
 
  const handleRelease = async (tableId: string) => {
  try {
@@ -234,19 +238,55 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  }
  };
 
- const handleRedirectToCheckIn = (tb: Table) => {
- const placeType = (tb.tableNumber.startsWith('S-') || tb.tableNumber.startsWith('M')) ? 'standing_bar' : 'premium_lounge';
- setPreselectedTable({
- id: tb.id,
- number: tb.tableNumber,
- capacity: tb.capacity || 4,
- placeTypeId: placeType,
- });
- setInspectingTable(null);
- if (onNavigateToCheckIn) {
- onNavigateToCheckIn();
- }
- };
+  const handleReserveTable = async (tableId: string) => {
+    try {
+      await api.patchTableStatus(tableId, 'reserved');
+      showToast('Table reserved successfully!', 'success');
+      if (inspectingTable && inspectingTable.id === tableId) {
+        setInspectingTable(prev => prev ? { ...prev, status: 'reserved' } : null);
+      }
+      refreshTables();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to reserve table.', 'danger');
+    }
+  };
+
+  const handleCancelReservation = async (tableId: string) => {
+    try {
+      await api.patchTableStatus(tableId, 'available');
+      showToast('Reservation cancelled successfully!', 'success');
+      if (inspectingTable && inspectingTable.id === tableId) {
+        setInspectingTable(prev => prev ? { ...prev, status: 'available' } : null);
+      }
+      refreshTables();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to cancel reservation.', 'danger');
+    }
+  };
+
+  const handleRedirectToCheckIn = async (tb: Table) => {
+    try {
+      const originalStatus = tb.status; // 'available' or 'reserved'
+      await api.lockTable(tb.id);
+      
+      localStorage.setItem('bar_checkin_original_status', originalStatus);
+      
+      const placeType = (tb.tableNumber.startsWith('S-') || tb.tableNumber.startsWith('M')) ? 'standing_bar' : 'premium_lounge';
+      setPreselectedTable({
+        id: tb.id,
+        number: tb.tableNumber,
+        capacity: tb.capacity || 4,
+        placeTypeId: placeType,
+      });
+      setInspectingTable(null);
+      if (onNavigateToCheckIn) {
+        onNavigateToCheckIn();
+      }
+      refreshTables();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to lock table for check-in. It may have been selected by another user.', 'danger');
+    }
+  };
 
  const inspectingToken = inspectingTable 
  ? tokens.find(tk => tk.tableId === inspectingTable.id || (tk.table && tk.table.id === inspectingTable.id))
@@ -432,39 +472,77 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  {/* Card Action Row */}
  <div className="flex gap-2 pt-1 border-t border-border-main/50">
- {isOccupied ? (
- <button
- onClick={(e) => {
- e.stopPropagation();
- setInspectingTable(tb);
- }}
- className="w-full py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:hover:bg-amber-500/20 bg-amber-500/10 dark:text-amber-300 text-amber-700 text-xs font-bold border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
- >
- <Search size={14} /> Inspect Details
- </button>
- ) : (
- <>
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleRedirectToCheckIn(tb);
- }}
- className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
- >
- <UserPlus size={14} /> Assign
- </button>
- <button
- onClick={(e) => {
- e.stopPropagation();
- setInspectingTable(tb);
- }}
- className="py-2.5 px-3 rounded-xl bg-bg-primary hover:bg-bg-card border border-border-main text-text-muted hover:text-text-main transition-all cursor-pointer"
- title="View Setup Diagram"
- >
- <Search size={14} />
- </button>
- </>
- )}
+    {tb.status === 'occupied' ? (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setInspectingTable(tb);
+        }}
+        className="w-full py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:hover:bg-amber-500/20 dark:text-amber-300 text-amber-700 text-xs font-bold border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+      >
+        <Search size={14} /> Inspect Details
+      </button>
+    ) : tb.status === 'in_checkin' ? (
+      <button
+        disabled
+        onClick={(e) => e.stopPropagation()}
+        className="w-full py-2.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold transition-all text-center cursor-not-allowed"
+      >
+        In Check-In
+      </button>
+    ) : tb.status === 'reserved' ? (
+      <>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleRedirectToCheckIn(tb);
+          }}
+          className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <UserPlus size={14} /> Check-In
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCancelReservation(tb.id);
+          }}
+          className="flex-1 py-2.5 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all cursor-pointer text-center"
+        >
+          Cancel
+        </button>
+      </>
+    ) : tb.status === 'available' ? (
+      <>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleRedirectToCheckIn(tb);
+          }}
+          className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <UserPlus size={14} /> Assign
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleReserveTable(tb.id);
+          }}
+          className="flex-1 py-2.5 rounded-xl text-xs font-bold border border-primary text-primary hover:bg-primary/5 transition-all cursor-pointer text-center"
+        >
+          Reserve
+        </button>
+      </>
+    ) : (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setInspectingTable(tb);
+        }}
+        className="w-full py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card border border-border-main text-text-muted hover:text-text-main transition-all cursor-pointer flex items-center justify-center gap-1.5"
+      >
+        <Search size={14} /> Inspect
+      </button>
+    )}
  </div>
  </div>
  );
@@ -551,31 +629,61 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  {/* Action Buttons (Footer) */}
  <div className="pt-5 border-t border-border-main dark:border-[rgba(255,255,255,0.1)] flex flex-col gap-3 shrink-0">
- {inspectingTable.status === 'occupied' ? (
- <>
- <button
- type="button"
- onClick={() => handleRelease(inspectingTable.id)}
- className="w-full py-2.5 rounded-md dark:rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
- >
- Release Table
- </button>
- <div className="grid grid-cols-2 gap-3">
- <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Transfer</button>
- <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Extend</button>
- </div>
- </>
- ) : (
- <button
- type="button"
- onClick={() => handleRedirectToCheckIn(inspectingTable)}
- className="w-full py-3 rounded-md primary-btn text-[13px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer dark:text-black "
- >
- <span className="dark:hidden">Assign Guest & Check-In</span>
- <span className="hidden dark:block">+ Add Order</span>
- <ArrowRight size={16} className="dark:hidden" />
- </button>
- )}
+  {inspectingTable.status === 'occupied' ? (
+    <>
+      <button
+        type="button"
+        onClick={() => handleRelease(inspectingTable.id)}
+        className="w-full py-2.5 rounded-md dark:rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
+      >
+        Release Table
+      </button>
+      <div className="grid grid-cols-2 gap-3">
+        <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Transfer</button>
+        <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Extend</button>
+      </div>
+    </>
+  ) : inspectingTable.status === 'in_checkin' ? (
+    <button
+      type="button"
+      disabled
+      className="w-full py-3 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/30 text-[13px] font-bold text-center cursor-not-allowed"
+    >
+      In Check-In (Locked)
+    </button>
+  ) : (
+    <>
+      <button
+        type="button"
+        onClick={() => handleRedirectToCheckIn(inspectingTable)}
+        className="w-full py-3 rounded-md primary-btn text-[13px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer dark:text-black"
+      >
+        <span className="dark:hidden">Assign Guest & Check-In</span>
+        <span className="hidden dark:block">+ Add Order</span>
+        <ArrowRight size={16} className="dark:hidden" />
+      </button>
+      
+      {inspectingTable.status === 'reserved' && (
+        <button
+          type="button"
+          onClick={() => handleCancelReservation(inspectingTable.id)}
+          className="w-full py-2.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
+        >
+          Cancel Reservation
+        </button>
+      )}
+
+      {inspectingTable.status === 'available' && (
+        <button
+          type="button"
+          onClick={() => handleReserveTable(inspectingTable.id)}
+          className="w-full py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[13px] transition-all text-center cursor-pointer"
+        >
+          Reserve Table
+        </button>
+      )}
+    </>
+  )}
 
  <button
  type="button"

@@ -91,7 +91,7 @@ export class TableService {
       }
       const table = tables[0];
 
-      if (table.status !== 'available') {
+      if (table.status !== 'available' && table.status !== 'in_checkin') {
         throw new Error(`Table is currently ${table.status}`);
       }
 

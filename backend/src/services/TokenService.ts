@@ -849,7 +849,7 @@ export class TokenService {
         if (!table) {
           throw new Error('Table not found or does not match selected place type.');
         }
-        if (table.status !== 'available') {
+        if (table.status !== 'available' && table.status !== 'in_checkin') {
           throw new Error(`Table '${table.tableNumber}' is not available.`);
         }
         if (request.personsCount > table.capacity) {
@@ -986,7 +986,7 @@ export class TokenService {
       if (!table) {
         throw new Error(`Table '${tableNumber}' not found for this place type.`);
       }
-      if (table.status !== 'available' && table.currentTokenId !== token.id) {
+      if (table.status !== 'available' && table.status !== 'in_checkin' && table.currentTokenId !== token.id) {
         throw new Error(`Table '${tableNumber}' is not available.`);
       }
       if (token.personsCount > table.capacity) {
@@ -1049,6 +1049,7 @@ export class TokenService {
       });
 
       // 6. Invalidate caches
+      await redisService.del(`table:lock:${table.id}`);
       await redisService.del(`table:available:${token.placeTypeId}`);
       await redisService.del('table:available:all');
       await redisService.del(`table:${table.id}:status`);

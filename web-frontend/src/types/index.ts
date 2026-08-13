@@ -42,7 +42,7 @@ export interface Table {
   placeType?: any;
   categoryName?: string;
   capacity: number;
-  status: 'available' | 'occupied' | 'reserved' | 'maintenance';
+  status: 'available' | 'occupied' | 'reserved' | 'maintenance' | 'in_checkin';
   currentTokenId?: string;
   occupiedSince?: string;
   lastAssignedAt?: string;
