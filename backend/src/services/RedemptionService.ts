@@ -26,7 +26,8 @@ export class RedemptionService {
     payload: string,
     bartenderId: string,
     redeemedAt?: Date | string,
-    presentationType: 'QR_SCAN' = 'QR_SCAN'
+    presentationType: 'QR_SCAN' = 'QR_SCAN',
+    quantity: number = 1
   ): Promise<RedemptionResult> {
     const tokenNumber = payload;
 
@@ -80,10 +81,14 @@ export class RedemptionService {
           });
           throw new Error('Token has expired');
         }
+        
+        if (quantity < 1 || !Number.isInteger(quantity)) {
+          throw new Error('Invalid redemption quantity');
+        }
 
         // Check redemption limit
-        if (token.redemptionsUsed >= token.totalRedemptionsAllowed) {
-          throw new Error('No redemptions remaining');
+        if (token.redemptionsUsed + quantity > token.totalRedemptionsAllowed) {
+          throw new Error('Not enough redemptions remaining');
         }
 
         // Increment redemption count
@@ -91,7 +96,7 @@ export class RedemptionService {
           where: { id: token.id },
           data: {
             redemptionsUsed: {
-              increment: 1
+              increment: quantity
             }
           },
           include: {
@@ -101,14 +106,27 @@ export class RedemptionService {
           }
         });
 
-        // Create redemption record with sequence tracker
-        const redemption = await tx.redemption.create({
-          data: {
+        const batchId = `BATCH:${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const redemptionsToCreate = [];
+        
+        for (let i = 0; i < quantity; i++) {
+          redemptionsToCreate.push({
             tokenId: token.id,
-            redemptionSequence: updatedToken.redemptionsUsed,
+            redemptionSequence: token.redemptionsUsed + i + 1,
             bartenderId,
-            redeemedAt: now
-          },
+            redeemedAt: now,
+            notes: batchId
+          });
+        }
+        
+        await tx.redemption.createMany({
+          data: redemptionsToCreate
+        });
+        
+        // Fetch the last created redemption to return
+        const lastRedemption = await tx.redemption.findFirst({
+          where: { tokenId: token.id, notes: batchId },
+          orderBy: { redemptionSequence: 'desc' },
           include: {
             bartender: true,
             token: {
@@ -131,7 +149,7 @@ export class RedemptionService {
         await redisService.hincrby(
           `token:${tokenNumber}:stats`,
           'redemptionsUsed',
-          1
+          quantity
         );
 
         // Invalidate table cache if needed
@@ -141,7 +159,7 @@ export class RedemptionService {
 
         return {
           success: true,
-          redemption,
+          redemption: lastRedemption,
           remainingRedemptions: updatedToken.totalRedemptionsAllowed - updatedToken.redemptionsUsed,
           tokenStatus: updatedToken.status
         };
@@ -199,17 +217,31 @@ export class RedemptionService {
           throw new Error('No redemption record found to undo');
         }
 
-        // Delete the last redemption record
-        await tx.redemption.delete({
-          where: { id: lastRedemption.id }
-        });
+        let quantityToUndo = 1;
+        
+        // If it's part of a batch, find all in the batch
+        if (lastRedemption.notes && lastRedemption.notes.startsWith('BATCH:')) {
+          const batchRecords = await tx.redemption.findMany({
+            where: { tokenId: token.id, notes: lastRedemption.notes }
+          });
+          quantityToUndo = batchRecords.length;
+          
+          await tx.redemption.deleteMany({
+            where: { tokenId: token.id, notes: lastRedemption.notes }
+          });
+        } else {
+          // Delete just the single last redemption record (legacy fallback)
+          await tx.redemption.delete({
+            where: { id: lastRedemption.id }
+          });
+        }
 
         // Decrement redemption count on the token
         const updatedToken = await tx.token.update({
           where: { id: token.id },
           data: {
             redemptionsUsed: {
-              decrement: 1
+              decrement: quantityToUndo
             }
           },
           include: {
@@ -229,7 +261,7 @@ export class RedemptionService {
         await redisService.hincrby(
           `token:${tokenNumber}:stats`,
           'redemptionsUsed',
-          -1
+          -quantityToUndo
         );
 
         // Invalidate table cache if needed

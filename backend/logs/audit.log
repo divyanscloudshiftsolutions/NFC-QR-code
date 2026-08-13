@@ -35,3 +35,8 @@
 {"timestamp":"2026-08-13T17:57:39.747Z","tokenNumber":"BAR-20260813-00002","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: MANUAL","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
 {"timestamp":"2026-08-13T17:57:40.177Z","tokenNumber":"BAR-20260813-00003","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
 {"timestamp":"2026-08-13T17:57:40.230Z","tokenNumber":"BAR-20260813-00003","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: QR_SCAN","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T18:19:51.143Z","tokenNumber":"BAR-20260813-00001","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T18:20:24.310Z","tokenNumber":"BAR-20260813-00001","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T18:20:24.339Z","tokenNumber":"BAR-20260813-00001","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: CHECKOUT","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T18:20:54.491Z","tokenNumber":"BAR-20260813-00001","oldStatus":"PENDING_PAYMENT","newStatus":"ACTIVE","reason":"receptionist activation","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-13T18:20:54.521Z","tokenNumber":"BAR-20260813-00001","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: MANUAL","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}

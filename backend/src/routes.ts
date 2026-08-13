@@ -22,6 +22,8 @@ import s3Service from './services/S3Service';
 import emailNotificationService from './services/EmailNotificationService';
 import multer from 'multer';
 
+import { normalizeEmail, normalizePhone } from './utils/normalization';
+
 const prisma = new PrismaClient();
 const upload = multer();
 if (!process.env.JWT_SECRET) {
@@ -1611,6 +1613,52 @@ router.post('/tables/:id/unlock', authenticate, async (req: AuthenticatedRequest
   }
 });
 
+router.post('/check-in/validate-duplicate', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const { email, phoneNumber, tokenNumber } = req.body;
+
+  const normalizedPhone = normalizePhone(phoneNumber);
+  const normalizedEmail = normalizeEmail(email);
+
+  let excludeTokenId: string | undefined;
+  if (tokenNumber) {
+    const t = await prisma.token.findUnique({ where: { tokenNumber } });
+    if (t) excludeTokenId = t.id;
+  }
+
+  let emailConflict = false;
+  let phoneConflict = false;
+
+  if (normalizedPhone) {
+    const activePhoneToken = await prisma.token.findFirst({
+      where: {
+        id: excludeTokenId ? { not: excludeTokenId } : undefined,
+        status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT] },
+        customer: { phoneNumber: normalizedPhone }
+      }
+    });
+    if (activePhoneToken) phoneConflict = true;
+  }
+
+  if (normalizedEmail) {
+    const activeEmailToken = await prisma.token.findFirst({
+      where: {
+        id: excludeTokenId ? { not: excludeTokenId } : undefined,
+        status: { in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT] },
+        customer: { email: normalizedEmail }
+      }
+    });
+    if (activeEmailToken) emailConflict = true;
+  }
+
+  return res.json({
+    success: true,
+    conflicts: {
+      email: emailConflict,
+      phone: phoneConflict
+    }
+  });
+});
+
 // ==========================================
 // 3. RECEPTIONIST CHECK-IN & SESSIONS
 // ==========================================
@@ -1632,11 +1680,12 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
 
   const deliveryMode = 'EMAIL_QR';
 
+  const cleanedPhoneNumber = phoneNumber ? phoneNumber.trim().replace(/[^\d+]/g, '') : '';
   const phoneRegex = /^(?:\+91)?[6-9]\d{9}$/;
-  if (!phoneNumber || !phoneRegex.test(phoneNumber)) {
+  if (!cleanedPhoneNumber || !phoneRegex.test(cleanedPhoneNumber)) {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Please enter a valid 10-digit Indian phone number starting with 6-9.' } });
   }
-  const finalPhoneNumber = phoneNumber.startsWith('+91') ? phoneNumber : `+91${phoneNumber}`;
+  const finalPhoneNumber = normalizePhone(cleanedPhoneNumber);
 
   const nameRegex = /^[a-zA-Z\s.'-]{2,100}$/;
   if (!customerName || !nameRegex.test(customerName)) {
@@ -1651,7 +1700,7 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!validateEmail(email)) {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Please enter a valid Gmail address using only lowercase letters, numbers, and dots.' } });
   }
-  let finalEmail = email.trim().toLowerCase();
+  let finalEmail = normalizeEmail(email);
 
   const finalPersonsCount = parseInt(personsCount || persons || '1', 10);
   if (isNaN(finalPersonsCount) || finalPersonsCount < 1) {
@@ -1776,6 +1825,15 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(201).json(responseData);
   } catch (err: any) {
     console.error(err);
+    if (err.code === 'ACTIVE_SESSION_EXISTS' || err.code === 'PENDING_SESSION_EXISTS') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'DUPLICATE_ACTIVE_SESSION',
+          message: err.message
+        }
+      });
+    }
     return res.status(400).json({ success: false, error: { message: err.message } });
   }
 };
@@ -1793,11 +1851,12 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
     tableNumber,
   } = req.body;
 
+  const cleanedPhoneNumber = phoneNumber ? phoneNumber.trim().replace(/[^\d+]/g, '') : '';
   const phoneRegex = /^(?:\+91)?[6-9]\d{9}$/;
-  if (!phoneNumber || !phoneRegex.test(phoneNumber)) {
+  if (!cleanedPhoneNumber || !phoneRegex.test(cleanedPhoneNumber)) {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Please enter a valid 10-digit Indian phone number starting with 6-9.' } });
   }
-  const finalPhoneNumber = phoneNumber.startsWith('+91') ? phoneNumber : `+91${phoneNumber}`;
+  const finalPhoneNumber = normalizePhone(cleanedPhoneNumber);
 
   const nameRegex = /^[a-zA-Z\s.'-]{2,100}$/;
   if (!customerName || !nameRegex.test(customerName)) {
@@ -1810,7 +1869,7 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
   if (!validateEmail(email)) {
     return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Please enter a valid Gmail address using only lowercase letters, numbers, and dots.' } });
   }
-  const finalEmail = email.trim().toLowerCase();
+  const finalEmail = normalizeEmail(email);
 
   const finalPersonsCount = parseInt(personsCount || persons || '1', 10);
   if (isNaN(finalPersonsCount) || finalPersonsCount < 1) {
@@ -1858,35 +1917,33 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
         return res.status(400).json({ success: false, error: { message: `Cannot update token with status ${existingToken.status}` } });
       }
 
-      // Check if this customer already has another active session (by phone or email)
-      const customerRecord = await prisma.customer.findUnique({
-        where: { id: existingToken.customerId }
+      // Check if another customer/token already has this phone or email active
+      const otherActiveOrPendingToken = await prisma.token.findFirst({
+        where: {
+          id: { not: existingToken.id },
+          status: {
+            in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
+          },
+          OR: [
+            { customer: { phoneNumber: finalPhoneNumber } },
+            finalEmail ? { customer: { email: finalEmail } } : undefined
+          ].filter(Boolean) as any
+        },
+        include: { customer: true }
       });
-      if (customerRecord) {
-        const orConditions: any[] = [
-          { customer: { phoneNumber: customerRecord.phoneNumber } }
-        ];
-        if (customerRecord.email && customerRecord.email.trim()) {
-          orConditions.push({ customer: { email: customerRecord.email.trim().toLowerCase() } });
-        }
 
-        const otherActiveOrPendingToken = await prisma.token.findFirst({
-          where: {
-            id: { not: existingToken.id },
-            OR: orConditions,
-            status: {
-              in: [TokenStatus.ACTIVE, TokenStatus.EXTENDED, TokenStatus.PENDING_PAYMENT]
-            }
+      if (otherActiveOrPendingToken) {
+        const isPending = otherActiveOrPendingToken.status === TokenStatus.PENDING_PAYMENT;
+        const msg = isPending
+          ? `A pending payment session already exists for this customer (Phone: ${otherActiveOrPendingToken.customer.phoneNumber}, Email: ${otherActiveOrPendingToken.customer.email || 'N/A'}).`
+          : `Customer already has an active session (Phone: ${otherActiveOrPendingToken.customer.phoneNumber}, Email: ${otherActiveOrPendingToken.customer.email || 'N/A'}).`;
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'DUPLICATE_ACTIVE_SESSION',
+            message: msg
           }
         });
-
-        if (otherActiveOrPendingToken) {
-          const isPending = otherActiveOrPendingToken.status === TokenStatus.PENDING_PAYMENT;
-          const msg = isPending
-            ? `A pending payment session already exists for this customer.`
-            : `Customer already has an active session.`;
-          return res.status(400).json({ success: false, error: { message: msg } });
-        }
       }
 
       // If assigning a table
@@ -2018,12 +2075,13 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
 
     return res.status(201).json(responseData);
   } catch (err: any) {
-    if (err.code === 'PENDING_SESSION_EXISTS') {
+    if (err.code === 'ACTIVE_SESSION_EXISTS' || err.code === 'PENDING_SESSION_EXISTS') {
       return res.status(400).json({
         success: false,
-        code: 'PENDING_SESSION_EXISTS',
-        error: { message: err.message },
-        tokenNumber: err.tokenNumber
+        error: {
+          code: 'DUPLICATE_ACTIVE_SESSION',
+          message: err.message
+        }
       });
     }
     console.error('Error in checkInPendingHandler:', err);
@@ -2343,7 +2401,7 @@ router.post('/qr/verify', authenticate, authorize(['bartender', 'receptionist', 
 
 // Unified Redemption Endpoint
 router.post('/redemptions', authenticate, authorize(['bartender', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
-  const { payload, presentationType, bartenderId } = req.body;
+  const { payload, presentationType, bartenderId, quantity } = req.body;
   
   if (!payload) {
     return res.status(400).json({ success: false, error: { message: 'payload is required.' } });
@@ -2359,12 +2417,15 @@ router.post('/redemptions', authenticate, authorize(['bartender', 'admin']), asy
     return res.status(400).json({ success: false, error: { message: 'Invalid bartenderId UUID format.' } });
   }
 
+  const finalQuantity = quantity ? parseInt(quantity.toString(), 10) : 1;
+
   try {
     const result = await redemptionService.processRedemption(
       payload,
       finalBartenderId,
       undefined,
-      finalPresentationType
+      finalPresentationType,
+      finalQuantity
     );
 
     return res.json({

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Wine, Search, RotateCcw, Camera, CheckCircle2, AlertCircle, RefreshCw, VideoOff, Clock, LogOut, Users, Mail, Phone, X, QrCode } from 'lucide-react';
+import { Wine, Search, RotateCcw, Camera, CheckCircle2, AlertCircle, RefreshCw, VideoOff, Clock, LogOut, Users, Mail, Phone, X, QrCode, Plus, Minus } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import jsQR from 'jsqr';
 import type { Token } from '../types';
 
@@ -12,10 +13,12 @@ interface BartenderPageProps {
 
 export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActiveTab }) => {
  const { showToast } = useAuth();
+ const { refreshTokens, refreshTables } = useData();
  const [tokenInput, setTokenInput] = useState('');
  const [scannedToken, setScannedToken] = useState<Token | null>(null);
  const [isVerifying, setIsVerifying] = useState(false);
  const [isRedeeming, setIsRedeeming] = useState(false);
+ const [redeemQty, setRedeemQty] = useState(1);
 
  // Search Active Customer Sessions State
  const [activeTokens, setActiveTokens] = useState<Token[]>([]);
@@ -322,14 +325,17 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
 
  setIsRedeeming(true);
  try {
- const res = await api.redeemDrink(scannedToken.id);
+ const res = await api.redeemDrink(scannedToken.tokenNumber, redeemQty);
  if (res.success) {
- showToast('Drink redemption recorded successfully!', 'success');
- setScannedToken(prev => prev ? { 
- ...prev, 
- redemptionsUsed: (prev.redemptionsUsed || 0) + 1 
- } : null);
+ showToast(`Drink redemption (${redeemQty}) recorded successfully!`, 'success');
+ setRedeemQty(1);
  fetchActiveTokens(); // Refresh background list
+ refreshTokens();
+ refreshTables();
+ const verifyRes = await api.verifyQR(scannedToken.tokenNumber);
+ if (verifyRes.success && verifyRes.token) {
+   setScannedToken(verifyRes.token);
+ }
  }
  } catch (err: any) {
  showToast(err.message || 'Redemption failed. All drink quotas used or session closed.', 'danger');
@@ -341,15 +347,17 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  const handleRedeemForToken = async (token: Token) => {
  setIsRedeeming(true);
  try {
- const res = await api.redeemDrink(token.id);
+ const res = await api.redeemDrink(token.tokenNumber, 1);
  if (res.success) {
  showToast(`Drink redemption recorded for ${token.customer?.name || 'Guest'}.`, 'success');
  fetchActiveTokens(); // Refresh list
- if (scannedToken?.id === token.id) {
- setScannedToken(prev => prev ? { 
- ...prev, 
- redemptionsUsed: (prev.redemptionsUsed || 0) + 1 
- } : null);
+ refreshTokens();
+ refreshTables();
+ if (scannedToken?.tokenNumber === token.tokenNumber) {
+   const verifyRes = await api.verifyQR(scannedToken.tokenNumber);
+   if (verifyRes.success && verifyRes.token) {
+     setScannedToken(verifyRes.token);
+   }
  }
  }
  } catch (err: any) {
@@ -362,14 +370,16 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  const handleUndo = async () => {
  if (!scannedToken) return;
  try {
- const res = await api.undoRedeem(scannedToken.id);
+ const res = await api.undoRedeem(scannedToken.tokenNumber);
  if (res.success) {
  showToast('Drink redemption reverted successfully.', 'info');
- setScannedToken(prev => prev ? { 
- ...prev, 
- redemptionsUsed: Math.max(0, (prev.redemptionsUsed || 0) - 1) 
- } : null);
  fetchActiveTokens(); // Refresh background list
+ refreshTokens();
+ refreshTables();
+ const verifyRes = await api.verifyQR(scannedToken.tokenNumber);
+ if (verifyRes.success && verifyRes.token) {
+   setScannedToken(verifyRes.token);
+ }
  }
  } catch (err: any) {
  showToast(err.message || 'Failed to revert drink redemption.', 'danger');
@@ -386,6 +396,8 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  showToast(`Session ${closingToken.tokenNumber} checked out successfully.`, 'success');
  setClosingToken(null);
  fetchActiveTokens();
+ refreshTokens();
+ refreshTables();
  if (scannedToken?.tokenNumber === closingToken.tokenNumber) {
  setScannedToken(null);
  }
@@ -406,12 +418,13 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  showToast(`Session ${extendingToken.tokenNumber} extended by ${extraMinutes} mins.`, 'success');
  setExtendingToken(null);
  fetchActiveTokens();
+ refreshTokens();
+ refreshTables();
  if (scannedToken?.tokenNumber === extendingToken.tokenNumber) {
- setScannedToken(prev => prev ? { 
- ...prev, 
- expiresAt: new Date(new Date(prev.expiresAt || prev.endTime).getTime() + extraMinutes * 60000).toISOString(),
- endTime: new Date(new Date(prev.endTime).getTime() + extraMinutes * 60000).toISOString()
- } : null);
+   const verifyRes = await api.verifyQR(scannedToken.tokenNumber);
+   if (verifyRes.success && verifyRes.token) {
+     setScannedToken(verifyRes.token);
+   }
  }
  } catch (err: any) {
  showToast(err.message || 'Extension failed.', 'danger');
@@ -678,17 +691,37 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
 
  {/* Dispense & Revert Actions */}
  <div className="space-y-2 sm:space-y-3 pt-1 sm:pt-2">
- <button
- onClick={handleRedeem}
- disabled={isRedeeming || isQuotaDepleted}
- title={isRedeeming ? "Dispensing..." : isQuotaDepleted ? "Drink quota limit reached for this session." : undefined}
- className="w-full py-3 sm:py-3.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
- >
- <div className="nav-icon-badge">
- <Wine size={14} />
+ <div className="flex flex-row items-center gap-2 sm:gap-3">
+  <div className="flex items-center justify-between bg-bg-surface border border-border-main rounded-xl p-1 h-12 sm:h-[52px] w-32 shrink-0">
+    <button 
+      onClick={() => setRedeemQty(Math.max(1, redeemQty - 1))}
+      disabled={isRedeeming || isQuotaDepleted || redeemQty <= 1}
+      className="p-2 hover:bg-bg-card rounded-lg transition-all text-text-muted disabled:opacity-50 cursor-pointer"
+    >
+      <Minus size={16} />
+    </button>
+    <span className="font-bold text-text-main text-sm">{redeemQty}</span>
+    <button 
+      onClick={() => setRedeemQty(Math.min(Math.max(1, totalAllowed - redemptionsUsed), redeemQty + 1))}
+      disabled={isRedeeming || isQuotaDepleted || redeemQty >= (totalAllowed - redemptionsUsed)}
+      className="p-2 hover:bg-bg-card rounded-lg transition-all text-text-muted disabled:opacity-50 cursor-pointer"
+    >
+      <Plus size={16} />
+    </button>
+  </div>
+  
+  <button
+    onClick={handleRedeem}
+    disabled={isRedeeming || isQuotaDepleted}
+    title={isRedeeming ? "Dispensing..." : isQuotaDepleted ? "Drink quota limit reached for this session." : undefined}
+    className="flex-1 h-12 sm:h-[52px] rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+  >
+    <div className="nav-icon-badge">
+      <Wine size={14} />
+    </div>
+    <span>{isRedeeming ? 'Dispensing...' : `Dispense ${redeemQty}`}</span>
+  </button>
  </div>
- <span>{isRedeeming ? 'Dispensing Drink...' : 'Dispense 1 Drink'}</span>
- </button>
 
  <div className="flex flex-row gap-2 sm:gap-3">
  {redemptionsUsed > 0 && (

@@ -257,6 +257,13 @@ class ApiService {
     });
   }
 
+  async validateDuplicate(body: { phoneNumber?: string; email?: string; tokenNumber?: string }) {
+    return this.request<{ success: boolean; conflicts: { email: boolean; phone: boolean } }>('/check-in/validate-duplicate', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   // Customer & Tokens APIs
   async getActiveTokens(): Promise<Token[]> {
     try {
@@ -274,9 +281,10 @@ class ApiService {
         customer: {
           id: t.customer?.id || t.customerId || '',
           name: t.customer?.name || t.customerName || 'Walk-in Guest',
-          phoneNumber: t.customer?.phoneNumber || t.customerPhone || 'N/A',
-          email: t.customer?.email,
+          phoneNumber: t.phoneNumber || t.customer?.phoneNumber || t.customerPhone || 'N/A',
+          email: t.email || t.customer?.email,
         },
+        tableId: t.tableId || t.table?.id || null,
         tableNumber: t.tableNumber || t.table?.number,
         createdAt: t.createdAt || new Date().toISOString(),
         expiresAt: t.expiresAt || new Date().toISOString(),
@@ -475,17 +483,17 @@ class ApiService {
     };
   }
 
-  async redeemDrink(tokenId: string, drinkName?: string) {
+  async redeemDrink(tokenNumber: string, quantity: number = 1) {
     return this.request<{ success: boolean; remainingDrinks: number }>('/redemptions', {
       method: 'POST',
-      body: JSON.stringify({ tokenId, drinkName }),
+      body: JSON.stringify({ payload: tokenNumber, presentationType: 'QR_SCAN', quantity }),
     });
   }
 
-  async undoRedeem(tokenId: string) {
+  async undoRedeem(tokenNumber: string) {
     return this.request<{ success: boolean }>('/token/redeem/undo', {
       method: 'POST',
-      body: JSON.stringify({ tokenId }),
+      body: JSON.stringify({ tokenNumber }),
     });
   }
 

@@ -30,11 +30,13 @@ export const CheckInPage: React.FC = () => {
 
  // Stage 1: Form Input States
  const [phoneNumber, setPhoneNumber] = useState('');
- const [customerName, setCustomerName] = useState('');
- const [email, setEmail] = useState('');
- const [personsCount, setPersonsCount] = useState<number | ''>(2);
- const deliveryMode = 'EMAIL_QR';
- const [selectedPlaceTypeId, setSelectedPlaceTypeId] = useState('standing_bar');
+  const [customerName, setCustomerName] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailConflict, setEmailConflict] = useState(false);
+  const [phoneConflict, setPhoneConflict] = useState(false);
+  const [personsCount, setPersonsCount] = useState<number | ''>(2);
+  const deliveryMode = 'EMAIL_QR';
+  const [selectedPlaceTypeId, setSelectedPlaceTypeId] = useState('standing_bar');
 
  // Stage 2: Seating State
  const [selectedTableId, setSelectedTableId] = useState('');
@@ -107,6 +109,42 @@ export const CheckInPage: React.FC = () => {
       localStorage.setItem('bar_incomplete_checkin', JSON.stringify(state));
     }
   }, [phoneNumber, customerName, email, personsCount, selectedPlaceTypeId, selectedTableId, stage, activePendingToken, qrVerificationSuccess, paymentMode, createdToken, originalTableStatus]);
+
+  // Real-time backend validation with 400ms debounce
+  useEffect(() => {
+    const p = phoneNumber.trim();
+    const e = email.trim();
+
+    if (!p && !e) {
+      setPhoneConflict(false);
+      setEmailConflict(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const body: any = {};
+        if (p) body.phoneNumber = p;
+        if (e) body.email = e;
+        if (activePendingToken?.tokenNumber) {
+          body.tokenNumber = activePendingToken.tokenNumber;
+        }
+
+        const res = await api.validateDuplicate(body);
+        if (res && res.conflicts) {
+          setPhoneConflict(!!res.conflicts.phone);
+          setEmailConflict(!!res.conflicts.email);
+        } else {
+          setPhoneConflict(false);
+          setEmailConflict(false);
+        }
+      } catch (err) {
+        console.error('Error during duplicate validation:', err);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [phoneNumber, email, activePendingToken]);
 
   const handleContinueCheckIn = () => {
     const saved = localStorage.getItem('bar_incomplete_checkin');
@@ -220,40 +258,40 @@ export const CheckInPage: React.FC = () => {
     return 'Proceed to QR';
   };
 
- // EXACT VALIDATION REGEXES MATCHING REACT NATIVE SOURCE OF TRUTH
- const isValidName = (name: string): boolean => {
- const trimmed = name.trim();
- return /^[a-zA-Z\s.'-]{2,100}$/.test(trimmed);
- };
+  // EXACT VALIDATION REGEXES MATCHING REACT NATIVE SOURCE OF TRUTH
+  const isValidName = (name: string): boolean => {
+    const trimmed = name.trim();
+    return /^[a-zA-Z\s.'-]{2,100}$/.test(trimmed);
+  };
 
- const isValidPhone = (phone: string): boolean => {
- const trimmed = phone.trim();
- return /^(?:\+91)?[6-9]\d{9}$/.test(trimmed);
- };
+  const isValidPhone = (phone: string): boolean => {
+    const trimmed = phone.trim();
+    return /^(?:\+91)?[6-9]\d{9}$/.test(trimmed);
+  };
 
- const isValidEmail = (emailStr: string): boolean => {
- if (!emailStr || !emailStr.trim()) return true;
- const trimmed = emailStr.trim().toLowerCase();
- const regex = /^(?!.*\.\.)(?!\.)(?!.*\.$)[a-z0-9]+(\.[a-z0-9]+)*@gmail\.com$/;
- return regex.test(trimmed);
- };
+  const isValidEmail = (emailStr: string): boolean => {
+    if (!emailStr || !emailStr.trim()) return true;
+    const trimmed = emailStr.trim().toLowerCase();
+    const regex = /^(?!.*\.\.)(?!\.)(?!.*\.$)[a-z0-9]+(\.[a-z0-9]+)*@gmail\.com$/;
+    return regex.test(trimmed);
+  };
 
- // Active Check-in Duplicate Session Check
- const normalizedPhone = phoneNumber.trim().startsWith('+91') ? phoneNumber.trim() : `+91${phoneNumber.trim()}`;
- const isPhoneActive = activeTokens.some(t => 
- (t.customer?.phoneNumber === phoneNumber.trim() || t.customer?.phoneNumber === normalizedPhone) &&
- (t.status?.toUpperCase() === 'ACTIVE' || t.status?.toUpperCase() === 'EXTENDED')
- );
+  // Active Check-in Duplicate Session Check
+  const normalizedPhone = phoneNumber.trim().startsWith('+91') ? phoneNumber.trim() : `+91${phoneNumber.trim()}`;
+  const isPhoneActive = activeTokens.some(t => 
+    (t.customer?.phoneNumber === phoneNumber.trim() || t.customer?.phoneNumber === normalizedPhone) &&
+    (t.status?.toUpperCase() === 'ACTIVE' || t.status?.toUpperCase() === 'EXTENDED')
+  );
 
- const isEmailActive = email.trim() ? activeTokens.some(t =>
- t.customer?.email?.toLowerCase() === email.trim().toLowerCase() &&
- (t.status?.toUpperCase() === 'ACTIVE' || t.status?.toUpperCase() === 'EXTENDED')
- ) : false;
+  const isEmailActive = email.trim() ? activeTokens.some(t =>
+    t.customer?.email?.toLowerCase() === email.trim().toLowerCase() &&
+    (t.status?.toUpperCase() === 'ACTIVE' || t.status?.toUpperCase() === 'EXTENDED')
+  ) : false;
 
- // React Native exact step validation booleans
- const isNameOk = isValidName(customerName);
- const isPhoneOk = isValidPhone(phoneNumber) && !isPhoneActive;
- const isEmailOk = email.trim().length > 0 && isValidEmail(email) && !isEmailActive;
+  // React Native exact step validation booleans
+  const isNameOk = isValidName(customerName);
+  const isPhoneOk = isValidPhone(phoneNumber) && !isPhoneActive && !phoneConflict;
+  const isEmailOk = email.trim().length > 0 && isValidEmail(email) && !isEmailActive && !emailConflict;
 
  const selectedTableObj = tables.find(t => t.id === selectedTableId);
  
@@ -889,7 +927,7 @@ setPersonsCount(preselectedTable.capacity);
  onChange={e => setPhoneNumber(e.target.value)}
  placeholder="e.g. 9999999999"
  className={`w-full bg-bg-primary border rounded-xl px-4 py-3 text-base md:text-sm text-text-main focus:outline-none transition-all ${
- phoneNumber.trim().length > 0 && !isValidPhone(phoneNumber)
+ phoneNumber.trim().length > 0 && (!isValidPhone(phoneNumber) || phoneConflict)
  ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
  : 'border-border-main dark:focus:border-[#D4AF37] focus:border-primary focus:ring-2 dark:focus:ring-[#D4AF37]/20 focus:ring-primary/20'
  }`}
@@ -901,10 +939,10 @@ setPersonsCount(preselectedTable.capacity);
  <span>Please enter a valid 10-digit Indian mobile number (starts with 6-9).</span>
  </div>
  )}
- {isPhoneActive && (
+ {phoneConflict && (
  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-1.5 flex items-center gap-1.5 text-[11px] dark:text-red-400 text-red-700">
  <AlertTriangle size={14} className="shrink-0" />
- <span>Active check-in session already exists for this phone number.</span>
+ <span>This phone number is already checked in.</span>
  </div>
  )}
  </div>
@@ -950,27 +988,27 @@ setPersonsCount(preselectedTable.capacity);
  onChange={e => setEmail(e.target.value)}
  placeholder="e.g. name@example.com"
  className={`w-full bg-bg-primary border rounded-xl px-4 py-3 text-base md:text-sm text-text-main focus:outline-none transition-all ${
- email.trim().length === 0 || !isValidEmail(email)
- ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
- : 'border-border-main dark:focus:border-[#D4AF37] focus:border-primary focus:ring-2 dark:focus:ring-[#D4AF37]/20 focus:ring-primary/20'
- }`}
- />
- {email.trim().length === 0 && (
- <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-1.5 flex items-center gap-1.5 text-[11px] dark:text-red-400 text-red-700">
- <AlertTriangle size={14} className="shrink-0" />
- <span>Email address is strictly required for Digital Email QR Pass delivery.</span>
- </div>
- )}
+    email.trim().length === 0 || !isValidEmail(email) || emailConflict
+    ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
+    : 'border-border-main dark:focus:border-[#D4AF37] focus:border-primary focus:ring-2 dark:focus:ring-[#D4AF37]/20 focus:ring-primary/20'
+  }`}
+  />
+  {email.trim().length === 0 && (
+    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-1.5 flex items-center gap-1.5 text-[11px] dark:text-red-400 text-red-700">
+      <AlertTriangle size={14} className="shrink-0" />
+      <span>Email address is strictly required for Digital Email QR Pass delivery.</span>
+    </div>
+  )}
  {email.trim().length > 0 && !isValidEmail(email) && (
  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-1.5 flex items-center gap-1.5 text-[11px] dark:text-red-400 text-red-700">
  <AlertTriangle size={14} className="shrink-0" />
  <span>Please enter a valid email address (e.g. name@domain.com).</span>
  </div>
  )}
- {isEmailActive && (
+ {emailConflict && (
  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mt-1.5 flex items-center gap-1.5 text-[11px] dark:text-red-400 text-red-700">
  <AlertTriangle size={14} className="shrink-0" />
- <span>Active check-in session already exists for this email.</span>
+ <span>This email ID is already checked in.</span>
  </div>
  )}
  </div>

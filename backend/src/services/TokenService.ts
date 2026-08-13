@@ -1,5 +1,6 @@
 import { PrismaClient, CloseReason, ActivationMethod, CancelReason } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { normalizeEmail, normalizePhone } from '../utils/normalization';
 import redisService from './RedisService';
 import emailNotificationService from './EmailNotificationService';
 import jwt from 'jsonwebtoken';
@@ -111,6 +112,9 @@ export class TokenService {
       throw new Error('Email address is mandatory when system operates in EMAIL_QR mode.');
     }
 
+    const finalPhoneNumber = normalizePhone(request.phoneNumber);
+    const finalEmail = normalizeEmail(request.email);
+
     // Reconcile chronologically expired sessions first
     await this.reconcileSystemState();
 
@@ -119,10 +123,10 @@ export class TokenService {
     const token = await prisma.$transaction(async (tx) => {
       // Check for existing active or pending sessions by phone or email
       const orConditions: any[] = [
-        { customer: { phoneNumber: request.phoneNumber } }
+        { customer: { phoneNumber: finalPhoneNumber } }
       ];
-      if (request.email && request.email.trim()) {
-        orConditions.push({ customer: { email: request.email.trim().toLowerCase() } });
+      if (finalEmail) {
+        orConditions.push({ customer: { email: finalEmail } });
       }
 
       const activeOrPendingToken = await tx.token.findFirst({
@@ -149,7 +153,7 @@ export class TokenService {
 
       // Check for existing customer profile
       const existingCustomer = await tx.customer.findUnique({
-        where: { phoneNumber: request.phoneNumber }
+        where: { phoneNumber: finalPhoneNumber }
       }) as any;
 
       // Get or create customer
@@ -157,9 +161,9 @@ export class TokenService {
       if (!customer) {
         customer = await tx.customer.create({
           data: {
-            phoneNumber: request.phoneNumber,
+            phoneNumber: finalPhoneNumber,
             name: request.customerName,
-            email: request.email || null,
+            email: finalEmail || null,
             totalVisits: 1
           }
         });
@@ -170,7 +174,7 @@ export class TokenService {
             totalVisits: { increment: 1 },
             lastVisit: new Date(),
             name: request.customerName,
-            email: request.email || customer.email
+            email: finalEmail || customer.email
           }
         });
       }
@@ -747,6 +751,10 @@ export class TokenService {
     tableId?: string;
     tableNumber?: string;
   }): Promise<any> {
+    // Normalize inputs
+    const finalPhoneNumber = normalizePhone(request.phoneNumber);
+    const finalEmail = normalizeEmail(request.email);
+
     // Reconcile chronologically expired sessions first
     await this.reconcileSystemState();
 
@@ -756,10 +764,10 @@ export class TokenService {
     return await prisma.$transaction(async (tx) => {
       // Check for existing active or pending sessions by phone or email
       const orConditions: any[] = [
-        { customer: { phoneNumber: request.phoneNumber } }
+        { customer: { phoneNumber: finalPhoneNumber } }
       ];
-      if (request.email && request.email.trim()) {
-        orConditions.push({ customer: { email: request.email.trim().toLowerCase() } });
+      if (finalEmail) {
+        orConditions.push({ customer: { email: finalEmail } });
       }
 
       const activeOrPendingToken = await tx.token.findFirst({
@@ -786,7 +794,7 @@ export class TokenService {
 
       // Get or create customer
       const existingCustomer = await tx.customer.findUnique({
-        where: { phoneNumber: request.phoneNumber }
+        where: { phoneNumber: finalPhoneNumber }
       }) as any;
 
       // Get or create customer
@@ -794,9 +802,9 @@ export class TokenService {
       if (!customer) {
         customer = await tx.customer.create({
           data: {
-            phoneNumber: request.phoneNumber,
+            phoneNumber: finalPhoneNumber,
             name: request.customerName,
-            email: request.email,
+            email: finalEmail || null,
             totalVisits: 1
           }
         });
@@ -807,7 +815,7 @@ export class TokenService {
             totalVisits: { increment: 1 },
             lastVisit: new Date(),
             name: request.customerName,
-            email: request.email
+            email: finalEmail || customer.email
           }
         });
       }

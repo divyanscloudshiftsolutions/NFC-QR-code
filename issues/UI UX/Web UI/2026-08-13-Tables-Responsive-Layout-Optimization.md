@@ -48,3 +48,16 @@
 | **Activities Completed** | Created lock/unlock backend routes. Implemented state synchronization and table switching rules in frontend. Created a comprehensive integration test suite `reservation.test.ts` to verify concurrent locks and reservation state flows. Validated production build status and committed directly to `main` branch. |
 | **Files / Modules Updated** | `backend/src/routes.ts`, `backend/src/services/TokenService.ts`, `backend/src/services/TableService.ts`, `backend/src/services/RedisService.ts`, `web-frontend/src/services/api.ts`, `web-frontend/src/pages/TablesPage.tsx`, `web-frontend/src/pages/CheckInPage.tsx`, `web-frontend/src/types/index.ts`, `backend/tests/reservation.test.ts` |
 
+---
+
+## Issue 5: Active Check-In Duplicate Validation for Email and Phone
+
+| Attribute | Details |
+| :--- | :--- |
+| **Project Overview** | Guest Check-In Active Session Duplicate Prevention & Normalization |
+| **Problems Identified** | Receptionists could check in multiple guests using the same email address or phone number simultaneously, causing session identity conflicts. There was no real-time validation feedback in the UI or strict backend concurrency protection, leading to race conditions if multiple check-ins with duplicate values were processed at the same time. |
+| **Resolution** | Implemented a dedicated backend validation endpoint (`POST /check-in/validate-duplicate`) with support for token-specific exclusions. Defined robust normalization helpers for phone and email on both frontend and backend. Integrated debounced real-time duplicate checks in the Check-In page to show inline alerts ("This email ID is already checked in" / "This phone number is already checked in") and disable the Proceed button. Added transactional double-check validation in the backend creation endpoints to guarantee concurrency safety. |
+| **Activities Completed** | Created shared normalization helpers, implemented the validation endpoint, added frontend debounce hooks and warning UI overlays, wrote a comprehensive integration test suite `duplicate.test.ts` verifying 25 check-in duplicate conflict scenarios, and confirmed successful production builds. |
+| **Files / Modules Updated** | `backend/src/routes.ts`, `backend/src/services/TokenService.ts`, `backend/src/utils/normalization.ts` [NEW], `web-frontend/src/services/api.ts`, `web-frontend/src/pages/CheckInPage.tsx`, `backend/tests/duplicate.test.ts` [NEW] |
+
+
