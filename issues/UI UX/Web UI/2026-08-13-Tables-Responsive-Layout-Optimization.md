@@ -35,3 +35,16 @@
 | **Resolution** | Refactored the Stage 2 to Stage 3 flow to require "Send QR" as the primary action. Disabled the "Proceed to Payment" button on Stage 3 until successful QR scan or manual token ID verification (blocking bypasses). Implemented `localStorage` state persistence for the incomplete wizard flow, displaying a resume/reset prompt on page mount. Added a "Close & Start New" reset action. |
 | **Activities Completed** | Restructured navigation handlers, implemented localStorage persistence hooks, added button disabling gates, and successfully ran frontend compilation checks (`npm run build`). |
 | **Files / Modules Updated** | `web-frontend/src/pages/CheckInPage.tsx`, `web-frontend/src/services/api.ts` |
+
+---
+
+## Issue 4: Seating Reservation & Concurrent Check-In Lock Lifecycle Enforcement
+
+| Attribute | Details |
+| :--- | :--- |
+| **Project Overview** | Seating Table Reservation and Concurrency Check-In Lock Implementation |
+| **Problems Identified** | The system lacked a dynamic table reservation lifecycle, allowing reserved tables to be checked in normally or duplicated. There was no backend-persisted check-in lock, which allowed concurrent receptionists to select, lock, and start check-in processes on the same table simultaneously, creating race conditions. |
+| **Resolution** | Implemented backend-persisted table check-in locking endpoints (`POST /tables/:id/lock` and `POST /tables/:id/unlock`) utilizing an authoritative Redis metadata cache. Extended table status lifecycle to include `'in_checkin'`. Blocked direct manual status updates on locked tables. Updated the Check-In page table selection to execute atomic table locking, securing the new table before releasing the previous one, and automatically unlocking on abandonment or wizard reset. |
+| **Activities Completed** | Created lock/unlock backend routes. Implemented state synchronization and table switching rules in frontend. Created a comprehensive integration test suite `reservation.test.ts` to verify concurrent locks and reservation state flows. Validated production build status and committed directly to `main` branch. |
+| **Files / Modules Updated** | `backend/src/routes.ts`, `backend/src/services/TokenService.ts`, `backend/src/services/TableService.ts`, `backend/src/services/RedisService.ts`, `web-frontend/src/services/api.ts`, `web-frontend/src/pages/TablesPage.tsx`, `web-frontend/src/pages/CheckInPage.tsx`, `web-frontend/src/types/index.ts`, `backend/tests/reservation.test.ts` |
+
