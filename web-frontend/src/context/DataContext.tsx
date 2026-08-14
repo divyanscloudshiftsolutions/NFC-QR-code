@@ -6,11 +6,13 @@ import { useAuth } from './AuthContext';
 interface DataContextType {
  tokens: Token[];
  tables: Table[];
+ reservations: any[];
  rates: any[];
  users: any[];
  isLoading: boolean;
  refreshTokens: () => Promise<void>;
  refreshTables: () => Promise<void>;
+ refreshReservations: () => Promise<void>;
  refreshRates: () => Promise<void>;
  refreshUsers: () => Promise<void>;
  refreshAll: () => Promise<void>;
@@ -22,6 +24,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  const { user } = useAuth();
  const [tokens, setTokens] = useState<Token[]>([]);
  const [tables, setTables] = useState<Table[]>([]);
+ const [reservations, setReservations] = useState<any[]>([]);
  const [rates, setRates] = useState<any[]>([]);
  const [users, setUsers] = useState<any[]>([]);
  const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -67,6 +70,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  }
  };
 
+ const refreshReservations = async () => {
+ try {
+ const data = await deduplicate('reservations', () => api.getReservations());
+ setReservations(data);
+ } catch (err) {
+ console.warn('Failed to background refresh reservations cache:', err);
+ }
+ };
 
  const refreshUsers = async () => {
  if (user?.role?.toLowerCase() !== 'admin') return;
@@ -86,6 +97,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  await Promise.allSettled([
  refreshTokens(),
  refreshTables(),
+ refreshReservations(),
  refreshRates(),
  refreshUsers(),
  ]);
@@ -100,6 +112,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  // Clear cache on logout
  setTokens([]);
  setTables([]);
+ setReservations([]);
  setRates([]);
  setUsers([]);
  }
@@ -110,11 +123,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  value={{
  tokens,
  tables,
+ reservations,
  rates,
  users,
  isLoading,
  refreshTokens,
  refreshTables,
+ refreshReservations,
  refreshRates,
  refreshUsers,
  refreshAll,

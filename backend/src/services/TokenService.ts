@@ -254,6 +254,18 @@ export class TokenService {
       });
 
       // Note: Table status and occupancy logs are updated automatically by trigger in PostgreSQL!
+      if (request.tableId) {
+        await tx.reservation.updateMany({
+          where: {
+            tableId: request.tableId,
+            status: 'PENDING'
+          },
+          data: {
+            status: 'ASSIGNED'
+          }
+        });
+      }
+
       // Invalidate caches manually to keep in sync
       await redisService.del(`table:available:${request.placeTypeId}`);
       await redisService.del('table:available:all');
@@ -1056,7 +1068,18 @@ export class TokenService {
         }
       });
 
-      // 6. Invalidate caches
+      // 6. Update any pending reservation on this table to ASSIGNED
+      await tx.reservation.updateMany({
+        where: {
+          tableId: table.id,
+          status: 'PENDING'
+        },
+        data: {
+          status: 'ASSIGNED'
+        }
+      });
+
+      // 7. Invalidate caches
       await redisService.del(`table:lock:${table.id}`);
       await redisService.del(`table:available:${token.placeTypeId}`);
       await redisService.del('table:available:all');

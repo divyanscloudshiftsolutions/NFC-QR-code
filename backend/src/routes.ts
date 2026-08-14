@@ -2268,6 +2268,124 @@ const cancelSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
+// Reservation endpoints
+router.get('/reservations', authenticate, async (req: Request, res: Response) => {
+  try {
+    const activeReservations = await prisma.reservation.findMany({
+      where: { status: 'PENDING' },
+      include: { table: true }
+    });
+    return res.json({ success: true, reservations: activeReservations });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+});
+
+router.post('/reservations', authenticate, async (req: Request, res: Response) => {
+  const { customerName, phoneNumber, email, personsCount, tableId } = req.body;
+
+  if (!customerName || !phoneNumber || !email || !personsCount || !tableId) {
+    return res.status(400).json({ success: false, error: { message: 'All reservation details (Name, Phone, Email, Members, Table) are mandatory.' } });
+  }
+
+  const finalPhone = normalizePhone(phoneNumber);
+  const finalEmail = normalizeEmail(email);
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Verify table exists and is available
+      const table = await tx.table.findUnique({
+        where: { id: tableId }
+      });
+
+      if (!table) {
+        throw new Error('Selected table was not found.');
+      }
+
+      if (table.status !== 'available') {
+        throw new Error(`Table ${table.tableNumber} is not available for reservation (current status: ${table.status}).`);
+      }
+
+      // Update table status to reserved
+      await tx.table.update({
+        where: { id: tableId },
+        data: { status: 'reserved' }
+      });
+
+      // Create reservation
+      const reservation = await tx.reservation.create({
+        data: {
+          customerName,
+          phoneNumber: finalPhone,
+          email: finalEmail,
+          personsCount: parseInt(personsCount, 10),
+          tableId,
+          status: 'PENDING'
+        },
+        include: { table: true }
+      });
+
+      return reservation;
+    });
+
+    await redisService.del('tables:all').catch(() => {});
+    return res.status(201).json({ success: true, reservation: result });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+});
+
+router.post('/reservations/:id/cancel', authenticate, async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const reservation = await tx.reservation.findUnique({
+        where: { id }
+      });
+
+      if (!reservation) {
+        throw new Error('Reservation not found.');
+      }
+
+      if (reservation.status !== 'PENDING') {
+        throw new Error(`Reservation cannot be cancelled (current status: ${reservation.status}).`);
+      }
+
+      // Cancel reservation
+      await tx.reservation.update({
+        where: { id },
+        data: { status: 'CANCELLED' }
+      });
+
+      // Release table
+      await tx.table.update({
+        where: { id: reservation.tableId },
+        data: { status: 'available' }
+      });
+    });
+
+    await redisService.del('tables:all').catch(() => {});
+    return res.json({ success: true, message: 'Reservation cancelled successfully.' });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+});
+
+router.post('/reservations/:id/assign', authenticate, async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.reservation.update({
+      where: { id },
+      data: { status: 'ASSIGNED' }
+    });
+    return res.json({ success: true, message: 'Reservation assigned successfully.' });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { message: err.message } });
+  }
+});
+
 // Map receptionist check-in endpoints
 router.post('/check-in', authenticate, authorize(['receptionist', 'admin']), checkInHandler);
 router.post('/tokens/create', authenticate, authorize(['receptionist', 'admin']), checkInHandler);

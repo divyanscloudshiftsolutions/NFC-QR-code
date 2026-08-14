@@ -53,6 +53,7 @@ model Table {
   updatedAt      DateTime?            @updatedAt @map("updated_at")
   tokens         Token[]              @relation("TableTokens")
   occupancyLogs  TableOccupancyLog[]
+  reservations   Reservation[]
 
   @@unique([tableNumber, placeTypeId])
   @@map("tables")
@@ -257,6 +258,21 @@ enum CancelReason {
   DUPLICATE_CHECKIN
   SESSION_RESTARTED
   OTHER
+}
+
+model Reservation {
+  id           String    @id @default(uuid())
+  customerName String    @map("customer_name")
+  phoneNumber  String    @map("phone_number")
+  email        String
+  personsCount Int       @map("persons_count")
+  tableId      String    @map("table_id")
+  table        Table     @relation(fields: [tableId], references: [id])
+  status       String    @default("PENDING") // PENDING, ASSIGNED, CANCELLED
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime? @updatedAt @map("updated_at")
+
+  @@map("reservations")
 }
 
 

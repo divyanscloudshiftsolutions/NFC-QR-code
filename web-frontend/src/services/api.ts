@@ -551,6 +551,35 @@ class ApiService {
       body: JSON.stringify({ photoBase64, employeeCode }),
     });
   }
+
+  // Reservation APIs
+  async getReservations(): Promise<any[]> {
+    try {
+      const res = await this.request<any>('/reservations');
+      return res.reservations || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async createReservation(payload: { customerName: string; phoneNumber: string; email: string; personsCount: number; tableId: string }) {
+    return this.request<{ success: boolean; reservation: any }>('/reservations', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async cancelReservation(id: string) {
+    return this.request<{ success: boolean }>(`/reservations/${id}/cancel`, {
+      method: 'POST',
+    });
+  }
+
+  async assignReservation(id: string) {
+    return this.request<{ success: boolean }>(`/reservations/${id}/assign`, {
+      method: 'POST',
+    });
+  }
 }
 
 export const api = new ApiService();

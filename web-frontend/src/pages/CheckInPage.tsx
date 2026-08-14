@@ -23,10 +23,11 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import jsQR from 'jsqr';
 
-export const CheckInPage: React.FC = () => {
+export const CheckInPage: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigate }) => {
  const { showToast, preselectedTable, setPreselectedTable } = useAuth();
- const { tables, rates, tokens: activeTokens, refreshTables, refreshTokens } = useData();
+ const { tables, rates, tokens: activeTokens, refreshTables, refreshTokens, refreshReservations } = useData();
  const [stage, setStage] = useState<1 | 2 | 3 | 4 | 5>(1);
+ const [reservationId, setReservationId] = useState('');
 
  // Stage 1: Form Input States
  const [phoneNumber, setPhoneNumber] = useState('');
@@ -74,13 +75,33 @@ export const CheckInPage: React.FC = () => {
   useEffect(() => {
     const redirectOriginalStatus = localStorage.getItem('bar_checkin_original_status');
     if (redirectOriginalStatus) {
-      setOriginalTableStatus(redirectOriginalStatus as 'available' | 'reserved');
+      setOriginalTableStatus(redirectOriginalStatus as 'available' | 'reserved' | '');
       localStorage.removeItem('bar_checkin_original_status');
     }
 
     const saved = localStorage.getItem('bar_incomplete_checkin');
+    const savedTarget = localStorage.getItem('bar_checkin_assign_target');
+
     if (saved && !hasCheckedIncomplete) {
       setShowContinuePrompt(true);
+    } else if (savedTarget) {
+      // If no draft, load target assignment directly
+      try {
+        const target = JSON.parse(savedTarget);
+        setCustomerName(target.customerName || '');
+        setPhoneNumber(target.phoneNumber ? (target.phoneNumber.startsWith('+91') ? target.phoneNumber.substring(3) : target.phoneNumber) : '');
+        setEmail(target.email || '');
+        setPersonsCount(target.personsCount || 2);
+        setSelectedTableId(target.tableId || '');
+        setSelectedPlaceTypeId(target.placeTypeId || 'standing_bar');
+        setReservationId(target.reservationId || '');
+        if (redirectOriginalStatus) {
+          setOriginalTableStatus(redirectOriginalStatus as any);
+        }
+      } catch (e) {
+        console.error("Failed to parse assign target on mount", e);
+      }
+      localStorage.removeItem('bar_checkin_assign_target');
     }
     setHasCheckedIncomplete(true);
   }, []);
@@ -104,11 +125,12 @@ export const CheckInPage: React.FC = () => {
         activePendingToken,
         qrVerificationSuccess,
         paymentMode,
-        originalTableStatus
+        originalTableStatus,
+        reservationId
       };
       localStorage.setItem('bar_incomplete_checkin', JSON.stringify(state));
     }
-  }, [phoneNumber, customerName, email, personsCount, selectedPlaceTypeId, selectedTableId, stage, activePendingToken, qrVerificationSuccess, paymentMode, createdToken, originalTableStatus]);
+  }, [phoneNumber, customerName, email, personsCount, selectedPlaceTypeId, selectedTableId, stage, activePendingToken, qrVerificationSuccess, paymentMode, createdToken, originalTableStatus, reservationId]);
 
   // Real-time backend validation with 400ms debounce
   useEffect(() => {
@@ -146,7 +168,21 @@ export const CheckInPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [phoneNumber, email, activePendingToken]);
 
-  const handleContinueCheckIn = () => {
+  const handleContinueCheckIn = async () => {
+    // Release new target table lock if they chose to resume previous draft instead
+    const savedTarget = localStorage.getItem('bar_checkin_assign_target');
+    if (savedTarget) {
+      try {
+        const target = JSON.parse(savedTarget);
+        if (target.tableId) {
+          await api.unlockTable(target.tableId);
+        }
+      } catch (e) {
+        console.warn('Failed to unlock target table on resume:', e);
+      }
+      localStorage.removeItem('bar_checkin_assign_target');
+    }
+
     const saved = localStorage.getItem('bar_incomplete_checkin');
     if (saved) {
       try {
@@ -162,6 +198,7 @@ export const CheckInPage: React.FC = () => {
         setQrVerificationSuccess(state.qrVerificationSuccess || false);
         setPaymentMode(state.paymentMode || 'CASH');
         setOriginalTableStatus(state.originalTableStatus || '');
+        setReservationId(state.reservationId || '');
       } catch (e) {
         console.error("Failed to parse incomplete check-in state", e);
       }
@@ -172,6 +209,19 @@ export const CheckInPage: React.FC = () => {
   const handleAbandonCheckIn = async () => {
     const tableToUnlock = selectedTableId;
     localStorage.removeItem('bar_incomplete_checkin');
+    
+    // Load new target check-in details if present
+    const savedTarget = localStorage.getItem('bar_checkin_assign_target');
+    let target: any = null;
+    if (savedTarget) {
+      try {
+        target = JSON.parse(savedTarget);
+      } catch (e) {
+        console.error("Failed to parse assign target in abandon:", e);
+      }
+      localStorage.removeItem('bar_checkin_assign_target');
+    }
+
     setPhoneNumber('');
     setCustomerName('');
     setEmail('');
@@ -182,14 +232,30 @@ export const CheckInPage: React.FC = () => {
     setQrVerificationSuccess(false);
     setPaymentMode('CASH');
     setOriginalTableStatus('');
+    setReservationId('');
     setShowContinuePrompt(false);
 
-    if (tableToUnlock) {
+    if (target) {
+      setCustomerName(target.customerName || '');
+      setPhoneNumber(target.phoneNumber ? (target.phoneNumber.startsWith('+91') ? target.phoneNumber.substring(3) : target.phoneNumber) : '');
+      setEmail(target.email || '');
+      setPersonsCount(target.personsCount || 2);
+      setSelectedTableId(target.tableId || '');
+      setSelectedPlaceTypeId(target.placeTypeId || 'standing_bar');
+      setReservationId(target.reservationId || '');
+      const redirectOriginalStatus = localStorage.getItem('bar_checkin_original_status');
+      if (redirectOriginalStatus) {
+        setOriginalTableStatus(redirectOriginalStatus as any);
+      }
+    }
+
+    // Unlock the old draft table if it is different from the new target table
+    if (tableToUnlock && (!target || target.tableId !== tableToUnlock)) {
       try {
         await api.unlockTable(tableToUnlock);
         refreshTables();
       } catch (err: any) {
-        console.warn('Failed to release lock on table:', err);
+        console.warn('Failed to release lock on old draft table:', err);
       }
     }
   };
@@ -740,9 +806,14 @@ setPersonsCount(preselectedTable.capacity);
  if (!activePendingToken && selectedTableId) {
  await api.assignTable(selectedTableId, res.token.id).catch(() => {});
  }
+ if (reservationId) {
+   await api.assignReservation(reservationId).catch(() => {});
+   setReservationId('');
+ }
  showToast(`Guest ${customerName} checked in successfully! Token: ${res.token.tokenNumber}`, 'success');
  refreshTokens();
  refreshTables();
+ refreshReservations();
  setActivePendingToken(null); // Reset pending check-in tracker
  setStage(5);
  } else {
@@ -910,6 +981,16 @@ setPersonsCount(preselectedTable.capacity);
  <p className="text-xs text-text-muted">Enter customer contact details for session check-in</p>
  </div>
  </div>
+
+ {onNavigate && (originalTableStatus === 'reserved' || selectedTableId) && (
+   <button
+     type="button"
+     onClick={() => onNavigate(originalTableStatus === 'reserved' ? 'tables/reservations' : 'tables/layout')}
+     className="px-3 py-1.5 rounded-lg border border-border-main text-xs font-semibold text-text-muted hover:text-text-main flex items-center gap-1 cursor-pointer transition-colors w-fit mb-2"
+   >
+     <ChevronLeft size={14} /> Back to {originalTableStatus === 'reserved' ? 'Reservations' : 'Tables Layout'}
+   </button>
+ )}
 
  <form onSubmit={handleStage1Next} className="space-y-5">
  

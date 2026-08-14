@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus } from 'lucide-react';
+import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
 import type { Table, Token } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -14,8 +14,16 @@ interface TablesPageProps {
 }
 
 export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, activeTab, setActiveTab }) => {
- const { showToast, setPreselectedTable } = useAuth();
- const { tables: realTables, tokens: realTokens, isLoading, refreshTables, refreshTokens } = useData();
+ const { showToast } = useAuth();
+ const { 
+    tables: realTables, 
+    tokens: realTokens, 
+    reservations: realReservations,
+    isLoading, 
+    refreshTables, 
+    refreshTokens,
+    refreshReservations
+  } = useData();
 
  // Temporary mock data fallback for UI verification
  const useMockFallback = false; // Set to false to disable and restore real data
@@ -182,8 +190,20 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  // Centered Table Inspection Dialog Modal State
  const [inspectingTable, setInspectingTable] = useState<Table | null>(null);
 
+ // Reserve Form State
+ const [reservingTable, setReservingTable] = useState<Table | null>(null);
+ const [resName, setResName] = useState('');
+ const [resPhone, setResPhone] = useState('');
+ const [resEmail, setResEmail] = useState('');
+ const [resPersons, setResPersons] = useState(2);
+ const [isSubmittingReserve, setIsSubmittingReserve] = useState(false);
+
+ // Cancel Confirmation State
+ const [cancellingReservation, setCancellingReservation] = useState<any | null>(null);
+ const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
  const handleRefresh = async () => {
- await Promise.all([refreshTables(), refreshTokens()]);
+   await Promise.all([refreshTables(), refreshTokens(), refreshReservations()]);
  };
 
  const zoneFilteredTables = tables.filter(tb => {
@@ -238,29 +258,110 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  }
  };
 
-  const handleReserveTable = async (tableId: string) => {
+  const handleReserveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reservingTable) return;
+
+    if (!resName.trim() || !resPhone.trim() || !resEmail.trim() || !resPersons) {
+      showToast('All fields are mandatory to confirm the reservation.', 'warning');
+      return;
+    }
+
+    setIsSubmittingReserve(true);
     try {
-      await api.patchTableStatus(tableId, 'reserved');
-      showToast('Table reserved successfully!', 'success');
-      if (inspectingTable && inspectingTable.id === tableId) {
-        setInspectingTable(prev => prev ? { ...prev, status: 'reserved' } : null);
-      }
+      await api.createReservation({
+        customerName: resName.trim(),
+        phoneNumber: resPhone.trim(),
+        email: resEmail.trim(),
+        personsCount: Number(resPersons),
+        tableId: reservingTable.id
+      });
+      showToast(`Reservation for Table ${reservingTable.tableNumber} confirmed!`, 'success');
+      setReservingTable(null);
+      setResName('');
+      setResPhone('');
+      setResEmail('');
+      setResPersons(2);
       refreshTables();
+      refreshReservations();
     } catch (err: any) {
-      showToast(err.message || 'Failed to reserve table.', 'danger');
+      showToast(err.message || 'Failed to create reservation.', 'danger');
+    } finally {
+      setIsSubmittingReserve(false);
     }
   };
 
-  const handleCancelReservation = async (tableId: string) => {
+  const handleCancelClick = (tb: Table) => {
+    const res = realReservations.find((r: any) => r.tableId === tb.id && r.status === 'PENDING');
+    if (res) {
+      setCancellingReservation(res);
+    } else {
+      // Fallback
+      setCancellingReservation({
+        id: '',
+        tableId: tb.id,
+        customerName: 'Reserved Table',
+        table: tb
+      });
+    }
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!cancellingReservation) return;
+    setIsSubmittingCancel(true);
     try {
-      await api.patchTableStatus(tableId, 'available');
-      showToast('Reservation cancelled successfully!', 'success');
-      if (inspectingTable && inspectingTable.id === tableId) {
-        setInspectingTable(prev => prev ? { ...prev, status: 'available' } : null);
+      if (cancellingReservation.id) {
+        await api.cancelReservation(cancellingReservation.id);
+      } else {
+        await api.patchTableStatus(cancellingReservation.tableId, 'available');
+      }
+      showToast('Reservation cancelled successfully.', 'success');
+      setCancellingReservation(null);
+      if (inspectingTable && inspectingTable.id === cancellingReservation.tableId) {
+        setInspectingTable(null);
+      }
+      refreshTables();
+      refreshReservations();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to cancel reservation.', 'danger');
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
+
+  const handleAssignReservation = async (res: any) => {
+    try {
+      await api.lockTable(res.tableId);
+      
+      localStorage.setItem('bar_checkin_assign_target', JSON.stringify({
+        reservationId: res.id,
+        customerName: res.customerName,
+        phoneNumber: res.phoneNumber,
+        email: res.email,
+        personsCount: res.personsCount,
+        tableId: res.tableId,
+        tableNumber: res.table?.tableNumber || '',
+        capacity: res.table?.capacity || 4,
+        placeTypeId: res.table?.placeTypeId || 'standing_bar'
+      }));
+      localStorage.setItem('bar_checkin_original_status', 'reserved');
+      
+      setInspectingTable(null);
+      if (onNavigateToCheckIn) {
+        onNavigateToCheckIn();
       }
       refreshTables();
     } catch (err: any) {
-      showToast(err.message || 'Failed to cancel reservation.', 'danger');
+      showToast(err.message || 'Failed to lock table for check-in. It may have been selected by another user.', 'danger');
+    }
+  };
+
+  const handleCheckInReservedTable = (tb: Table) => {
+    const res = realReservations.find((r: any) => r.tableId === tb.id && r.status === 'PENDING');
+    if (res) {
+      handleAssignReservation(res);
+    } else {
+      handleRedirectToCheckIn(tb);
     }
   };
 
@@ -269,15 +370,14 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
       const originalStatus = tb.status; // 'available' or 'reserved'
       await api.lockTable(tb.id);
       
+      localStorage.setItem('bar_checkin_assign_target', JSON.stringify({
+        tableId: tb.id,
+        tableNumber: tb.tableNumber,
+        capacity: tb.capacity || 4,
+        placeTypeId: (tb.tableNumber.startsWith('S-') || tb.tableNumber.startsWith('M')) ? 'standing_bar' : 'premium_lounge'
+      }));
       localStorage.setItem('bar_checkin_original_status', originalStatus);
       
-      const placeType = (tb.tableNumber.startsWith('S-') || tb.tableNumber.startsWith('M')) ? 'standing_bar' : 'premium_lounge';
-      setPreselectedTable({
-        id: tb.id,
-        number: tb.tableNumber,
-        capacity: tb.capacity || 4,
-        placeTypeId: placeType,
-      });
       setInspectingTable(null);
       if (onNavigateToCheckIn) {
         onNavigateToCheckIn();
@@ -353,14 +453,73 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  </div>
  </div>
 
- {/* Stable Table Cards Floor Plan Grid */}
- {isLoading ? (
- <div className="py-20 text-center text-text-muted text-sm">Loading floor layout & seat maps...</div>
- ) : filteredTables.length === 0 ? (
- <div className="glass-panel p-12 rounded-3xl border border-border-main text-center space-y-3">
- <p className="text-text-muted text-sm">No tables match your filter parameters.</p>
- </div>
- ) : (
+  {/* Stable Table Cards Floor Plan Grid */}
+  {activeTab === 'tables/reservations' ? (
+    isLoading ? (
+      <div className="py-20 text-center text-text-muted text-sm">Loading active reservations...</div>
+    ) : realReservations.filter((r: any) => r.status === 'PENDING').length === 0 ? (
+      <div className="glass-panel p-12 rounded-3xl border border-border-main text-center space-y-3">
+        <p className="text-text-muted text-sm">No active reservations found.</p>
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {realReservations
+          .filter((r: any) => r.status === 'PENDING')
+          .map((res: any) => (
+            <div
+              key={res.id}
+              className="p-5 rounded-3xl dark:rounded-xl border dark:border-white/10 dark:bg-[#1C1C1E] bg-bg-surface flex flex-col justify-between gap-4 animate-fadeIn"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-border-main/50">
+                <div>
+                  <h4 className="font-bold text-base text-text-main">{res.customerName}</h4>
+                  <p className="text-xs text-text-muted mt-0.5">{res.phoneNumber}</p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider dark:bg-blue-500/15 bg-blue-500/10 dark:text-blue-400 text-blue-700 border border-blue-500/30">
+                  Reserved
+                </span>
+              </div>
+              
+              <div className="space-y-2 text-xs text-text-muted">
+                <div className="flex justify-between">
+                  <span>Email ID:</span>
+                  <span className="font-semibold text-text-main truncate max-w-[200px]">{res.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Guests count:</span>
+                  <span className="font-semibold text-text-main">{res.personsCount} members</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Table Number:</span>
+                  <span className="font-bold dark:text-primary text-primary font-mono text-sm">{res.table?.tableNumber || 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => handleAssignReservation(res)}
+                  className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <UserPlus size={14} /> Assign
+                </button>
+                <button
+                  onClick={() => setCancellingReservation(res)}
+                  className="flex-1 py-2.5 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all cursor-pointer text-center"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ))}
+      </div>
+    )
+  ) : isLoading ? (
+  <div className="py-20 text-center text-text-muted text-sm">Loading floor layout & seat maps...</div>
+  ) : filteredTables.length === 0 ? (
+  <div className="glass-panel p-12 rounded-3xl border border-border-main text-center space-y-3">
+  <p className="text-text-muted text-sm">No tables match your filter parameters.</p>
+  </div>
+  ) : (
  <div className="space-y-8">
  {Array.from(new Set(filteredTables.map(tb => tb.capacity || 4)))
  .sort((a, b) => b - a)
@@ -495,7 +654,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         <button
           onClick={(e) => {
             e.stopPropagation();
-            handleRedirectToCheckIn(tb);
+            handleCheckInReservedTable(tb);
           }}
           className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
         >
@@ -504,7 +663,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         <button
           onClick={(e) => {
             e.stopPropagation();
-            handleCancelReservation(tb.id);
+            handleCancelClick(tb);
           }}
           className="flex-1 py-2.5 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all cursor-pointer text-center"
         >
@@ -525,7 +684,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         <button
           onClick={(e) => {
             e.stopPropagation();
-            handleReserveTable(tb.id);
+            setReservingTable(tb);
           }}
           className="flex-1 py-2.5 rounded-xl text-xs font-bold border border-primary text-primary hover:bg-primary/5 transition-all cursor-pointer text-center"
         >
@@ -655,7 +814,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     <>
       <button
         type="button"
-        onClick={() => handleRedirectToCheckIn(inspectingTable)}
+        onClick={() => inspectingTable.status === 'reserved' ? handleCheckInReservedTable(inspectingTable) : handleRedirectToCheckIn(inspectingTable)}
         className="w-full py-3 rounded-md primary-btn text-[13px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer dark:text-black"
       >
         <span className="dark:hidden">Assign Guest & Check-In</span>
@@ -666,7 +825,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
       {inspectingTable.status === 'reserved' && (
         <button
           type="button"
-          onClick={() => handleCancelReservation(inspectingTable.id)}
+          onClick={() => handleCancelClick(inspectingTable)}
           className="w-full py-2.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
         >
           Cancel Reservation
@@ -676,7 +835,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
       {inspectingTable.status === 'available' && (
         <button
           type="button"
-          onClick={() => handleReserveTable(inspectingTable.id)}
+          onClick={() => { setInspectingTable(null); setReservingTable(inspectingTable); }}
           className="w-full py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[13px] transition-all text-center cursor-pointer"
         >
           Reserve Table
@@ -757,8 +916,153 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  </div>
  )}
 
+ {/* RESERVE TABLE MODAL */}
+ {reservingTable && (
+   <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+     <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
+       <button 
+         onClick={() => setReservingTable(null)}
+         className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
+       >
+         <X size={18} />
+       </button>
+
+       <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8">
+         <Grid3X3 size={18} className="shrink-0" /> <span className="truncate">Reserve Table {reservingTable.tableNumber}</span>
+       </div>
+
+       <form onSubmit={handleReserveSubmit} className="space-y-4">
+         <div>
+           <label className="block text-xs font-semibold text-text-muted mb-1">Customer Name <span className="text-red-500">*</span></label>
+           <input
+             type="text"
+             value={resName}
+             onChange={e => setResName(e.target.value)}
+             placeholder="e.g. John Doe"
+             className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+             required
+           />
+         </div>
+
+         <div>
+           <label className="block text-xs font-semibold text-text-muted mb-1">Phone Number <span className="text-red-500">*</span></label>
+           <input
+             type="tel"
+             value={resPhone}
+             onChange={e => setResPhone(e.target.value)}
+             placeholder="e.g. 9999999999"
+             className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+             required
+           />
+         </div>
+
+         <div>
+           <label className="block text-xs font-semibold text-text-muted mb-1">Email ID <span className="text-red-500">*</span></label>
+           <input
+             type="email"
+             value={resEmail}
+             onChange={e => setResEmail(e.target.value)}
+             placeholder="e.g. john@example.com"
+             className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+             required
+           />
+         </div>
+
+         <div>
+           <label className="block text-xs font-semibold text-text-muted mb-1">Number of Members <span className="text-red-500">*</span></label>
+           <select
+             value={resPersons}
+             onChange={e => setResPersons(Number(e.target.value))}
+             className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+             required
+           >
+             {Array.from({ length: reservingTable.capacity || 4 }, (_, i) => i + 1).map(num => (
+               <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
+             ))}
+           </select>
+         </div>
+
+         <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
+           <button
+             type="button"
+             onClick={() => setReservingTable(null)}
+             className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
+           >
+             Cancel
+           </button>
+           <button
+             type="submit"
+             disabled={isSubmittingReserve}
+             className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer"
+           >
+             {isSubmittingReserve ? 'Reserving...' : 'Confirm Reserve'}
+           </button>
+         </div>
+       </form>
+     </div>
+   </div>
+ )}
+
+ {/* CANCEL RESERVATION CONFIRMATION MODAL */}
+ {cancellingReservation && (
+   <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+     <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
+       <button 
+         onClick={() => setCancellingReservation(null)}
+         className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
+       >
+         <X size={18} />
+       </button>
+
+       <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8 text-red-500">
+         <AlertTriangle size={18} className="shrink-0" /> <span className="truncate">Cancel Reservation</span>
+       </div>
+
+       <div className="space-y-2">
+         <p className="text-xs text-text-muted">
+           Are you sure you want to cancel the reservation for:
+         </p>
+         <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
+           <div className="flex justify-between">
+             <span className="text-text-muted">Customer:</span>
+             <span className="font-semibold text-text-main">{cancellingReservation.customerName}</span>
+           </div>
+           {cancellingReservation.phoneNumber && (
+             <div className="flex justify-between">
+               <span className="text-text-muted">Phone:</span>
+               <span className="font-semibold text-text-main">{cancellingReservation.phoneNumber}</span>
+             </div>
+           )}
+           <div className="flex justify-between">
+             <span className="text-text-muted">Table:</span>
+             <span className="font-bold dark:text-primary text-primary font-mono">{cancellingReservation.table?.tableNumber || 'N/A'}</span>
+           </div>
+         </div>
+         <p className="text-[11px] text-red-500/80 italic">
+           This will release the table back to "available" immediately.
+         </p>
+       </div>
+
+       <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
+         <button
+           type="button"
+           onClick={() => setCancellingReservation(null)}
+           className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
+         >
+           No, Keep it
+         </button>
+         <button
+           onClick={handleCancelConfirm}
+           disabled={isSubmittingCancel}
+           className="flex-1 py-2.5 rounded-xl bg-red-500 text-white hover:bg-red-600 active:bg-red-700 text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer border-none"
+         >
+           {isSubmittingCancel ? 'Cancelling...' : 'Yes, Cancel'}
+         </button>
+       </div>
+     </div>
+   </div>
+ )}
+
  </div>
  );
 };
-
-

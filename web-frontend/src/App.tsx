@@ -56,7 +56,7 @@ const AppContent: React.FC = () => {
       );
     }
     if (activeTab === 'checkin') {
-      return <CheckInPage />;
+      return <CheckInPage onNavigate={(tab) => setActiveTab(tab)} />;
     }
     if (activeTab === 'quick_attendance') {
       return <QuickAttendanceWebPage />;
