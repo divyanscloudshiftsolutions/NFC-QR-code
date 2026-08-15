@@ -77,7 +77,10 @@ class ApiService {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || data.error || `HTTP Error ${response.status}`);
+      const errMsg = data.message || 
+                     (data.error && typeof data.error === 'object' ? data.error.message : data.error) || 
+                     `HTTP Error ${response.status}`;
+      throw new Error(errMsg);
     }
 
     return data;
@@ -244,8 +247,9 @@ class ApiService {
     });
   }
 
-  async unlockTable(tableId: string) {
-    return this.request<{ success: boolean; table: Table }>(`/tables/${tableId}/unlock`, {
+  async unlockTable(tableId: string, forceAvailable?: boolean) {
+    const url = forceAvailable ? `/tables/${tableId}/unlock?forceAvailable=true` : `/tables/${tableId}/unlock`;
+    return this.request<{ success: boolean; table: Table }>(url, {
       method: 'POST',
     });
   }
@@ -336,18 +340,34 @@ class ApiService {
 
 
 
-  async extendToken(tokenNumber: string, extraMinutes: number, amount: number) {
-    return this.request<{ success: boolean }>(`/tokens/${tokenNumber}/extend`, {
+  async extendToken(tokenNumber: string, extraMinutes: number, amount: number, sendEmail?: boolean, paymentMethod?: string) {
+    return this.request<any>(`/tokens/${tokenNumber}/extend`, {
       method: 'PUT',
-      body: JSON.stringify({ extraMinutes, amount }),
+      body: JSON.stringify({ extraMinutes, amount, sendEmail, paymentMethod }),
     });
   }
 
-  async closeToken(tokenNumber: string, reason?: string) {
-    return this.request<{ success: boolean }>(`/tokens/${tokenNumber}/close`, {
+  async closeToken(tokenNumber: string, reason?: string, reasonDetail?: string) {
+    return this.request<any>(`/tokens/${tokenNumber}/close`, {
       method: 'PUT',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason, reasonDetail }),
     });
+  }
+
+  async transferTable(tokenId: string, destTableId: string, sendEmail?: boolean) {
+    return this.request<any>('/tables/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ tokenId, destTableId, sendEmail }),
+    });
+  }
+
+  async getAllSessions(): Promise<any[]> {
+    try {
+      const res = await this.request<any>('/admin/sessions');
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
   }
 
   async activateSession(tokenNumber: string, tableNumber: string, amountPaid: number) {
@@ -578,6 +598,13 @@ class ApiService {
   async assignReservation(id: string) {
     return this.request<{ success: boolean }>(`/reservations/${id}/assign`, {
       method: 'POST',
+    });
+  }
+
+  async updateReservation(id: string, payload: { customerName?: string; phoneNumber?: string; email?: string; personsCount?: number; tableId?: string | null }) {
+    return this.request<{ success: boolean; reservation: any }>(`/reservations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
   }
 }

@@ -1222,10 +1222,22 @@ router.post('/tables/assign', authenticate, authorize(['receptionist', 'admin'])
 // Release Table
 router.put('/tables/:tableId/release', authenticate, authorize(['receptionist', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
   const { tableId } = req.params;
-  const { tokenId } = req.body;
+  let { tokenId } = req.body;
+  
   if (!tokenId) {
-    return res.status(400).json({ success: false, error: { code: 'VAL_006', message: 'tokenId is required' } });
+    // Look up the table's current token ID if it is missing in the request payload
+    try {
+      const tableRecord = await prisma.table.findUnique({
+        where: { id: tableId }
+      });
+      tokenId = tableRecord?.currentTokenId || undefined;
+    } catch {}
   }
+
+  if (!tokenId) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_006', message: 'tokenId is required or table is not occupied.' } });
+  }
+
   if (!isValidUUID(tableId) || !isValidUUID(tokenId)) {
     return res.status(400).json({ success: false, error: { code: 'VAL_UUID', message: 'Invalid tableId or tokenId UUID format.' } });
   }
@@ -1263,20 +1275,91 @@ router.put('/tables/:tableId/release', authenticate, authorize(['receptionist', 
   }
 });
 
+// Transfer Table Session
+router.post('/tables/transfer', authenticate, authorize(['receptionist', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  const { tokenId, destTableId, sendEmail } = req.body;
+
+  if (!tokenId || !destTableId) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'tokenId and destTableId are required' } });
+  }
+
+  if (!isValidUUID(tokenId) || !isValidUUID(destTableId)) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_UUID', message: 'Invalid tokenId or destTableId UUID format.' } });
+  }
+
+  try {
+    const oldToken = await prisma.token.findUnique({
+      where: { id: tokenId }
+    });
+    if (!oldToken) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Token not found' } });
+    }
+    const oldTokenNumber = oldToken.tokenNumber;
+    const oldTable = await prisma.table.findUnique({
+      where: { id: oldToken.tableId || '' }
+    });
+    const sourceTableNumber = oldTable?.tableNumber || 'N/A';
+
+    const updatedToken = await tableService.transferTable(tokenId, destTableId, req.user?.id || '');
+
+    // Write SyncLog for Transfer
+    await prisma.syncLog.create({
+      data: {
+        operationId: `TRANSFER-${updatedToken.id}-${Date.now()}`,
+        deviceId: 'server',
+        operationType: 'TOKEN_TRANSFER',
+        status: 'SUCCESS',
+        payload: {
+          tokenId: updatedToken.id,
+          oldTokenNumber: oldTokenNumber,
+          newTokenNumber: updatedToken.tokenNumber,
+          sourceTableNumber: sourceTableNumber,
+          destTableNumber: updatedToken.table?.tableNumber || 'N/A',
+          transferredBy: req.user?.id || 'receptionist',
+          transferredAt: new Date().toISOString()
+        }
+      }
+    });
+
+    // Send transfer email if requested and customer has an email
+    if (sendEmail === true && updatedToken.customer?.email) {
+      try {
+        emailNotificationService.enqueueTransferEmailJob(
+          updatedToken.customer.email,
+          updatedToken.tokenNumber,
+          updatedToken.customer.name,
+          updatedToken.table?.tableNumber || 'N/A',
+          updatedToken.personsCount
+        );
+      } catch (emailErr) {
+        console.warn('Failed to enqueue transfer email:', emailErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Table transfer completed successfully',
+      token: updatedToken
+    });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: { code: 'TRANSFER_ERR', message: err.message } });
+  }
+});
+
 // Create Table (Admin Only)
 router.post('/tables', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
   const { tableNumber, number, placeTypeId, placeType, capacity, isActive } = req.body;
   
-  const finalTableNumber = tableNumber || number;
+  const finalTableNumber = (tableNumber || number || '').trim().toUpperCase();
   let finalPlaceTypeId = placeTypeId;
 
   if (!finalTableNumber) {
     return res.status(400).json({ success: false, error: { code: 'VAL_007', message: 'Table number is required' } });
   }
 
-  const tableNumRegex = /^(S|L)-\d{2}$/;
+  const tableNumRegex = /^[SL]-\d{2,4}$/;
   if (!tableNumRegex.test(finalTableNumber)) {
-    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table number must match prefix and 2-digit format (S-01 to S-15, L-01 to L-10) and have length 4.' } });
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table number must match prefix and numeric format (e.g., S-16, L-11).' } });
   }
 
   const finalCapacity = capacity ? parseInt(capacity, 10) : 2;
@@ -1285,6 +1368,14 @@ router.post('/tables', authenticate, authorize(['admin']), async (req: Request, 
   }
 
   try {
+    // Resolve placeTypeId from name if it matches a known placeType name
+    if (finalPlaceTypeId && (finalPlaceTypeId === 'STANDING_BAR' || finalPlaceTypeId === 'PREMIUM_LOUNGE')) {
+      const ptObj = await prisma.placeTypeConfig.findUnique({
+        where: { name: finalPlaceTypeId }
+      });
+      if (ptObj) finalPlaceTypeId = ptObj.id;
+    }
+
     if (!finalPlaceTypeId && placeType) {
       const ptObj = await prisma.placeTypeConfig.findUnique({
         where: { name: placeType }
@@ -1298,6 +1389,25 @@ router.post('/tables', authenticate, authorize(['admin']), async (req: Request, 
 
     if (!isValidUUID(finalPlaceTypeId)) {
       return res.status(400).json({ success: false, error: { code: 'VAL_UUID', message: 'Invalid placeTypeId UUID format.' } });
+    }
+
+    // Enforce global case-insensitive uniqueness check for table number/name
+    const existingTable = await prisma.table.findFirst({
+      where: {
+        tableNumber: {
+          equals: finalTableNumber,
+          mode: 'insensitive'
+        }
+      }
+    });
+    if (existingTable) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VAL_ERR',
+          message: 'Table name already exists. Please use a different table name.'
+        }
+      });
     }
 
     const table = await prisma.table.create({
@@ -1367,14 +1477,41 @@ router.put('/tables/:id', authenticate, authorize(['admin']), async (req: Reques
     }
 
     // 3. Resolve inputs
-    const finalTableNumber = tableNumber || number;
+    const finalTableNumber = (tableNumber || number) ? (tableNumber || number).trim().toUpperCase() : undefined;
     let finalPlaceTypeId = placeTypeId;
 
     if (finalTableNumber) {
-      const tableNumRegex = /^(S|L)-\d{2}$/;
+      const tableNumRegex = /^[SL]-\d{2,4}$/;
       if (!tableNumRegex.test(finalTableNumber)) {
-        return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table number must match prefix and 2-digit format (S-01 to S-15, L-01 to L-10).' } });
+        return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table number must match prefix and numeric format (e.g., S-16, L-11).' } });
       }
+
+      // Enforce global case-insensitive uniqueness check for table number/name on edit
+      const existingTable = await prisma.table.findFirst({
+        where: {
+          tableNumber: {
+            equals: finalTableNumber,
+            mode: 'insensitive'
+          },
+          id: { not: id }
+        }
+      });
+      if (existingTable) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VAL_ERR',
+            message: 'Table name already exists. Please use a different table name.'
+          }
+        });
+      }
+    }
+
+    if (finalPlaceTypeId && (finalPlaceTypeId === 'STANDING_BAR' || finalPlaceTypeId === 'PREMIUM_LOUNGE')) {
+      const ptObj = await prisma.placeTypeConfig.findUnique({
+        where: { name: finalPlaceTypeId }
+      });
+      if (ptObj) finalPlaceTypeId = ptObj.id;
     }
 
     if (!finalPlaceTypeId && placeType) {
@@ -1561,6 +1698,7 @@ router.post('/tables/:id/unlock', authenticate, async (req: AuthenticatedRequest
 
   const userId = req.user?.id || 'receptionist';
   const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+  const isManager = req.user?.role?.toLowerCase() === 'manager';
 
   try {
     const updatedTable = await prisma.$transaction(async (tx) => {
@@ -1584,19 +1722,34 @@ router.post('/tables/:id/unlock', authenticate, async (req: AuthenticatedRequest
 
       if (lockDataStr) {
         const lockData = JSON.parse(lockDataStr);
-        if (lockData.lockedBy !== userId && !isAdmin) {
+        if (lockData.lockedBy !== userId && !isAdmin && !isManager) {
           throw new Error('You do not own the lock on this table.');
         }
         originalStatus = lockData.originalStatus || 'available';
       }
 
+      // Revert status to originalStatus
+      let finalStatus = originalStatus;
+      const forceAvailable = req.body.forceAvailable === true || req.query.forceAvailable === 'true';
+      if (finalStatus === 'available' && !forceAvailable) {
+        const activeRes = await tx.reservation.findFirst({
+          where: {
+            tableId: id,
+            status: 'PENDING'
+          }
+        });
+        if (activeRes) {
+          finalStatus = 'reserved';
+        }
+      }
+
       // Delete lock metadata from Redis
       await redisService.del(lockKey);
 
-      // Revert status to originalStatus
+      // Revert status to finalStatus
       const updated = await tx.table.update({
         where: { id },
-        data: { status: originalStatus },
+        data: { status: finalStatus },
         include: { placeType: true }
       });
 
@@ -1743,7 +1896,7 @@ const checkInHandler = async (req: AuthenticatedRequest, res: Response) => {
 
     // Resolve Table ID
     if (!finalTableId && tableNumber) {
-      const normalizedTableNumber = tableNumber.trim().replace(/^([SL])(\d{2})$/i, '$1-$2').toUpperCase();
+      const normalizedTableNumber = tableNumber.trim().replace(/^([SL])(\d{2,4})$/i, '$1-$2').toUpperCase();
       const tableObj = await prisma.table.findFirst({
         where: { tableNumber: normalizedTableNumber, placeTypeId: finalPlaceTypeId }
       });
@@ -1964,7 +2117,7 @@ const checkInPendingHandler = async (req: AuthenticatedRequest, res: Response) =
         if (!table) {
           return res.status(404).json({ success: false, error: { message: `Table ${tableNumber} not found` } });
         }
-        if (table.status !== 'available' && table.currentTokenId !== existingToken.id) {
+        if (table.status !== 'available' && table.status !== 'in_checkin' && table.currentTokenId !== existingToken.id) {
           return res.status(400).json({ success: false, error: { message: `Table ${tableNumber} is not available.` } });
         }
         resolvedTableId = table.id;
@@ -2269,7 +2422,7 @@ const cancelSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
 };
 
 // Reservation endpoints
-router.get('/reservations', authenticate, async (req: Request, res: Response) => {
+router.get('/reservations', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const activeReservations = await prisma.reservation.findMany({
       where: { status: 'PENDING' },
@@ -2281,8 +2434,9 @@ router.get('/reservations', authenticate, async (req: Request, res: Response) =>
   }
 });
 
-router.post('/reservations', authenticate, async (req: Request, res: Response) => {
+router.post('/reservations', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const { customerName, phoneNumber, email, personsCount, tableId } = req.body;
+  const userId = req.user?.id;
 
   if (!customerName || !phoneNumber || !email || !personsCount || !tableId) {
     return res.status(400).json({ success: false, error: { message: 'All reservation details (Name, Phone, Email, Members, Table) are mandatory.' } });
@@ -2300,6 +2454,10 @@ router.post('/reservations', authenticate, async (req: Request, res: Response) =
 
       if (!table) {
         throw new Error('Selected table was not found.');
+      }
+
+      if (parseInt(personsCount, 10) > table.capacity) {
+        throw new Error(`Group size of ${personsCount} exceeds table capacity of ${table.capacity}.`);
       }
 
       if (table.status !== 'available') {
@@ -2320,6 +2478,7 @@ router.post('/reservations', authenticate, async (req: Request, res: Response) =
           email: finalEmail,
           personsCount: parseInt(personsCount, 10),
           tableId,
+          userId,
           status: 'PENDING'
         },
         include: { table: true }
@@ -2335,8 +2494,11 @@ router.post('/reservations', authenticate, async (req: Request, res: Response) =
   }
 });
 
-router.post('/reservations/:id/cancel', authenticate, async (req: Request, res: Response) => {
+router.post('/reservations/:id/cancel', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const userId = req.user?.id;
+  const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+  const isManager = req.user?.role?.toLowerCase() === 'manager';
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -2352,6 +2514,11 @@ router.post('/reservations/:id/cancel', authenticate, async (req: Request, res: 
         throw new Error(`Reservation cannot be cancelled (current status: ${reservation.status}).`);
       }
 
+      // Enforce ownership
+      if (reservation.userId && reservation.userId !== userId && !isAdmin && !isManager) {
+        throw new Error('You do not own this reservation.');
+      }
+
       // Cancel reservation
       await tx.reservation.update({
         where: { id },
@@ -2359,10 +2526,12 @@ router.post('/reservations/:id/cancel', authenticate, async (req: Request, res: 
       });
 
       // Release table
-      await tx.table.update({
-        where: { id: reservation.tableId },
-        data: { status: 'available' }
-      });
+      if (reservation.tableId) {
+        await tx.table.update({
+          where: { id: reservation.tableId },
+          data: { status: 'available' }
+        });
+      }
     });
 
     await redisService.del('tables:all').catch(() => {});
@@ -2372,7 +2541,141 @@ router.post('/reservations/:id/cancel', authenticate, async (req: Request, res: 
   }
 });
 
-router.post('/reservations/:id/assign', authenticate, async (req: Request, res: Response) => {
+router.put('/reservations/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { customerName, phoneNumber, email, personsCount, tableId } = req.body;
+  const userId = req.user?.id;
+  const isAdmin = req.user?.role?.toLowerCase() === 'admin';
+  const isManager = req.user?.role?.toLowerCase() === 'manager';
+
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      const reservation = await tx.reservation.findUnique({
+        where: { id },
+        include: { table: true }
+      });
+
+      if (!reservation) {
+        throw new Error('Reservation not found');
+      }
+
+      // Enforce ownership
+      if (reservation.userId && reservation.userId !== userId && !isAdmin && !isManager) {
+        throw new Error('You do not own this reservation.');
+      }
+
+      const finalPhone = phoneNumber ? normalizePhone(phoneNumber) : reservation.phoneNumber;
+      const finalEmail = email ? normalizeEmail(email) : reservation.email;
+      const finalPersons = personsCount ? parseInt(personsCount, 10) : reservation.personsCount;
+      const isClearingTable = tableId === null || tableId === '';
+      const targetTableId = isClearingTable ? null : (tableId || reservation.tableId);
+
+      if (targetTableId) {
+        const targetTable = targetTableId === reservation.tableId ? reservation.table : await tx.table.findUnique({ where: { id: targetTableId } });
+        if (!targetTable) {
+          throw new Error('Selected table was not found.');
+        }
+        if (finalPersons > targetTable.capacity) {
+          throw new Error(`Group size of ${finalPersons} exceeds table capacity of ${targetTable.capacity}.`);
+        }
+
+        // Handle table switch if tableId changes
+        if (targetTableId !== reservation.tableId) {
+          const newTable = await tx.table.findUnique({ where: { id: targetTableId } });
+          if (!newTable) {
+            throw new Error('New table not found');
+          }
+          if (newTable.status !== 'in_checkin' && newTable.status !== 'available') {
+            throw new Error('New table is not available or locked for check-in.');
+          }
+
+          // Validate target Redis lock ownership if a lock exists
+          const newLockKey = `table:lock:${targetTableId}`;
+          const newLockDataStr = await redisService.get(newLockKey);
+          if (newLockDataStr) {
+            try {
+              const lockData = JSON.parse(newLockDataStr);
+              if (lockData.lockedBy && lockData.lockedBy !== userId && !isAdmin && !isManager) {
+                const customErr = new Error('You do not own the lock on the target table.') as any;
+                customErr.statusCode = 403;
+                customErr.code = 'TABLE_LOCK_NOT_OWNED';
+                throw customErr;
+              }
+            } catch (e: any) {
+              if (e.code === 'TABLE_LOCK_NOT_OWNED') {
+                throw e;
+              }
+            }
+          }
+
+          // Release old table to available
+          if (reservation.tableId) {
+            await tx.table.update({
+              where: { id: reservation.tableId },
+              data: { status: 'available' }
+            });
+
+            // Delete old table's Redis lock
+            await redisService.del(`table:lock:${reservation.tableId}`).catch(() => {});
+          }
+
+          // If table status was not locked yet by check-in, set it to in_checkin in DB
+          if (newTable.status === 'available') {
+            await tx.table.update({
+              where: { id: targetTableId },
+              data: { status: 'in_checkin' }
+            });
+          }
+
+          // Update new table's Redis lock metadata to have originalStatus = 'reserved'
+          let newLockData = { lockedBy: userId, originalStatus: 'reserved', lockedAt: Date.now() };
+          if (newLockDataStr) {
+            try {
+              const parsed = JSON.parse(newLockDataStr);
+              newLockData = { ...parsed, originalStatus: 'reserved' };
+            } catch {}
+          }
+          await redisService.setex(newLockKey, 3600, JSON.stringify(newLockData));
+        }
+      } else if (isClearingTable) {
+        // Release old table to available
+        if (reservation.tableId) {
+          await tx.table.update({
+            where: { id: reservation.tableId },
+            data: { status: 'available' }
+          });
+
+          // Delete old table's Redis lock
+          await redisService.del(`table:lock:${reservation.tableId}`).catch(() => {});
+        }
+      }
+
+      // Update details
+      const updatedRes = await tx.reservation.update({
+        where: { id },
+        data: {
+          customerName: customerName || reservation.customerName,
+          phoneNumber: finalPhone,
+          email: finalEmail,
+          personsCount: finalPersons,
+          tableId: targetTableId
+        },
+        include: { table: true }
+      });
+
+      return updatedRes;
+    });
+
+    await redisService.del('tables:all').catch(() => {});
+    return res.json({ success: true, reservation: updated });
+  } catch (err: any) {
+    const status = err.statusCode || 400;
+    const errorCode = err.code || 'RESERVATION_UPDATE_ERR';
+    return res.status(status).json({ success: false, error: { code: errorCode, message: err.message } });
+  }
+});
+
+router.post('/reservations/:id/assign', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -2689,59 +2992,106 @@ router.get('/admin/sessions', authenticate, authorize(['admin', 'manager']), asy
       },
       orderBy: { issuedAt: 'desc' },
     });
+
+    // Fetch all SyncLogs for occupied table lifecycles in a single query
+    const auditLogs = await prisma.syncLog.findMany({
+      where: {
+        operationType: {
+          in: ['TOKEN_TRANSFER', 'TOKEN_EXTENSION', 'TOKEN_CLOSE']
+        }
+      }
+    });
+
+    // Build maps indexed by tokenId for easy O(1) lookup to avoid N+1 queries
+    const transfersByTokenId: Record<string, any[]> = {};
+    const extensionsByTokenId: Record<string, any[]> = {};
+    const closuresByTokenId: Record<string, any> = {};
+
+    for (const log of auditLogs) {
+      try {
+        const payload = typeof log.payload === 'string' ? JSON.parse(log.payload) : (log.payload as any);
+        if (!payload || !payload.tokenId) continue;
+
+        if (log.operationType === 'TOKEN_TRANSFER') {
+          if (!transfersByTokenId[payload.tokenId]) {
+            transfersByTokenId[payload.tokenId] = [];
+          }
+          transfersByTokenId[payload.tokenId].push(payload);
+        } else if (log.operationType === 'TOKEN_EXTENSION') {
+          if (!extensionsByTokenId[payload.tokenId]) {
+            extensionsByTokenId[payload.tokenId] = [];
+          }
+          extensionsByTokenId[payload.tokenId].push(payload);
+        } else if (log.operationType === 'TOKEN_CLOSE') {
+          closuresByTokenId[payload.tokenId] = payload;
+        }
+      } catch (e) {
+        console.warn('Failed to parse audit log payload:', e);
+      }
+    }
     
-    const mapped = sessions.map((t: any) => ({
-      id: t.id,
-      tokenNumber: t.tokenNumber,
-      phoneNumber: t.customer.phoneNumber,
-      customerName: t.customer.name,
-      email: t.customer.email,
-      persons: t.personsCount,
-      placeType: t.placeType.name,
-      tableId: t.tableId,
-      tableNumber: t.table?.tableNumber || null,
-      amountPaid: parseFloat(t.amountPaid.toString()),
-      paymentVerified: t.paymentVerified,
-      startTime: t.startTime.toISOString(),
-      endTime: t.endTime.toISOString(),
-      redemptionLimit: t.totalRedemptionsAllowed,
-      redemptionCount: t.redemptionsUsed,
-      status: t.status.toLowerCase(),
-      cardUid: null,
-      createdAt: t.issuedAt.toISOString(),
-      deliveryMode: t.deliveryMode,
-      table: t.table ? {
-        id: t.table.id,
-        number: t.table.tableNumber,
+    const mapped = sessions.map((t: any) => {
+      const tokenTransfers = transfersByTokenId[t.id] || [];
+      const tokenExtensions = extensionsByTokenId[t.id] || [];
+      const tokenClosure = closuresByTokenId[t.id] || null;
+
+      return {
+        id: t.id,
+        tokenNumber: t.tokenNumber,
+        phoneNumber: t.customer.phoneNumber,
+        customerName: t.customer.name,
+        email: t.customer.email,
+        persons: t.personsCount,
         placeType: t.placeType.name,
-        status: t.table.status.toUpperCase(),
-      } : null,
-      // Enhanced audit trail & history parameters
-      createdBy: t.creator?.fullName || t.issuedBy,
-      closedBy: t.closer?.fullName || t.closedBy || null,
-      closedAt: t.closedAt ? t.closedAt.toISOString() : null,
-      cancelledAt: t.cancelledAt ? t.cancelledAt.toISOString() : null,
-      cancelledBy: t.cancelledBy || null,
-      cancelReason: t.cancelReason || null,
-      customerId: t.customerId,
-      customerVisits: t.customer.totalVisits,
-      lastVisit: t.customer.lastVisit ? t.customer.lastVisit.toISOString() : null,
-      extensions: t.extensions.map((ext: any) => ({
-        id: ext.id,
-        extraMinutes: ext.extraMinutes,
-        additionalAmount: parseFloat(ext.additionalAmount.toString()),
-        approvedBy: ext.approver?.fullName || ext.approvedBy,
-        extendedAt: ext.extendedAt.toISOString(),
-        newEndTime: ext.newEndTime.toISOString()
-      })),
-      redemptions: t.redemptions.map((red: any) => ({
-        id: red.id,
-        redemptionSequence: red.redemptionSequence,
-        redeemedAt: red.redeemedAt.toISOString(),
-        bartenderName: red.bartender?.fullName || red.bartenderId,
-        notes: red.notes || null
-      }))
-    }));
+        tableId: t.tableId,
+        tableNumber: t.table?.tableNumber || null,
+        amountPaid: parseFloat(t.amountPaid.toString()),
+        paymentVerified: t.paymentVerified,
+        startTime: t.startTime.toISOString(),
+        endTime: t.endTime.toISOString(),
+        redemptionLimit: t.totalRedemptionsAllowed,
+        redemptionCount: t.redemptionsUsed,
+        status: t.status.toLowerCase(),
+        cardUid: null,
+        createdAt: t.issuedAt.toISOString(),
+        deliveryMode: t.deliveryMode,
+        table: t.table ? {
+          id: t.table.id,
+          number: t.table.tableNumber,
+          placeType: t.placeType.name,
+          status: t.table.status.toUpperCase(),
+        } : null,
+        // Enhanced audit trail & history parameters
+        createdBy: t.creator?.fullName || t.issuedBy,
+        closedBy: t.closer?.fullName || t.closedBy || null,
+        closedAt: t.closedAt ? t.closedAt.toISOString() : null,
+        closeReason: t.closeReason || null,
+        cancelledAt: t.cancelledAt ? t.cancelledAt.toISOString() : null,
+        cancelledBy: t.cancelledBy || null,
+        cancelReason: t.cancelReason || null,
+        customerId: t.customerId,
+        customerVisits: t.customer.totalVisits,
+        lastVisit: t.customer.lastVisit ? t.customer.lastVisit.toISOString() : null,
+        transfers: tokenTransfers,
+        extensions: tokenExtensions.length > 0 ? tokenExtensions : t.extensions.map((ext: any) => ({
+          id: ext.id,
+          extraMinutes: ext.extraMinutes,
+          additionalAmount: parseFloat(ext.additionalAmount.toString()),
+          approvedBy: ext.approver?.fullName || ext.approvedBy,
+          extendedAt: ext.extendedAt.toISOString(),
+          newEndTime: ext.newEndTime.toISOString(),
+          paymentMethod: 'CASH'
+        })),
+        redemptions: t.redemptions.map((red: any) => ({
+          id: red.id,
+          redemptionSequence: red.redemptionSequence,
+          redeemedAt: red.redeemedAt.toISOString(),
+          bartenderName: red.bartender?.fullName || red.bartenderId,
+          notes: red.notes || null
+        })),
+        closure: tokenClosure
+      };
+    });
 
     return res.json(mapped);
   } catch (err: any) {
@@ -2841,7 +3191,7 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(400).json({ error: 'Invalid approvedBy UUID format.' });
   }
 
-  let finalAmount = additionalAmount !== undefined ? new Decimal(additionalAmount) : new Decimal(0);
+  let finalAmount = additionalAmount !== undefined ? new Decimal(additionalAmount) : (req.body.amount !== undefined ? new Decimal(req.body.amount) : new Decimal(0));
   if (finalAmount.lt(0)) {
     return res.status(400).json({ error: 'Extension amount cannot be negative.' });
   }
@@ -2867,6 +3217,14 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(400).json({ error: 'Token number is required' });
     }
 
+    const token = await prisma.token.findUnique({
+      where: { tokenNumber: finalTokenNumber }
+    });
+    if (!token) {
+      return res.status(404).json({ error: 'Token not found' });
+    }
+    const previousEndTime = token.endTime.toISOString();
+
     const updated = await tokenService.extendToken(
       finalTokenNumber,
       finalMinutes,
@@ -2874,6 +3232,46 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
       approvedBy || req.user?.id || '',
       additionalPersons ? parseInt(additionalPersons, 10) : 0
     );
+
+    // Send extension email if requested and customer has an email
+    const { sendEmail, paymentMethod } = req.body;
+
+    // Create SyncLog for Extension
+    await prisma.syncLog.create({
+      data: {
+        operationId: `EXTENSION-${updated.id}-${Date.now()}`,
+        deviceId: 'server',
+        operationType: 'TOKEN_EXTENSION',
+        status: 'SUCCESS',
+        payload: {
+          tokenId: updated.id,
+          extraMinutes: finalMinutes,
+          additionalAmount: parseFloat(finalAmount.toString()),
+          paymentMethod: paymentMethod || 'CASH',
+          approvedBy: approvedBy || req.user?.id || 'receptionist',
+          extendedAt: new Date().toISOString(),
+          previousEndTime: previousEndTime,
+          newEndTime: updated.endTime.toISOString()
+        }
+      }
+    });
+
+    if (sendEmail === true && updated.customer?.email) {
+      try {
+        emailNotificationService.enqueueExtensionEmailJob(
+          updated.customer.email,
+          updated.tokenNumber,
+          updated.customer.name,
+          updated.table?.tableNumber || 'N/A',
+          finalMinutes,
+          updated.endTime,
+          parseFloat(finalAmount.toString()),
+          paymentMethod || 'Cash'
+        );
+      } catch (emailErr) {
+        console.warn('Failed to enqueue extension email:', emailErr);
+      }
+    }
 
     // Format output for compatibility
     const responseData = {
@@ -2909,7 +3307,7 @@ router.put('/tokens/:tokenNumber/extend', authenticate, authorize(['receptionist
 
 // Checkout Session
 const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) => {
-  const { tokenNumber } = req.body;
+  const { tokenNumber, reason } = req.body;
   const paramTokenNumber = req.params.tokenNumber;
 
   let finalTokenNumber = paramTokenNumber || tokenNumber;
@@ -2926,11 +3324,34 @@ const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) 
       return res.status(400).json({ error: 'Token number is required' });
     }
 
+    const { reason, reasonDetail } = req.body;
+    const finalCloseReason = CloseReason.MANUAL;
+
     const summary = await tokenService.closeSession(
       finalTokenNumber,
       req.user?.id || '',
-      CloseReason.CHECKOUT
+      finalCloseReason,
+      false,
+      reasonDetail || reason || undefined
     );
+
+    // Create SyncLog for Close
+    await prisma.syncLog.create({
+      data: {
+        operationId: `CLOSE-${summary.token.id}-${Date.now()}`,
+        deviceId: 'server',
+        operationType: 'TOKEN_CLOSE',
+        status: 'SUCCESS',
+        payload: {
+          tokenId: summary.token.id,
+          tokenNumber: summary.token.tokenNumber,
+          closeReason: reason || 'MANUAL',
+          reasonDetail: reasonDetail || '',
+          closedBy: req.user?.id || 'receptionist',
+          closedAt: new Date().toISOString()
+        }
+      }
+    });
 
     // Format return
     const responseData = {

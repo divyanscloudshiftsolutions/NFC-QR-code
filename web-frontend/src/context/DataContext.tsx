@@ -5,12 +5,14 @@ import { useAuth } from './AuthContext';
 
 interface DataContextType {
  tokens: Token[];
+ allSessions: any[];
  tables: Table[];
  reservations: any[];
  rates: any[];
  users: any[];
  isLoading: boolean;
  refreshTokens: () => Promise<void>;
+ refreshAllSessions: () => Promise<void>;
  refreshTables: () => Promise<void>;
  refreshReservations: () => Promise<void>;
  refreshRates: () => Promise<void>;
@@ -23,6 +25,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
  const { user } = useAuth();
  const [tokens, setTokens] = useState<Token[]>([]);
+ const [allSessions, setAllSessions] = useState<any[]>([]);
  const [tables, setTables] = useState<Table[]>([]);
  const [reservations, setReservations] = useState<any[]>([]);
  const [rates, setRates] = useState<any[]>([]);
@@ -49,6 +52,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  setTokens(data);
  } catch (err) {
  console.warn('Failed to background refresh tokens cache:', err);
+ }
+ };
+
+ const refreshAllSessions = async () => {
+ try {
+ const data = await deduplicate('allSessions', () => api.getAllSessions());
+ setAllSessions(data);
+ } catch (err) {
+ console.warn('Failed to background refresh all sessions cache:', err);
  }
  };
 
@@ -96,6 +108,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  // Execute all background fetches in parallel. Handle failures gracefully so they don't block each other.
  await Promise.allSettled([
  refreshTokens(),
+ refreshAllSessions(),
  refreshTables(),
  refreshReservations(),
  refreshRates(),
@@ -111,6 +124,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  } else {
  // Clear cache on logout
  setTokens([]);
+ setAllSessions([]);
  setTables([]);
  setReservations([]);
  setRates([]);
@@ -122,12 +136,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
  <DataContext.Provider
  value={{
  tokens,
+ allSessions,
  tables,
  reservations,
  rates,
  users,
  isLoading,
  refreshTokens,
+ refreshAllSessions,
  refreshTables,
  refreshReservations,
  refreshRates,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus, AlertTriangle } from 'lucide-react';
+import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus, AlertTriangle, Clock } from 'lucide-react';
 import { api } from '../services/api';
 import type { Table, Token } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -14,11 +14,12 @@ interface TablesPageProps {
 }
 
 export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, activeTab, setActiveTab }) => {
- const { showToast } = useAuth();
+ const { showToast, user } = useAuth();
  const { 
     tables: realTables, 
     tokens: realTokens, 
     reservations: realReservations,
+    rates,
     isLoading, 
     refreshTables, 
     refreshTokens,
@@ -197,10 +198,31 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  const [resEmail, setResEmail] = useState('');
  const [resPersons, setResPersons] = useState(2);
  const [isSubmittingReserve, setIsSubmittingReserve] = useState(false);
+ const [isAssignFlow, setIsAssignFlow] = useState(false);
 
  // Cancel Confirmation State
  const [cancellingReservation, setCancellingReservation] = useState<any | null>(null);
  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+ // Transfer Modal State
+ const [transferringTable, setTransferringTable] = useState<Table | null>(null);
+ const [destTableId, setDestTableId] = useState('');
+ const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
+
+ // Extend Modal State
+ const [extendingTable, setExtendingTable] = useState<Table | null>(null);
+ const [extensionMinutes, setExtensionMinutes] = useState(30);
+ const [extensionAmount, setExtensionAmount] = useState(0);
+ const [extensionPaymentMethod, setExtensionPaymentMethod] = useState<'CASH' | 'UPI' | 'COMPLIMENTARY'>('CASH');
+ const [sendExtensionEmail, setSendExtensionEmail] = useState(true);
+ const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+ const [showExtensionUpiQr, setShowExtensionUpiQr] = useState(false);
+
+ // Close Session Modal State
+ const [closingTableSession, setClosingTableSession] = useState<Table | null>(null);
+ const [closureReasonOption, setClosureReasonOption] = useState('Customer Vacated Early');
+ const [closureCustomExplanation, setClosureCustomExplanation] = useState('');
+ const [isSubmittingCloseSession, setIsSubmittingCloseSession] = useState(false);
 
  const handleRefresh = async () => {
    await Promise.all([refreshTables(), refreshTokens(), refreshReservations()]);
@@ -218,26 +240,102 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     if (activeTab === 'tables/reservations') {
       return t.status === 'reserved' || t.status === 'in_checkin';
     } else {
-      if (t.status === 'reserved' || t.status === 'in_checkin') return false;
       if (layoutFilter === 'available') return t.status === 'available';
       if (layoutFilter === 'occupied') return t.status === 'occupied';
       return true;
     }
   });
 
- const handleRelease = async (tableId: string) => {
- try {
- await api.releaseTable(tableId);
- showToast('Table released successfully!', 'success');
- if (inspectingTable && inspectingTable.id === tableId) {
- setInspectingTable(null);
- }
- refreshTables();
- refreshTokens();
- } catch (err: any) {
- showToast(err.message || 'Failed to release table.', 'danger');
- }
- };
+  const handleCloseSessionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!closingTableSession) return;
+    const token = tokens.find(tk => tk.tableId === closingTableSession.id || (tk.table && tk.table.id === closingTableSession.id));
+    if (!token) {
+      showToast('No active token session found for this table.', 'danger');
+      return;
+    }
+
+    setIsSubmittingCloseSession(true);
+    try {
+      const reasonDetail = closureReasonOption === 'Other / Administrative Closure' && closureCustomExplanation
+        ? `Other - ${closureCustomExplanation}`
+        : closureReasonOption;
+
+      await api.closeToken(token.tokenNumber, reasonDetail);
+      showToast(`Session for Table ${closingTableSession.tableNumber} closed successfully!`, 'success');
+      setClosingTableSession(null);
+      setClosureCustomExplanation('');
+      if (inspectingTable && inspectingTable.id === closingTableSession.id) {
+        setInspectingTable(null);
+      }
+      refreshTables();
+      refreshTokens();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to close session.', 'danger');
+    } finally {
+      setIsSubmittingCloseSession(false);
+    }
+  };
+
+  const performTransfer = async (emailOption: boolean) => {
+
+    if (!transferringTable || !destTableId) return;
+    const token = tokens.find(tk => tk.tableId === transferringTable.id || (tk.table && tk.table.id === transferringTable.id));
+    if (!token) {
+      showToast('No active token session found for this table.', 'danger');
+      return;
+    }
+
+    setIsSubmittingTransfer(true);
+    try {
+      await api.transferTable(token.id, destTableId, emailOption);
+      showToast('Table transfer completed successfully!', 'success');
+      setTransferringTable(null);
+      setDestTableId('');
+      if (inspectingTable && inspectingTable.id === transferringTable.id) {
+        setInspectingTable(null);
+      }
+      refreshTables();
+      refreshTokens();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to transfer table.', 'danger');
+    } finally {
+      setIsSubmittingTransfer(false);
+    }
+  };
+
+  const handleExtendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extendingTable) return;
+    const token = tokens.find(tk => tk.tableId === extendingTable.id || (tk.table && tk.table.id === extendingTable.id));
+    if (!token) {
+      showToast('No active token session found for this table.', 'danger');
+      return;
+    }
+
+    setIsSubmittingExtension(true);
+    try {
+      await api.extendToken(
+        token.tokenNumber,
+        extensionMinutes,
+        extensionAmount,
+        sendExtensionEmail,
+        extensionPaymentMethod
+      );
+      showToast(`Session extended by +${extensionMinutes} minutes successfully!`, 'success');
+      setExtendingTable(null);
+      setShowExtensionUpiQr(false);
+      if (inspectingTable && inspectingTable.id === extendingTable.id) {
+        setInspectingTable(null);
+      }
+      refreshTables();
+      refreshTokens();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to extend session.', 'danger');
+    } finally {
+      setIsSubmittingExtension(false);
+    }
+  };
 
  const handleAssignSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
@@ -258,6 +356,24 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  }
  };
 
+  const handleAssignClick = (tb: Table) => {
+    setReservingTable(tb);
+    setIsAssignFlow(true);
+    setResPersons(tb.capacity || 4);
+    setResName('');
+    setResPhone('');
+    setResEmail('');
+  };
+
+  const handleReserveClick = (tb: Table) => {
+    setReservingTable(tb);
+    setIsAssignFlow(false);
+    setResPersons(tb.capacity || 4);
+    setResName('');
+    setResPhone('');
+    setResEmail('');
+  };
+
   const handleReserveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reservingTable) return;
@@ -269,21 +385,38 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
     setIsSubmittingReserve(true);
     try {
-      await api.createReservation({
+      const res = await api.createReservation({
         customerName: resName.trim(),
         phoneNumber: resPhone.trim(),
         email: resEmail.trim(),
         personsCount: Number(resPersons),
         tableId: reservingTable.id
       });
-      showToast(`Reservation for Table ${reservingTable.tableNumber} confirmed!`, 'success');
-      setReservingTable(null);
-      setResName('');
-      setResPhone('');
-      setResEmail('');
-      setResPersons(2);
-      refreshTables();
-      refreshReservations();
+      
+      if (res.success && res.reservation) {
+        if (isAssignFlow) {
+          showToast(`Reservation for Table ${reservingTable.tableNumber} created! Proceeding to check-in.`, 'success');
+          setReservingTable(null);
+          setResName('');
+          setResPhone('');
+          setResEmail('');
+          try {
+            await handleAssignReservation(res.reservation);
+          } catch (assignErr: any) {
+            showToast(assignErr.message || 'Reservation created, but failed to lock table for immediate check-in.', 'warning');
+            refreshTables();
+            refreshReservations();
+          }
+        } else {
+          showToast(`Reservation for Table ${reservingTable.tableNumber} confirmed!`, 'success');
+          setReservingTable(null);
+          setResName('');
+          setResPhone('');
+          setResEmail('');
+          refreshTables();
+          refreshReservations();
+        }
+      }
     } catch (err: any) {
       showToast(err.message || 'Failed to create reservation.', 'danger');
     } finally {
@@ -495,20 +628,35 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => handleAssignReservation(res)}
-                  className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <UserPlus size={14} /> Assign
-                </button>
-                <button
-                  onClick={() => setCancellingReservation(res)}
-                  className="flex-1 py-2.5 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all cursor-pointer text-center"
-                >
-                  Cancel
-                </button>
-              </div>
+              {(() => {
+                const isOwner = !res.userId || res.userId === user?.id || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager';
+                return (
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => handleAssignReservation(res)}
+                      disabled={!isOwner}
+                      title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+                      className={`flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 ${
+                        !isOwner ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
+                    >
+                      <UserPlus size={14} /> Assign
+                    </button>
+                    <button
+                      onClick={() => setCancellingReservation(res)}
+                      disabled={!isOwner}
+                      title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all text-center ${
+                        !isOwner 
+                          ? 'bg-gray-100 dark:bg-[#1C1C1E]/50 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-white/5 cursor-not-allowed' 
+                          : 'dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 border border-red-500/30 cursor-pointer'
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           ))}
       </div>
@@ -650,32 +798,48 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         In Check-In
       </button>
     ) : tb.status === 'reserved' ? (
-      <>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleCheckInReservedTable(tb);
-          }}
-          className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-          <UserPlus size={14} /> Check-In
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleCancelClick(tb);
-          }}
-          className="flex-1 py-2.5 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all cursor-pointer text-center"
-        >
-          Cancel
-        </button>
-      </>
+      (() => {
+        const res = realReservations.find((r: any) => r.tableId === tb.id && r.status === 'PENDING');
+        const isOwner = !res || !res.userId || res.userId === user?.id || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager';
+        return (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCheckInReservedTable(tb);
+              }}
+              disabled={!isOwner}
+              title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+              className={`flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 ${
+                !isOwner ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+            >
+              <UserPlus size={14} /> Check-In
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCancelClick(tb);
+              }}
+              disabled={!isOwner}
+              title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all text-center ${
+                !isOwner 
+                  ? 'bg-gray-100 dark:bg-[#1C1C1E]/50 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-white/5 cursor-not-allowed' 
+                  : 'dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 border border-red-500/30 cursor-pointer'
+              }`}
+            >
+              Cancel
+            </button>
+          </>
+        );
+      })()
     ) : tb.status === 'available' ? (
       <>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            handleRedirectToCheckIn(tb);
+            handleAssignClick(tb);
           }}
           className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
         >
@@ -684,7 +848,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setReservingTable(tb);
+            handleReserveClick(tb);
           }}
           className="flex-1 py-2.5 rounded-xl text-xs font-bold border border-primary text-primary hover:bg-primary/5 transition-all cursor-pointer text-center"
         >
@@ -792,14 +956,32 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     <>
       <button
         type="button"
-        onClick={() => handleRelease(inspectingTable.id)}
+        onClick={() => setClosingTableSession(inspectingTable)}
         className="w-full py-2.5 rounded-md dark:rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
       >
-        Release Table
+        Close Session
       </button>
       <div className="grid grid-cols-2 gap-3">
-        <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Transfer</button>
-        <button className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer">Extend</button>
+        <button 
+          onClick={() => {
+            setTransferringTable(inspectingTable);
+            setDestTableId('');
+          }}
+          className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer"
+        >
+          Transfer
+        </button>
+        <button 
+          onClick={() => {
+            setExtendingTable(inspectingTable);
+            setExtensionMinutes(30);
+            setExtensionPaymentMethod('CASH');
+            setShowExtensionUpiQr(false);
+          }}
+          className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer"
+        >
+          Extend
+        </button>
       </div>
     </>
   ) : inspectingTable.status === 'in_checkin' ? (
@@ -811,37 +993,54 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
       In Check-In (Locked)
     </button>
   ) : (
-    <>
-      <button
-        type="button"
-        onClick={() => inspectingTable.status === 'reserved' ? handleCheckInReservedTable(inspectingTable) : handleRedirectToCheckIn(inspectingTable)}
-        className="w-full py-3 rounded-md primary-btn text-[13px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer dark:text-black"
-      >
-        <span className="dark:hidden">Assign Guest & Check-In</span>
-        <span className="hidden dark:block">+ Add Order</span>
-        <ArrowRight size={16} className="dark:hidden" />
-      </button>
-      
-      {inspectingTable.status === 'reserved' && (
-        <button
-          type="button"
-          onClick={() => handleCancelClick(inspectingTable)}
-          className="w-full py-2.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
-        >
-          Cancel Reservation
-        </button>
-      )}
+    (() => {
+      const res = realReservations.find((r: any) => r.tableId === inspectingTable.id && r.status === 'PENDING');
+      const isOwner = !res || !res.userId || res.userId === user?.id || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager';
+      const isReserved = inspectingTable.status === 'reserved';
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => isReserved ? handleCheckInReservedTable(inspectingTable) : handleAssignClick(inspectingTable)}
+            disabled={isReserved && !isOwner}
+            title={isReserved && !isOwner ? "This reservation is owned by another receptionist." : undefined}
+            className={`w-full py-3 rounded-md primary-btn text-[13px] font-black uppercase tracking-wider flex items-center justify-center gap-2 dark:text-black ${
+              isReserved && !isOwner ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+            }`}
+          >
+            <span className="dark:hidden">Assign Guest & Check-In</span>
+            <span className="hidden dark:block">+ Add Order</span>
+            <ArrowRight size={16} className="dark:hidden" />
+          </button>
+          
+          {isReserved && (
+            <button
+              type="button"
+              onClick={() => handleCancelClick(inspectingTable)}
+              disabled={!isOwner}
+              title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+              className={`w-full py-2.5 rounded-md font-bold text-[13px] border transition-all text-center ${
+                !isOwner 
+                  ? 'bg-gray-100 dark:bg-[#1C1C1E]/50 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-white/5 cursor-not-allowed' 
+                  : 'bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-500/30 cursor-pointer'
+              }`}
+            >
+              Cancel Reservation
+            </button>
+          )}
 
-      {inspectingTable.status === 'available' && (
-        <button
-          type="button"
-          onClick={() => { setInspectingTable(null); setReservingTable(inspectingTable); }}
-          className="w-full py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[13px] transition-all text-center cursor-pointer"
-        >
-          Reserve Table
-        </button>
-      )}
-    </>
+          {inspectingTable.status === 'available' && (
+            <button
+              type="button"
+              onClick={() => { setInspectingTable(null); handleReserveClick(inspectingTable); }}
+              className="w-full py-2 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] hover:bg-primary/5 transition-all text-center cursor-pointer"
+            >
+              Reserve Table
+            </button>
+          )}
+        </>
+      );
+    })()
   )}
 
  <button
@@ -928,7 +1127,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
        </button>
 
        <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8">
-         <Grid3X3 size={18} className="shrink-0" /> <span className="truncate">Reserve Table {reservingTable.tableNumber}</span>
+         <Grid3X3 size={18} className="shrink-0" /> <span className="truncate">{isAssignFlow ? 'Assign' : 'Reserve'} Table {reservingTable.tableNumber}</span>
        </div>
 
        <form onSubmit={handleReserveSubmit} className="space-y-4">
@@ -995,7 +1194,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
              disabled={isSubmittingReserve}
              className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer"
            >
-             {isSubmittingReserve ? 'Reserving...' : 'Confirm Reserve'}
+             {isSubmittingReserve ? 'Confirming...' : isAssignFlow ? 'Confirm Assign & Check-In' : 'Confirm Reserve'}
            </button>
          </div>
        </form>
@@ -1062,6 +1261,320 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
      </div>
    </div>
  )}
+
+  {/* TRANSFER TABLE MODAL */}
+  {transferringTable && (
+    <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+      <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
+        <button 
+          onClick={() => setTransferringTable(null)}
+          className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8">
+          <Grid3X3 size={18} className="shrink-0" /> <span className="truncate">Transfer Table {transferringTable.tableNumber}</span>
+        </div>
+
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+          <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-text-muted">Current Table:</span>
+              <span className="font-semibold text-text-main">{transferringTable.tableNumber}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-muted">Customer:</span>
+              <span className="font-semibold text-text-main">
+                {tokens.find(tk => tk.tableId === transferringTable.id || (tk.table && tk.table.id === transferringTable.id))?.customer?.name || 'Guest'}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-text-muted mb-1">Select Destination Table <span className="text-red-500">*</span></label>
+            <select
+              value={destTableId}
+              onChange={e => setDestTableId(e.target.value)}
+              className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+              required
+            >
+              <option value="">-- Choose an available table --</option>
+              {tables
+                .filter(t => t.status === 'available' && t.isActive && t.placeTypeId === transferringTable.placeTypeId)
+                .map(t => (
+                  <option key={t.id} value={t.id}>Table {t.tableNumber} ({t.capacity} Guests Max)</option>
+                ))
+              }
+            </select>
+          </div>
+
+          <div className="text-xs font-semibold text-text-muted text-center py-1">
+            Send table transfer update email to customer?
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTransferringTable(null)}
+                className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingTransfer || !destTableId}
+                onClick={() => performTransfer(false)}
+                className="flex-1 py-2.5 rounded-xl bg-transparent border border-primary text-primary font-bold text-xs hover:bg-primary/5 transition-all cursor-pointer"
+              >
+                Transfer Without Email
+              </button>
+            </div>
+            <button
+              type="button"
+              disabled={isSubmittingTransfer || !destTableId}
+              onClick={() => performTransfer(true)}
+              className="w-full py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmittingTransfer ? 'Transferring...' : 'Transfer & Send Email'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
+
+  {/* EXTEND SESSION MODAL */}
+  {extendingTable && (() => {
+    const token = tokens.find(tk => tk.tableId === extendingTable.id || (tk.table && tk.table.id === extendingTable.id));
+    const rateConfig = rates?.find((r: any) => r.id === extendingTable.placeTypeId);
+    const hourlyRate = rateConfig ? (rateConfig.ratePerPerson || 0) / ((rateConfig.baseTimeMinutes || 120) / 60) : 0;
+    const calculatedAmount = Math.round(hourlyRate * (extensionMinutes / 60) * (token?.personsCount || 1));
+    
+    // Calculate times
+    const currentEndTimeStr = token ? new Date(token.endTime).toLocaleString() : 'N/A';
+    const baseTime = token && new Date(token.endTime).getTime() > Date.now() ? new Date(token.endTime) : new Date();
+    const newEndTimeStr = new Date(baseTime.getTime() + extensionMinutes * 60 * 1000).toLocaleString();
+
+    return (
+      <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+        <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
+          <button 
+            onClick={() => {
+              setExtendingTable(null);
+              setShowExtensionUpiQr(false);
+            }}
+            className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
+          >
+            <X size={18} />
+          </button>
+
+          <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8">
+            <Clock size={18} className="shrink-0" /> <span className="truncate">Extend Table {extendingTable.tableNumber}</span>
+          </div>
+
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (extensionPaymentMethod === 'UPI' && !showExtensionUpiQr) {
+              setShowExtensionUpiQr(true);
+            } else {
+              handleExtendSubmit(e);
+            }
+          }} className="space-y-4">
+            <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-text-muted">Customer:</span>
+                <span className="font-semibold text-text-main">{token?.customer?.name || 'Guest'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-muted">Group Size:</span>
+                <span className="font-semibold text-text-main">{token?.personsCount || 1} Guests</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-muted">Current End Time:</span>
+                <span className="font-semibold text-text-main">{currentEndTimeStr}</span>
+              </div>
+              <div className="flex justify-between border-t border-border-main/50 pt-1 mt-1 font-bold">
+                <span className="text-text-muted">New End Time:</span>
+                <span className="text-primary">{newEndTimeStr}</span>
+              </div>
+            </div>
+
+            {!showExtensionUpiQr ? (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-text-muted mb-1">Select Extension Duration <span className="text-red-500">*</span></label>
+                  <select
+                    value={extensionMinutes}
+                    onChange={e => {
+                      const mins = Number(e.target.value);
+                      setExtensionMinutes(mins);
+                      const amt = Math.round(hourlyRate * (mins / 60) * (token?.personsCount || 1));
+                      setExtensionAmount(amt);
+                    }}
+                    className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+                    required
+                  >
+                    <option value={30}>+30 Minutes (₹{Math.round(hourlyRate * 0.5 * (token?.personsCount || 1))})</option>
+                    <option value={60}>+1 Hour (₹{Math.round(hourlyRate * 1 * (token?.personsCount || 1))})</option>
+                    <option value={120}>+2 Hours (₹{Math.round(hourlyRate * 2 * (token?.personsCount || 1))})</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-muted mb-1">Payment Method <span className="text-red-500">*</span></label>
+                  <select
+                    value={extensionPaymentMethod}
+                    onChange={e => {
+                      const method = e.target.value as any;
+                      setExtensionPaymentMethod(method);
+                      if (method === 'COMPLIMENTARY') {
+                        setExtensionAmount(0);
+                      } else {
+                        setExtensionAmount(calculatedAmount);
+                      }
+                    }}
+                    className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+                    required
+                  >
+                    <option value="CASH">Cash Payment (Confirm Collection)</option>
+                    <option value="UPI">UPI QR Code (Simulated)</option>
+                    <option value="COMPLIMENTARY">Complimentary (No Charge)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="sendExtensionEmail"
+                    checked={sendExtensionEmail}
+                    onChange={e => setSendExtensionEmail(e.target.checked)}
+                    className="rounded bg-bg-primary border-border-main text-primary focus:ring-0 focus:ring-offset-0"
+                  />
+                  <label htmlFor="sendExtensionEmail" className="text-xs font-semibold text-text-muted cursor-pointer select-none">
+                    Send updated session details email to customer
+                  </label>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-4 space-y-3 bg-bg-primary rounded-2xl border border-border-main">
+                <p className="text-xs font-bold text-text-main">Scan UPI QR to Pay ₹{extensionAmount}</p>
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=barmanagement@upi&pn=BarSystem&am=${extensionAmount}&cu=INR`)}`}
+                  alt="UPI Payment QR"
+                  className="border-4 border-primary rounded-xl p-1 bg-white w-[150px] h-[150px]"
+                />
+                <p className="text-[10px] text-text-muted italic">Development Simulator Mode</p>
+              </div>
+            )}
+
+            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  if (showExtensionUpiQr) {
+                    setShowExtensionUpiQr(false);
+                  } else {
+                    setExtendingTable(null);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
+              >
+                {showExtensionUpiQr ? 'Back' : 'Cancel'}
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingExtension}
+                className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer"
+              >
+                {isSubmittingExtension ? 'Saving...' : showExtensionUpiQr ? 'Confirm Payment Done' : 'Next'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  })()}
+
+  {/* CLOSE SESSION MODAL */}
+  {closingTableSession && (
+    <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+      <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
+        <button 
+          onClick={() => setClosingTableSession(null)}
+          className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8 text-red-500">
+          <AlertTriangle size={18} className="shrink-0" /> <span className="truncate">Close Table Session ({closingTableSession.tableNumber})</span>
+        </div>
+
+        <form onSubmit={handleCloseSessionSubmit} className="space-y-4">
+          <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-text-muted">Customer:</span>
+              <span className="font-semibold text-text-main">
+                {tokens.find(tk => tk.tableId === closingTableSession.id || (tk.table && tk.table.id === closingTableSession.id))?.customer?.name || 'Guest'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-muted">Session Token:</span>
+              <span className="font-mono text-text-main font-bold">
+                {tokens.find(tk => tk.tableId === closingTableSession.id || (tk.table && tk.table.id === closingTableSession.id))?.tokenNumber}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-text-muted mb-1">Reason for Closure <span className="text-red-500">*</span></label>
+            <select
+              value={closureReasonOption}
+              onChange={e => setClosureReasonOption(e.target.value)}
+              className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+              required
+            >
+              <option value="Customer Vacated Early">Customer Vacated Early</option>
+              <option value="Session Opened by Mistake">Session Opened by Mistake</option>
+              <option value="Other / Administrative Closure">Other / Administrative Closure</option>
+            </select>
+          </div>
+
+          {closureReasonOption === 'Other / Administrative Closure' && (
+            <div>
+              <label className="block text-xs font-semibold text-text-muted mb-1">Explanation <span className="text-red-500">*</span></label>
+              <textarea
+                value={closureCustomExplanation}
+                onChange={e => setClosureCustomExplanation(e.target.value)}
+                placeholder="Enter details about why this session is being closed..."
+                className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary min-h-[60px]"
+                required
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setClosingTableSession(null)}
+              className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingCloseSession}
+              className="flex-1 py-2.5 rounded-xl bg-red-500 text-white hover:bg-red-600 active:bg-red-700 text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer border-none"
+            >
+              {isSubmittingCloseSession ? 'Closing...' : 'Close Session'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
 
  </div>
  );
