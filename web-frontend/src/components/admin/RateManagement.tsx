@@ -16,7 +16,7 @@ export const RateManagement: React.FC = () => {
 
  // Form State
  const [ratePerPerson, setRatePerPerson] = useState('500');
- const [durationHours, setDurationHours] = useState('2');
+ const [durationMinutes, setDurationMinutes] = useState('20');
  const [drinkAllowance, setDrinkAllowance] = useState('2');
  const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -25,15 +25,15 @@ export const RateManagement: React.FC = () => {
  const openEditModal = (r: any) => {
  setEditingRate(r);
  setRatePerPerson(String(r.ratePerPerson || 500));
- setDurationHours(String(Math.round((r.baseTimeMinutes || 120) / 60)));
+ setDurationMinutes(String(r.baseTimeMinutes || 20));
  setDrinkAllowance(String(r.redemptionsPerPerson || 2));
  };
 
  // Validation rules matching AdminPortal.tsx:L293-L300
  const priceVal = parseFloat(ratePerPerson);
  const isPriceValid = !isNaN(priceVal) && priceVal >= 0;
- const durationVal = parseFloat(durationHours);
- const isDurationValid = !isNaN(durationVal) && durationVal >= 0.5 && durationVal <= 24;
+ const durationVal = parseInt(durationMinutes, 10);
+ const isDurationValid = !isNaN(durationVal) && durationVal >= 5 && durationVal <= 1440;
  const drinksVal = parseInt(drinkAllowance, 10);
  const isDrinksValid = !isNaN(drinksVal) && drinksVal >= 0 && drinksVal <= 50;
  const isFormValid = isPriceValid && isDurationValid && isDrinksValid;
@@ -46,7 +46,7 @@ export const RateManagement: React.FC = () => {
  try {
  await api.updateRateCard(editingRate.id, {
  ratePerPerson: priceVal,
- baseTimeMinutes: Math.round(durationVal * 60),
+ baseTimeMinutes: durationVal,
  redemptionsPerPerson: drinksVal,
  });
  showToast(`Rate card for ${editingRate.name || editingRate.placeType} updated!`, 'success');
@@ -106,7 +106,7 @@ export const RateManagement: React.FC = () => {
  <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border-main text-xs text-text-muted space-y-1.5 sm:space-y-2">
  <p className="flex items-center justify-between">
  <span className="text-text-muted flex items-center gap-1.5"><Clock size={14} /> Base Duration:</span>
- <span className="font-bold text-text-main">{Math.round((r.baseTimeMinutes || 120) / 60)} Hours</span>
+ <span className="font-bold text-text-main">{r.baseTimeMinutes || 20} Minutes</span>
  </p>
  <p className="flex items-center justify-between">
  <span className="text-text-muted flex items-center gap-1.5"><Wine size={14} /> Drink Allowance:</span>
@@ -151,14 +151,13 @@ export const RateManagement: React.FC = () => {
  </div>
 
  <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">Base Duration (Hours: 0.5 - 24)</label>
+ <label className="block text-xs font-semibold text-text-muted mb-1">Base Duration (Minutes: 5 - 1440)</label>
  <input
  type="number"
- step="0.5"
- value={durationHours}
- onChange={e => setDurationHours(e.target.value)}
- min={0.5}
- max={24}
+ value={durationMinutes}
+ onChange={e => setDurationMinutes(e.target.value)}
+ min={5}
+ max={1440}
  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
  required
  />

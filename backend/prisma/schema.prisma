@@ -161,6 +161,7 @@ model User {
   tokenExtensions  TokenExtension[]
   rateCardChanges  RateLog[]
   sessions         StaffSession[]
+  reservations     Reservation[]
 
   @@map("users")
 }
@@ -266,9 +267,11 @@ model Reservation {
   phoneNumber  String    @map("phone_number")
   email        String
   personsCount Int       @map("persons_count")
-  tableId      String    @map("table_id")
-  table        Table     @relation(fields: [tableId], references: [id])
+  tableId      String?   @map("table_id")
+  table        Table?    @relation(fields: [tableId], references: [id])
   status       String    @default("PENDING") // PENDING, ASSIGNED, CANCELLED
+  userId       String?   @map("user_id")
+  user         User?     @relation(fields: [userId], references: [id])
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime? @updatedAt @map("updated_at")
 

@@ -238,6 +238,7 @@ export class TokenService {
           paymentVerified: request.paymentVerified,
           startTime: start,
           endTime,
+          issuedAt: start,
           totalRedemptionsAllowed,
           redemptionsUsed: 0,
           status: TokenStatus.ACTIVE,
@@ -458,11 +459,50 @@ export class TokenService {
     }
   }
 
+  async cleanupStaleInCheckInTables(): Promise<void> {
+    try {
+      const inCheckInTables = await prisma.table.findMany({
+        where: { status: 'in_checkin' }
+      });
+
+      if (inCheckInTables.length > 0) {
+        await prisma.$transaction(async (tx) => {
+          for (const table of inCheckInTables) {
+            const lockKey = `table:lock:${table.id}`;
+            const hasLock = await redisService.get(lockKey);
+            if (!hasLock) {
+              let finalStatus = 'available';
+              const activeRes = await tx.reservation.findFirst({
+                where: {
+                  tableId: table.id,
+                  status: 'PENDING'
+                }
+              });
+              if (activeRes) {
+                finalStatus = 'reserved';
+              }
+              await tx.table.update({
+                where: { id: table.id },
+                data: { status: finalStatus }
+              });
+              console.log(`[Reconciler] Reverted stale in_checkin table ${table.tableNumber} to ${finalStatus}`);
+            }
+          }
+        }, { timeout: 20000 });
+        await redisService.del('table:available:all');
+        await redisService.del('tables:all').catch(() => {});
+      }
+    } catch (error) {
+      console.error('Error in cleanupStaleInCheckInTables background job:', error);
+    }
+  }
+
   async reconcileSystemState(): Promise<void> {
     const now = new Date();
 
     // 0. Clean up orphaned occupied tables (self-healing job)
     await this.cleanupOrphanedTables();
+    await this.cleanupStaleInCheckInTables();
 
     // 1. Reconcile maintenance tables
     const expiredTables = await prisma.table.findMany({
@@ -496,12 +536,13 @@ export class TokenService {
 
     // 2. Reconcile expired pending payment sessions (e.g. 20 minutes expiry)
     const expiryWindowMinutes = 20;
-    const expiryTime = new Date(now.getTime() - expiryWindowMinutes * 60 * 1000);
-    const expiredPendingTokens = await prisma.token.findMany({
+    const allPendingTokens = await prisma.token.findMany({
       where: {
-        status: TokenStatus.PENDING_PAYMENT,
-        issuedAt: { lte: expiryTime }
+        status: TokenStatus.PENDING_PAYMENT
       }
+    });
+    const expiredPendingTokens = allPendingTokens.filter(token => {
+      return now.getTime() > token.issuedAt.getTime() + expiryWindowMinutes * 60 * 1000;
     });
 
     if (expiredPendingTokens.length > 0) {
@@ -619,7 +660,8 @@ export class TokenService {
     tokenNumber: string,
     closedBy: string,
     closeReason: CloseReason,
-    force: boolean = false
+    force: boolean = false,
+    reasonDetail?: string
   ): Promise<SessionSummary> {
     const now = new Date();
     return await prisma.$transaction(async (tx) => {
@@ -693,7 +735,7 @@ export class TokenService {
         }
       });
 
-      logStateTransition(tokenNumber, token.status, TokenStatus.CLOSED, `session closed: ${closeReason}`, closedBy);
+      logStateTransition(tokenNumber, token.status, TokenStatus.CLOSED, `session closed: ${closeReason}${reasonDetail ? ' - ' + reasonDetail : ''}`, closedBy);
 
       // Update table status
       if (token.tableId) {
@@ -889,6 +931,7 @@ export class TokenService {
           paymentVerified: false,
           startTime: start,
           endTime,
+          issuedAt: start,
           totalRedemptionsAllowed,
           redemptionsUsed: 0,
           status: TokenStatus.PENDING_PAYMENT,
@@ -929,7 +972,8 @@ export class TokenService {
     tokenNumber: string,
     tableNumber: string,
     amountPaid: number,
-    activatedBy: string
+    activatedBy: string,
+    bypassCapacity = false
   ): Promise<any> {
     const now = new Date();
     const activationMethod = ActivationMethod.EMAIL_QR;
@@ -1009,7 +1053,7 @@ export class TokenService {
       if (table.status !== 'available' && table.status !== 'in_checkin' && table.currentTokenId !== token.id) {
         throw new Error(`Table '${tableNumber}' is not available.`);
       }
-      if (token.personsCount > table.capacity) {
+      if (token.personsCount > table.capacity && !bypassCapacity) {
         throw new Error(`Group size of ${token.personsCount} exceeds table capacity of ${table.capacity}.`);
       }
 

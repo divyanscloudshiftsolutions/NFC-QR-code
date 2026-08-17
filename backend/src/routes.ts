@@ -1275,76 +1275,6 @@ router.put('/tables/:tableId/release', authenticate, authorize(['receptionist', 
   }
 });
 
-// Transfer Table Session
-router.post('/tables/transfer', authenticate, authorize(['receptionist', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
-  const { tokenId, destTableId, sendEmail } = req.body;
-
-  if (!tokenId || !destTableId) {
-    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'tokenId and destTableId are required' } });
-  }
-
-  if (!isValidUUID(tokenId) || !isValidUUID(destTableId)) {
-    return res.status(400).json({ success: false, error: { code: 'VAL_UUID', message: 'Invalid tokenId or destTableId UUID format.' } });
-  }
-
-  try {
-    const oldToken = await prisma.token.findUnique({
-      where: { id: tokenId }
-    });
-    if (!oldToken) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Token not found' } });
-    }
-    const oldTokenNumber = oldToken.tokenNumber;
-    const oldTable = await prisma.table.findUnique({
-      where: { id: oldToken.tableId || '' }
-    });
-    const sourceTableNumber = oldTable?.tableNumber || 'N/A';
-
-    const updatedToken = await tableService.transferTable(tokenId, destTableId, req.user?.id || '');
-
-    // Write SyncLog for Transfer
-    await prisma.syncLog.create({
-      data: {
-        operationId: `TRANSFER-${updatedToken.id}-${Date.now()}`,
-        deviceId: 'server',
-        operationType: 'TOKEN_TRANSFER',
-        status: 'SUCCESS',
-        payload: {
-          tokenId: updatedToken.id,
-          oldTokenNumber: oldTokenNumber,
-          newTokenNumber: updatedToken.tokenNumber,
-          sourceTableNumber: sourceTableNumber,
-          destTableNumber: updatedToken.table?.tableNumber || 'N/A',
-          transferredBy: req.user?.id || 'receptionist',
-          transferredAt: new Date().toISOString()
-        }
-      }
-    });
-
-    // Send transfer email if requested and customer has an email
-    if (sendEmail === true && updatedToken.customer?.email) {
-      try {
-        emailNotificationService.enqueueTransferEmailJob(
-          updatedToken.customer.email,
-          updatedToken.tokenNumber,
-          updatedToken.customer.name,
-          updatedToken.table?.tableNumber || 'N/A',
-          updatedToken.personsCount
-        );
-      } catch (emailErr) {
-        console.warn('Failed to enqueue transfer email:', emailErr);
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: 'Table transfer completed successfully',
-      token: updatedToken
-    });
-  } catch (err: any) {
-    return res.status(400).json({ success: false, error: { code: 'TRANSFER_ERR', message: err.message } });
-  }
-});
 
 // Create Table (Admin Only)
 router.post('/tables', authenticate, authorize(['admin']), async (req: Request, res: Response) => {
@@ -1647,13 +1577,18 @@ router.post('/tables/:id/lock', authenticate, async (req: AuthenticatedRequest, 
 
   try {
     const updatedTable = await prisma.$transaction(async (tx) => {
-      const table = await tx.table.findUnique({
-        where: { id }
-      });
+      const tables = await tx.$queryRaw<any[]>`
+        SELECT id, status, "place_type_id" as "placeTypeId"
+        FROM tables
+        WHERE id = ${id}
+        LIMIT 1
+        FOR UPDATE
+      `;
 
-      if (!table) {
+      if (!tables || tables.length === 0) {
         throw new Error('Table not found');
       }
+      const table = tables[0];
 
       // Check current status in DB to ensure it is available or reserved
       if (table.status !== 'available' && table.status !== 'reserved') {
@@ -1684,7 +1619,9 @@ router.post('/tables/:id/lock', authenticate, async (req: AuthenticatedRequest, 
 
     return res.json({ success: true, table: updatedTable });
   } catch (err: any) {
-    return res.status(400).json({ success: false, error: { code: 'LOCK_ERR', message: err.message } });
+    const isTechnical = err.message.includes('Prisma') || err.message.includes('queryRaw') || err.message.includes('SQL') || err.message.includes('column') || err.message.includes('relation');
+    const friendlyMsg = isTechnical ? 'Failed to lock the table for check-in. Please try again.' : err.message;
+    return res.status(400).json({ success: false, error: { code: 'LOCK_ERR', message: friendlyMsg } });
   }
 });
 
@@ -2344,7 +2281,7 @@ const verifyQrHandler = async (req: Request, res: Response) => {
 };
 
 const activateSessionHandler = async (req: AuthenticatedRequest, res: Response) => {
-  const { tokenNumber, tableNumber, amountPaid } = req.body;
+  const { tokenNumber, tableNumber, amountPaid, bypassCapacity } = req.body;
   const activatedBy = req.user?.id || 'receptionist';
 
   try {
@@ -2352,7 +2289,8 @@ const activateSessionHandler = async (req: AuthenticatedRequest, res: Response) 
       tokenNumber,
       tableNumber,
       amountPaid ? parseFloat(amountPaid) : 0,
-      activatedBy
+      activatedBy,
+      bypassCapacity === true || bypassCapacity === 'true'
     );
 
     const responseData = {
@@ -2502,13 +2440,18 @@ router.post('/reservations/:id/cancel', authenticate, async (req: AuthenticatedR
 
   try {
     await prisma.$transaction(async (tx) => {
-      const reservation = await tx.reservation.findUnique({
-        where: { id }
-      });
+      const reservations = await tx.$queryRaw<any[]>`
+        SELECT id, status, "user_id" as "userId", "table_id" as "tableId"
+        FROM reservations
+        WHERE id = ${id}
+        LIMIT 1
+        FOR UPDATE
+      `;
 
-      if (!reservation) {
+      if (!reservations || reservations.length === 0) {
         throw new Error('Reservation not found.');
       }
+      const reservation = reservations[0];
 
       if (reservation.status !== 'PENDING') {
         throw new Error(`Reservation cannot be cancelled (current status: ${reservation.status}).`);
@@ -2517,6 +2460,23 @@ router.post('/reservations/:id/cancel', authenticate, async (req: AuthenticatedR
       // Enforce ownership
       if (reservation.userId && reservation.userId !== userId && !isAdmin && !isManager) {
         throw new Error('You do not own this reservation.');
+      }
+
+      // If a table is mapped, verify it is not locked for check-in
+      if (reservation.tableId) {
+        const tables = await tx.$queryRaw<any[]>`
+          SELECT id, status
+          FROM tables
+          WHERE id = ${reservation.tableId}
+          LIMIT 1
+          FOR UPDATE
+        `;
+        if (tables && tables.length > 0) {
+          const table = tables[0];
+          if (table.status === 'in_checkin') {
+            throw new Error('Reservation cannot be cancelled while check-in is in progress.');
+          }
+        }
       }
 
       // Cancel reservation
@@ -2537,13 +2497,15 @@ router.post('/reservations/:id/cancel', authenticate, async (req: AuthenticatedR
     await redisService.del('tables:all').catch(() => {});
     return res.json({ success: true, message: 'Reservation cancelled successfully.' });
   } catch (err: any) {
-    return res.status(400).json({ success: false, error: { message: err.message } });
+    const isTechnical = err.message.includes('Prisma') || err.message.includes('queryRaw') || err.message.includes('SQL') || err.message.includes('column') || err.message.includes('relation');
+    const friendlyMsg = isTechnical ? 'Failed to cancel the reservation. Please verify the table status and try again.' : err.message;
+    return res.status(400).json({ success: false, error: { message: friendlyMsg } });
   }
 });
 
 router.put('/reservations/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { customerName, phoneNumber, email, personsCount, tableId } = req.body;
+  const { customerName, phoneNumber, email, personsCount, tableId, bypassCapacity } = req.body;
   const userId = req.user?.id;
   const isAdmin = req.user?.role?.toLowerCase() === 'admin';
   const isManager = req.user?.role?.toLowerCase() === 'manager';
@@ -2575,7 +2537,8 @@ router.put('/reservations/:id', authenticate, async (req: AuthenticatedRequest, 
         if (!targetTable) {
           throw new Error('Selected table was not found.');
         }
-        if (finalPersons > targetTable.capacity) {
+        const shouldBypass = bypassCapacity === true || bypassCapacity === 'true';
+        if (finalPersons > targetTable.capacity && !shouldBypass) {
           throw new Error(`Group size of ${finalPersons} exceeds table capacity of ${targetTable.capacity}.`);
         }
 
@@ -2679,13 +2642,38 @@ router.post('/reservations/:id/assign', authenticate, async (req: AuthenticatedR
   const { id } = req.params;
 
   try {
-    await prisma.reservation.update({
-      where: { id },
-      data: { status: 'ASSIGNED' }
+    const updated = await prisma.$transaction(async (tx) => {
+      const reservations = await tx.$queryRaw<any[]>`
+        SELECT id, status
+        FROM reservations
+        WHERE id = ${id}
+        LIMIT 1
+        FOR UPDATE
+      `;
+
+      if (!reservations || reservations.length === 0) {
+        throw new Error('Reservation not found.');
+      }
+      const reservation = reservations[0];
+
+      if (reservation.status !== 'PENDING') {
+        throw new Error(`Reservation is no longer active (current status: ${reservation.status}).`);
+      }
+
+      const updatedRes = await tx.reservation.update({
+        where: { id },
+        data: { status: 'ASSIGNED' }
+      });
+
+      return updatedRes;
     });
-    return res.json({ success: true, message: 'Reservation assigned successfully.' });
+
+    await redisService.del('tables:all').catch(() => {});
+    return res.json({ success: true, message: 'Reservation assigned successfully.', reservation: updated });
   } catch (err: any) {
-    return res.status(400).json({ success: false, error: { message: err.message } });
+    const isTechnical = err.message.includes('Prisma') || err.message.includes('queryRaw') || err.message.includes('SQL') || err.message.includes('column') || err.message.includes('relation');
+    const friendlyMsg = isTechnical ? 'Failed to assign the reservation. Please try again.' : err.message;
+    return res.status(400).json({ success: false, error: { message: friendlyMsg } });
   }
 });
 
@@ -2997,13 +2985,12 @@ router.get('/admin/sessions', authenticate, authorize(['admin', 'manager']), asy
     const auditLogs = await prisma.syncLog.findMany({
       where: {
         operationType: {
-          in: ['TOKEN_TRANSFER', 'TOKEN_EXTENSION', 'TOKEN_CLOSE']
+          in: ['TOKEN_EXTENSION', 'TOKEN_CLOSE']
         }
       }
     });
 
     // Build maps indexed by tokenId for easy O(1) lookup to avoid N+1 queries
-    const transfersByTokenId: Record<string, any[]> = {};
     const extensionsByTokenId: Record<string, any[]> = {};
     const closuresByTokenId: Record<string, any> = {};
 
@@ -3012,12 +2999,7 @@ router.get('/admin/sessions', authenticate, authorize(['admin', 'manager']), asy
         const payload = typeof log.payload === 'string' ? JSON.parse(log.payload) : (log.payload as any);
         if (!payload || !payload.tokenId) continue;
 
-        if (log.operationType === 'TOKEN_TRANSFER') {
-          if (!transfersByTokenId[payload.tokenId]) {
-            transfersByTokenId[payload.tokenId] = [];
-          }
-          transfersByTokenId[payload.tokenId].push(payload);
-        } else if (log.operationType === 'TOKEN_EXTENSION') {
+        if (log.operationType === 'TOKEN_EXTENSION') {
           if (!extensionsByTokenId[payload.tokenId]) {
             extensionsByTokenId[payload.tokenId] = [];
           }
@@ -3031,7 +3013,6 @@ router.get('/admin/sessions', authenticate, authorize(['admin', 'manager']), asy
     }
     
     const mapped = sessions.map((t: any) => {
-      const tokenTransfers = transfersByTokenId[t.id] || [];
       const tokenExtensions = extensionsByTokenId[t.id] || [];
       const tokenClosure = closuresByTokenId[t.id] || null;
 
@@ -3072,7 +3053,6 @@ router.get('/admin/sessions', authenticate, authorize(['admin', 'manager']), asy
         customerId: t.customerId,
         customerVisits: t.customer.totalVisits,
         lastVisit: t.customer.lastVisit ? t.customer.lastVisit.toISOString() : null,
-        transfers: tokenTransfers,
         extensions: tokenExtensions.length > 0 ? tokenExtensions : t.extensions.map((ext: any) => ({
           id: ext.id,
           extraMinutes: ext.extraMinutes,

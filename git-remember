@@ -1,48 +1,94 @@
-# CRITICAL GIT DEPLOYMENT & REPOSITORY SYNC RULES
+# CRITICAL GIT DEPLOYMENT & REPOSITORY SYNC RULES — ANTIGRAVITY EXECUTION MODE
 
 ===============================================================================
-WARNING — READ THIS FILE BEFORE ANY GIT ACTION
+IMPORTANT — READ GITREMEMBER FILE BEFORE ANY GIT ACTION
 ===============================================================================
 
 This file is the AUTHORITATIVE Git deployment and repository synchronization
-rule for the project.
+instruction for this project.
 
-Before running ANY of the following commands:
+Whenever the user says:
 
-- git add
-- git commit
-- git push
-- git pull
-- git checkout
-- git branch
-- git merge
-- git subtree
-- any repository synchronization command
+    "Read GitRemember file"
+    "Read git remember"
+    "Follow GitRemember"
+    "Use GitRemember rules"
 
-YOU MUST READ AND FOLLOW THIS FILE.
+Antigravity MUST first read this entire file and follow the repository mapping
+defined here.
 
-NEVER make Git decisions based on assumptions.
+DO NOT make Git decisions based on assumptions.
 
 ===============================================================================
-1. PROJECT STRUCTURE
+1. EXECUTION ENVIRONMENT
 ===============================================================================
 
-The project is maintained as a monorepo containing multiple project areas:
+ALL FOUR repository synchronization operations must be prepared from the
+MONOREPO ROOT DIRECTORY.
 
-- backend/
-- frontend/
-- web-frontend/
-- other project-level files
+The user will open Git Bash from the project ROOT directory.
 
-Each dedicated developer repository has a STRICT scope.
+Example:
 
-The central personal repository contains the COMPLETE project.
+PROJECT ROOT/
+├── backend/
+├── frontend/
+├── web-frontend/
+├── other project files
+└── GitRemember file
+
+Therefore, all generated Git commands must be executable from the ROOT
+directory.
+
+DO NOT require the user to manually open four different Git Bash windows.
+
+DO NOT require the user to manually navigate into separate repositories.
+
+Generate the complete command sets from the project ROOT.
 
 ===============================================================================
-2. REPOSITORY MAPPING — MOST IMPORTANT RULE
+2. VERY IMPORTANT — DO NOT PERFORM GIT INSPECTION
+===============================================================================
+
+When the user explicitly asks:
+
+    "Read GitRemember file"
+
+Antigravity MUST NOT perform Git inspection commands before generating the
+commands.
+
+DO NOT run:
+
+    git status
+    git ls-files
+    git branch
+    git remote -v
+    git remote
+    git log
+    git diff
+    git diff --cached
+    git rev-parse
+    git branch -a
+    git checkout
+    git fetch
+    git pull
+
+DO NOT ask the user to run these commands.
+
+DO NOT inspect Git state merely for confirmation.
+
+The GitRemember file already defines the required repository mapping,
+repository URLs, source folders, and target branches.
+
+Use those rules directly.
+
+===============================================================================
+3. FOUR REQUIRED REPOSITORY TARGETS
 ===============================================================================
 
 There are FOUR repositories.
+
+Every valid project update must be synchronized according to the mapping below.
 
 -------------------------------------------------------------------------------
 A. PERSONAL / CENTRAL REPOSITORY
@@ -52,636 +98,555 @@ Repository:
 
 https://github.com/divyanscloudshiftsolutions/NFC-QR-code
 
-Purpose:
+SOURCE:
 
-This is the CENTRAL repository containing the COMPLETE project.
+Complete monorepo root.
 
-PUSH:
+TARGET:
 
-ALL project updates must be pushed here.
-
-This includes:
-
-- backend/
-- frontend/
-- web-frontend/
-- project configuration
-- project-level files
-- required documentation
-- UI/UX implementation files
-- any other legitimate project updates
-
-RULE:
-
-The central repository receives the COMPLETE monorepo structure.
-
-Do NOT split the project when pushing to this repository.
+Complete project.
 
 BRANCH:
 
-main ONLY.
+main
 
-IMPORTANT:
+RULE:
 
-- Do NOT create new branches.
-- Do NOT push project changes to a feature branch.
-- Do NOT maintain unnecessary branches.
-- All updates go directly to main.
+ALL legitimate project changes must be pushed to this repository.
+
+This includes:
+
+    backend/
+    frontend/
+    web-frontend/
+    project-level files
+    configuration
+    documentation
+    UI/UX implementation
+    other legitimate project updates
+
+The central repository must contain the COMPLETE project.
 
 -------------------------------------------------------------------------------
-B. WEB FRONTEND DEVELOPER REPOSITORY
+B. WEB FRONTEND REPOSITORY
 -------------------------------------------------------------------------------
 
 Repository:
 
 https://github.com/cloudshiftsolutions-dev/Web-Frontend---NFC-QR-code-Management
 
-Purpose:
-
-This repository is ONLY for the Web Frontend project.
-
 SOURCE:
 
 web-frontend/
 
-PUSH:
+TARGET:
 
-ONLY the CONTENTS OF:
+The CONTENTS of web-frontend/ must appear directly at the ROOT of the
+dedicated repository.
 
-web-frontend/
+Required structure:
 
-must be pushed to this repository.
-
-The files must appear DIRECTLY at the ROOT of the dedicated repository.
-
-CORRECT:
-
-Web-Frontend---NFC-QR-code-Management/
-├── src/
-├── public/
-├── package.json
-├── vite.config.*
-├── index.html
-└── other web-frontend files
-
-INCORRECT:
-
-Web-Frontend---NFC-QR-code-Management/
-└── web-frontend/
+    Web-Frontend---NFC-QR-code-Management/
     ├── src/
+    ├── public/
     ├── package.json
-    └── ...
+    ├── index.html
+    ├── vite.config.*
+    └── other Web Frontend files
 
-NEVER PUSH:
+NOT:
 
-- backend/
-- frontend/
-- React Native files
-- database files
-- unrelated monorepo files
-- outer project root
-- unrelated documentation
+    Web-Frontend---NFC-QR-code-Management/
+    └── web-frontend/
+        └── src/
 
 BRANCH:
 
-Use the dedicated web frontend branch:
-
 webfrontend-branch
 
-If the remote repository currently exposes a `dev` branch, DO NOT
-automatically assume that it replaces the required deployment branch.
-Inspect the repository and existing Git configuration first.
+NEVER synchronize:
 
-The dedicated Web Frontend repository must contain ONLY Web Frontend files.
+    backend/
+    frontend/
+    unrelated project files
+    monorepo wrapper folders
 
 -------------------------------------------------------------------------------
-C. BACKEND DEVELOPER REPOSITORY
+C. BACKEND REPOSITORY
 -------------------------------------------------------------------------------
 
 Repository:
 
 https://github.com/cloudshiftsolutions-dev/Backend---NFC-QR-code-Management
 
-Purpose:
-
-This repository is ONLY for the Backend project.
-
 SOURCE:
 
 backend/
 
-PUSH:
+TARGET:
 
-ONLY the CONTENTS OF:
-
-backend/
-
-must be pushed to this repository.
-
-The backend files must appear DIRECTLY at the ROOT of the dedicated
+The CONTENTS of backend/ must appear directly at the ROOT of the dedicated
 repository.
 
-CORRECT:
+Required structure:
 
-Backend---NFC-QR-code-Management/
-├── src/
-├── prisma/
-├── package.json
-├── tsconfig.json
-└── other backend files
-
-INCORRECT:
-
-Backend---NFC-QR-code-Management/
-└── backend/
+    Backend---NFC-QR-code-Management/
     ├── src/
+    ├── prisma/
     ├── package.json
-    └── ...
+    ├── tsconfig.json
+    └── other Backend files
 
-NEVER PUSH:
+NOT:
 
-- frontend/
-- web-frontend/
-- React Native files
-- database project folders outside the backend scope
-- unrelated monorepo files
+    Backend---NFC-QR-code-Management/
+    └── backend/
+        └── src/
 
-ONLY push the backend project contents.
+BRANCH:
+
+main
+
+NEVER synchronize:
+
+    frontend/
+    web-frontend/
+    unrelated project files
 
 -------------------------------------------------------------------------------
-D. REACT NATIVE FRONTEND DEVELOPER REPOSITORY
+D. REACT NATIVE FRONTEND REPOSITORY
 -------------------------------------------------------------------------------
 
 Repository:
 
 https://github.com/cloudshiftsolutions-dev/Frontend---NFC-QR-code-Management
 
-Purpose:
-
-This repository is ONLY for the React Native mobile application.
-
 SOURCE:
 
 frontend/
 
-PUSH:
+TARGET:
 
-ONLY the CONTENTS OF:
+The CONTENTS of frontend/ must appear directly at the ROOT of the dedicated
+repository.
 
-frontend/
+Required structure:
 
-must be pushed to this repository.
-
-The React Native project files must appear DIRECTLY at the ROOT of the
-dedicated repository.
-
-CORRECT:
-
-Frontend---NFC-QR-code-Management/
-├── src/
-├── assets/
-├── App.tsx
-├── package.json
-├── app.json
-├── eas.json
-└── other React Native files
-
-INCORRECT:
-
-Frontend---NFC-QR-code-Management/
-└── frontend/
+    Frontend---NFC-QR-code-Management/
     ├── src/
+    ├── assets/
     ├── App.tsx
-    └── package.json
+    ├── package.json
+    ├── app.json
+    ├── eas.json
+    └── other React Native files
 
-NEVER PUSH:
+NOT:
 
-- backend/
-- web-frontend/
-- web React files
-- unrelated monorepo files
+    Frontend---NFC-QR-code-Management/
+    └── frontend/
+        └── src/
 
-ONLY push the React Native project contents.
+BRANCH:
+
+Use the existing React Native deployment branch defined by the GitRemember
+rules.
+
+DO NOT invent a branch name.
+
+NEVER synchronize:
+
+    backend/
+    web-frontend/
+    unrelated project files
 
 ===============================================================================
-3. SIMPLE CHANGE → REPOSITORY RULE
+4. CHANGE → REPOSITORY MAPPING
 ===============================================================================
 
 Use this exact mapping.
 
-┌──────────────────────────────┬──────────────────────────────────────────────┐
-│ Changed Project              │ Dedicated Repository                       │
-├──────────────────────────────┼──────────────────────────────────────────────┤
-│ backend/**                   │ Backend---NFC-QR-code-Management            │
-│ frontend/**                  │ Frontend---NFC-QR-code-Management           │
-│ web-frontend/**              │ Web-Frontend---NFC-QR-code-Management       │
-│ Any project update           │ Personal NFC-QR-code central repository     │
-└──────────────────────────────┴──────────────────────────────────────────────┘
-
-IMPORTANT:
-
-Every legitimate project change must go to the CENTRAL PERSONAL REPOSITORY.
-
-Additionally:
-
-- Backend changes → Backend dedicated repository
-- React Native changes → Frontend dedicated repository
-- Web Frontend changes → Web Frontend dedicated repository
-
-===============================================================================
-4. MULTI-PROJECT CHANGE RULE
-===============================================================================
-
-If a single task modifies multiple project areas, push each scope separately.
-
-Example:
-
-If a task changes:
-
-backend/src/routes.ts
-web-frontend/src/pages/BartenderPage.tsx
-
-Then:
-
-CENTRAL REPOSITORY:
-    Push both changes.
-
-BACKEND REPOSITORY:
-    Push ONLY backend changes.
-
-WEB FRONTEND REPOSITORY:
-    Push ONLY web-frontend changes.
-
-DO NOT mix them inside dedicated repositories.
-
-===============================================================================
-5. BARTENDER PAGE EXAMPLE
-===============================================================================
-
-For the Bartender Page workflow implementation:
-
-If the changes are:
-
-backend/src/services/RedemptionService.ts
-backend/src/routes.ts
-
-web-frontend/src/pages/BartenderPage.tsx
-web-frontend/src/services/api.ts
-web-frontend/src/pages/TablesPage.tsx
-
-Then:
-
-CENTRAL PERSONAL REPOSITORY:
-    Push ALL of the above changes.
-
-BACKEND REPOSITORY:
-    Push ONLY:
-        backend/src/services/RedemptionService.ts
-        backend/src/routes.ts
-
-WEB FRONTEND REPOSITORY:
-    Push ONLY:
-        web-frontend/src/pages/BartenderPage.tsx
-        web-frontend/src/services/api.ts
-        web-frontend/src/pages/TablesPage.tsx
-
-REACT NATIVE FRONTEND REPOSITORY:
-    Push NOTHING unless frontend/ was actually modified.
-
-===============================================================================
-6. DO NOT PUSH UNRELATED PROJECTS
-===============================================================================
-
-NEVER do this:
-
-git add .
-
-inside a dedicated repository context if it can stage files from unrelated
-project scopes.
-
-Before committing to a dedicated repository, verify the staged files.
-
-For Web Frontend repository:
-
-EVERY staged file must belong to web-frontend scope.
-
-For Backend repository:
-
-EVERY staged file must belong to backend scope.
-
-For React Native repository:
-
-EVERY staged file must belong to frontend scope.
-
-If an unrelated path appears:
-
-STOP.
-
-Unstage it.
-
-Correct the repository scope.
-
-Only then continue.
-
-===============================================================================
-7. ROOT-LEVEL REQUIREMENT FOR DEDICATED REPOSITORIES
-===============================================================================
-
-Dedicated repositories must NOT contain the monorepo parent folder.
-
-The following structure is REQUIRED:
-
-Dedicated Repo
-├── src/
-├── package.json
-├── config files
-└── other project files
-
-NOT:
-
-Dedicated Repo
-└── web-frontend/
-    └── src/
-
-NOT:
-
-Dedicated Repo
-└── backend/
-    └── src/
-
-NOT:
-
-Dedicated Repo
-└── frontend/
-    └── src/
-
-The dedicated repository represents the project itself.
-
-Therefore its project files must exist directly at repository root.
-
-===============================================================================
-8. GIT PRE-FLIGHT CHECK — MANDATORY
-===============================================================================
-
-BEFORE EVERY COMMIT OR PUSH:
-
-STEP 1:
-Check the current repository.
-
-Verify:
-
-- current directory
-- git root
-- current branch
-- configured remotes
-
-STEP 2:
-Run:
-
-git status
-
-STEP 3:
-Inspect tracked files:
-
-git ls-files
-
-STEP 4:
-Inspect the exact staged files:
-
-git diff --cached --name-only
-
-STEP 5:
-Verify the remote URL.
-
-The remote MUST correspond to the intended repository.
-
-STEP 6:
-Verify branch.
-
-CENTRAL:
-    main
-
-WEB FRONTEND:
-    webfrontend-branch
-
-BACKEND:
-    appropriate existing deployment branch after verification
-
-REACT NATIVE FRONTEND:
-    appropriate existing deployment branch after verification
-
-DO NOT create branches unless explicitly permitted by these rules.
-
-===============================================================================
-9. WEB FRONTEND — EXTRA STRICT RULE
-===============================================================================
-
-The Web Frontend repository is exclusively for:
-
-web-frontend/
-
-NEVER treat the monorepo root as the Web Frontend repository scope.
-
-Before every Web Frontend commit/push:
-
-1. Verify only Web Frontend files are being synchronized.
-2. Verify backend files are absent.
-3. Verify React Native files are absent.
-4. Verify database/unrelated files are absent.
-5. Verify the dedicated branch:
-   webfrontend-branch
-6. Verify the resulting repository has Web Frontend files at ROOT level.
-
-If ANY unrelated file is staged:
-
-STOP THE OPERATION.
-
-Do not bypass this rule.
-
-===============================================================================
-10. BACKEND — STRICT RULE
-===============================================================================
-
-The Backend repository is exclusively for:
-
-backend/
-
-Only backend project contents may be synchronized.
-
-If there are no backend changes:
-
-DO NOT push to the Backend repository.
-
-===============================================================================
-11. REACT NATIVE FRONTEND — STRICT RULE
-===============================================================================
-
-The React Native Frontend repository is exclusively for:
-
-frontend/
-
-Only React Native/mobile project contents may be synchronized.
-
-If there are no frontend/ React Native changes:
-
-DO NOT push to the Frontend repository.
-
-EAS/EIS commands must ONLY be executed from the React Native project directory
-where eas.json exists.
-
-===============================================================================
-12. CENTRAL REPOSITORY RULE
-===============================================================================
-
-The central repository is different from the dedicated repositories.
-
-Central repository:
-
-https://github.com/divyanscloudshiftsolutions/NFC-QR-code
-
-It contains the COMPLETE project.
+    backend/**
+        → Central Repository
+        → Backend Repository
+
+    frontend/**
+        → Central Repository
+        → React Native Frontend Repository
+
+    web-frontend/**
+        → Central Repository
+        → Web Frontend Repository
+
+    project-root files
+        → Central Repository ONLY
 
 Therefore:
 
-backend changes
-    → central repository
+CENTRAL REPOSITORY
+    = COMPLETE PROJECT
 
-frontend changes
-    → central repository
+BACKEND REPOSITORY
+    = backend/ CONTENTS ONLY
 
-web-frontend changes
-    → central repository
+REACT NATIVE REPOSITORY
+    = frontend/ CONTENTS ONLY
 
-UI/UX changes
-    → central repository
-
-project-level changes
-    → central repository
-
-documentation required by the project
-    → central repository
-
-The central repository must remain the complete project source.
+WEB FRONTEND REPOSITORY
+    = web-frontend/ CONTENTS ONLY
 
 ===============================================================================
-13. NEVER MIX DEDICATED REPOSITORIES
+5. IMPORTANT — GENERATE FOUR SEPARATE COMMAND BLOCKS
 ===============================================================================
 
-NEVER:
+Whenever the user asks to synchronize/push the project, generate FOUR
+separate copyable command blocks.
 
-- Push backend into Web Frontend repo.
-- Push backend into React Native repo.
-- Push Web Frontend into Backend repo.
-- Push React Native into Web Frontend repo.
-- Push the entire monorepo into a dedicated repository.
-- Create nested backend/frontend/web-frontend wrappers inside dedicated repos.
+The order MUST be:
+
+    1. Personal / Central Repository
+    2. Web Frontend Repository
+    3. Backend Repository
+    4. React Native Frontend Repository
+
+Each repository MUST have its own separate copy-code block.
+
+DO NOT combine all repositories into one command block.
+
+DO NOT make the user manually construct commands.
 
 ===============================================================================
-14. NO ASSUMPTIONS
+6. EACH COMMAND BLOCK MUST CONTAIN
 ===============================================================================
 
-Before any Git operation, inspect the actual repository state.
+Every repository command block must clearly contain:
 
-Do NOT assume:
+    Repository name
+    Repository URL
+    Source directory
+    Target branch
+    Exact synchronization commands
+    Git add/staging command
+    Git commit command
+    Git push command
 
-- current branch
-- remote URL
-- repository root
-- subtree branch state
-- existing tracked files
-- existing branch names
+The commit message must be meaningful and specific to the actual changes.
 
-Verify them first.
+Example:
 
-If the actual repository state conflicts with this document:
+    git commit -m "fix: resolve QR auto-scanning in check-in flow"
 
-STOP and report the conflict before performing a destructive or irreversible
-Git operation.
+DO NOT use meaningless messages such as:
+
+    update
+    changes
+    fixed
+    latest
+    test
+
+===============================================================================
+7. PERSONAL / CENTRAL REPOSITORY COMMANDS
+===============================================================================
+
+The central repository is the normal monorepo Git repository.
+
+Its command block must synchronize the COMPLETE project.
+
+The command block should follow this structure:
+
+    # Personal / Central Repository
+    # Repository:
+    # https://github.com/divyanscloudshiftsolutions/NFC-QR-code
+    # Branch: main
+
+    git add <required project changes>
+    git commit -m "<appropriate commit message>"
+    git push origin main
+
+If the task contains multiple legitimate project changes, include all relevant
+project changes required for the central repository.
+
+The central repository MUST receive all project updates.
+
+===============================================================================
+8. WEB FRONTEND REPOSITORY COMMANDS
+===============================================================================
+
+The Web Frontend repository receives ONLY:
+
+    web-frontend/
+
+The resulting dedicated repository must expose the contents directly at ROOT.
+
+The synchronization method must preserve this root-level structure.
+
+Preferred approach:
+
+    git subtree
+
+or another equivalent Git mechanism that correctly publishes:
+
+    web-frontend/
+
+as:
+
+    repository-root/
+
+DO NOT publish:
+
+    web-frontend/
+
+as a nested folder.
+
+The command block must clearly identify:
+
+    Repository:
+    https://github.com/cloudshiftsolutions-dev/Web-Frontend---NFC-QR-code-Management
+
+    Source:
+    web-frontend/
+
+    Branch:
+    webfrontend-branch
+
+The command block must contain the required synchronization, commit, and push
+commands.
+
+===============================================================================
+9. BACKEND REPOSITORY COMMANDS
+===============================================================================
+
+The Backend repository receives ONLY:
+
+    backend/
+
+The resulting dedicated repository must expose backend contents directly at
+repository ROOT.
+
+Use subtree or an equivalent synchronization mechanism when operating from
+the monorepo root.
+
+Do NOT create:
+
+    backend/backend/
+
+Do NOT publish unrelated project folders.
+
+The command block must clearly show:
+
+    Repository:
+    https://github.com/cloudshiftsolutions-dev/Backend---NFC-QR-code-Management
+
+    Source:
+    backend/
+
+    Branch:
+    <existing backend deployment branch defined by GitRemember>
+
+Then provide the synchronization, commit, and push commands.
+
+===============================================================================
+10. REACT NATIVE FRONTEND REPOSITORY COMMANDS
+===============================================================================
+
+The React Native repository receives ONLY:
+
+    frontend/
+
+The resulting dedicated repository must expose frontend contents directly at
+repository ROOT.
+
+Use subtree or an equivalent synchronization mechanism.
+
+Do NOT create:
+
+    frontend/frontend/
+
+Do NOT publish:
+
+    backend/
+    web-frontend/
+    unrelated files
+
+The command block must clearly show:
+
+    Repository:
+    https://github.com/cloudshiftsolutions-dev/Frontend---NFC-QR-code-Management
+
+    Source:
+    frontend/
+
+    Branch:
+    <existing React Native deployment branch defined by GitRemember>
+
+Then provide the synchronization, commit, and push commands.
+
+===============================================================================
+11. ONLY PUSH RELEVANT DEDICATED REPOSITORIES
+===============================================================================
+
+If today's changes affect only:
+
+    web-frontend/
+
+Then:
+
+CENTRAL REPOSITORY
+    → PUSH
+
+WEB FRONTEND REPOSITORY
+    → PUSH
+
+BACKEND REPOSITORY
+    → DO NOT PUSH
+
+REACT NATIVE REPOSITORY
+    → DO NOT PUSH
+
+If today's changes affect:
+
+    backend/
+    web-frontend/
+
+Then:
+
+CENTRAL REPOSITORY
+    → PUSH BOTH
+
+WEB FRONTEND REPOSITORY
+    → PUSH web-frontend ONLY
+
+BACKEND REPOSITORY
+    → PUSH backend ONLY
+
+REACT NATIVE REPOSITORY
+    → DO NOT PUSH
+
+Never push an unchanged dedicated project merely because the repository
+exists.
+
+===============================================================================
+12. NEVER MIX PROJECT SCOPES
+===============================================================================
+
+WEB FRONTEND REPOSITORY:
+
+    ONLY web-frontend/
+
+BACKEND REPOSITORY:
+
+    ONLY backend/
+
+REACT NATIVE REPOSITORY:
+
+    ONLY frontend/
+
+CENTRAL REPOSITORY:
+
+    COMPLETE PROJECT
+
+NEVER push:
+
+    backend → Web Frontend repository
+    frontend → Web Frontend repository
+    web-frontend → Backend repository
+    backend → React Native repository
+    entire monorepo → dedicated repository
+
+===============================================================================
+13. COMMIT MESSAGE RULE
+===============================================================================
+
+Every repository must receive a proper commit message.
+
+The commit message should describe the actual implementation.
+
+Examples:
+
+    fix: resolve check-in QR email delivery flow
+
+    fix: enable full-frame webcam QR auto-scanning
+
+    fix: prevent duplicate QR email dispatch
+
+    fix: improve responsive tables layout
+
+    feat: update check-in QR verification workflow
+
+Use the same logical change description across repositories when the same
+feature is synchronized to multiple repositories.
+
+===============================================================================
+14. NO UNNECESSARY TEST EMAILS
+===============================================================================
+
+When synchronizing code related to email, QR, check-in, or notifications:
+
+DO NOT send test emails merely to verify Git synchronization.
+
+DO NOT create unnecessary test customers.
+
+DO NOT generate unnecessary QR emails.
+
+Git synchronization and application testing are separate operations.
 
 ===============================================================================
 15. EAS / EIS RULE
 ===============================================================================
 
-EAS/EIS commands must ONLY be executed inside:
+EAS/EIS commands may ONLY be executed from:
 
-frontend/
+    frontend/
 
-or the exact React Native project directory containing:
+or the exact React Native directory containing:
 
-eas.json
+    eas.json
 
 Never run EAS/EIS commands from:
 
-- monorepo root
-- backend/
-- web-frontend/
+    project root
+    backend/
+    web-frontend/
 
 ===============================================================================
-16. RECENT PROJECT REPOSITORY RULE
+16. OUTPUT FORMAT — MANDATORY
 ===============================================================================
 
-The project previously established the following repository-cleanup principles:
+When the user asks:
 
-- Dedicated repositories must remain lightweight.
-- Non-runtime project logs/notepads should not be accidentally pushed.
-- Unrelated folders must remain excluded from dedicated repositories.
-- `.gitignore` rules should prevent accidental tracking where applicable.
+    "Read GitRemember file"
 
-Do not reintroduce removed unrelated files into dedicated repositories.
+and requests Git synchronization commands, respond with a concise execution
+plan followed by separate copy-code blocks.
 
-===============================================================================
-17. FINAL DECISION MATRIX
-===============================================================================
+Use this structure:
 
-When deciding where to push a change, use this exact decision process:
+    ## Git Synchronization Plan
 
-IF file is under:
+    Changed scopes:
+    - backend/
+    - web-frontend/
+    - etc.
 
-backend/
-    → Central repository
-    → Backend dedicated repository
+    The following repositories require synchronization:
+    - Personal / Central
+    - Web Frontend
+    - Backend
+    - React Native
 
-frontend/
-    → Central repository
-    → React Native Frontend dedicated repository
+Then provide separate blocks.
 
-web-frontend/
-    → Central repository
-    → Web Frontend dedicated repository
+-------------------------------------------------------------------------------
+COPY BLOCK 1 — PERSONAL / CENTRAL
+-------------------------------------------------------------------------------
 
-IF file belongs to project root or another legitimate project scope:
+```bash
+# Personal / Central Repository
+# Repository: https://github.com/divyanscloudshiftsolutions/NFC-QR-code
+# Source: Complete monorepo
+# Branch: main
 
-    → Central repository ONLY
+<commands>
 
-IF a dedicated repository has no changes in its project scope:
-
-    → DO NOT PUSH to that dedicated repository.
-
-===============================================================================
-18. FINAL SAFETY RULE
-===============================================================================
-
-The CENTRAL repository receives ALL project updates.
-
-The DEDICATED repositories receive ONLY their respective project updates.
-
-Therefore:
-
-CENTRAL:
-    COMPLETE PROJECT
-
-BACKEND:
-    backend/ ONLY
-
-REACT NATIVE FRONTEND:
-    frontend/ ONLY
-
-WEB FRONTEND:
-    web-frontend/ ONLY
-
-This rule is mandatory and overrides convenience, automatic Git
-synchronization, bulk staging, and bulk repository operations.
-
-===============================================================================
-END OF CRITICAL GIT DEPLOYMENT & REPOSITORY SYNC RULES
-===============================================================================
+git commit -m "<proper commit message>"
+git push origin main

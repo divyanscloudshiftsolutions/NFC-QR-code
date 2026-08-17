@@ -25,9 +25,55 @@ export const TableManagement: React.FC = () => {
  const [capacity, setCapacity] = useState('4');
  const [placeType, setPlaceType] = useState('STANDING_BAR');
  const [isSubmitting, setIsSubmitting] = useState(false);
+ const [suggestions, setSuggestions] = useState<string[]>([]);
 
  // Inspection Dialog Modal State
  const [inspectingTable, setInspectingTable] = useState<Table | null>(null);
+
+ // Sync placeType default with the selected screen tab when modal opens
+ useEffect(() => {
+   if (isModalOpen) {
+     setPlaceType(selectedPlace);
+   }
+ }, [isModalOpen]);
+
+ // Helper to calculate next logical table number and suggestions based on placeType
+ const getTableSuggestions = (type: string) => {
+   const prefix = type === 'STANDING_BAR' ? 'S-' : 'L-';
+   // Filter existing tables that start with prefix
+   const prefixedTables = tables.filter(t => t.tableNumber.toUpperCase().startsWith(prefix));
+   let maxNum = 0;
+   prefixedTables.forEach(t => {
+     const numStr = t.tableNumber.slice(prefix.length);
+     const parsed = parseInt(numStr, 10);
+     if (!isNaN(parsed) && parsed > maxNum) {
+       maxNum = parsed;
+     }
+   });
+   
+   const nextNum = maxNum + 1;
+   const padLen = 2; // Always format with at least 2 digits (e.g. S-01, S-16)
+   
+   const formatNumber = (num: number) => {
+     return `${prefix}${String(num).padStart(padLen, '0')}`;
+   };
+
+   return [
+     formatNumber(nextNum),
+     formatNumber(nextNum + 1),
+     formatNumber(nextNum + 2),
+     formatNumber(nextNum + 3),
+   ];
+ };
+
+ // Update suggestions and default value on modal open or placeType change
+ useEffect(() => {
+   if (isModalOpen) {
+     const currentSuggestions = getTableSuggestions(placeType);
+     setSuggestions(currentSuggestions);
+     setTableNumber(currentSuggestions[0]);
+   }
+ }, [isModalOpen, placeType, tables]);
 
  const filteredTables = tables
  .filter(tb => {
@@ -43,10 +89,14 @@ export const TableManagement: React.FC = () => {
  });
 
  // Real-time validations
- const isTableNumberValid = /^[SL]-\d{2,3}$/.test(tableNumber.trim().toUpperCase());
+ const isTableNumberValid = /^[SL]-\d{2,4}$/.test(tableNumber.trim().toUpperCase());
  const capVal = parseInt(capacity, 10);
  const isCapacityValid = !isNaN(capVal) && capVal >= 1 && capVal <= 100;
- const isFormValid = isTableNumberValid && isCapacityValid;
+ const normalizedInput = tableNumber.trim().toUpperCase();
+ const isNameDuplicate = tables.some(
+   t => t.tableNumber.trim().toUpperCase() === normalizedInput
+ );
+ const isFormValid = isTableNumberValid && isCapacityValid && !isNameDuplicate;
 
  const handleCreateTable = async (e: React.FormEvent) => {
  e.preventDefault();
@@ -150,7 +200,7 @@ export const TableManagement: React.FC = () => {
   onClick={() => setIsModalOpen(true)}
   className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 rounded-xl primary-btn text-[10px] sm:text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap"
   >
-  <div className="nav-icon-badge">
+  <div className="nav-icon-badge p-0.5">
   <Plus size={14} />
   </div>
   <span className="hidden sm:inline">Add New Table</span>
@@ -310,7 +360,7 @@ export const TableManagement: React.FC = () => {
  }}
  className="w-full py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
  >
- <div className="nav-icon-badge">
+ <div className="nav-icon-badge p-0.5">
  <Plus size={12} />
  </div>
  <span>Open for Seating</span>
@@ -333,7 +383,7 @@ export const TableManagement: React.FC = () => {
  const occupiedCount = inspectingToken ? (inspectingToken.personsCount || 1) : (isOccupied ? capacity : 0);
 
  return (
- <div className="fixed inset-0 z-[100] dark:bg-transparent bg-slate-900/40 flex items-center justify-end p-0 animate-fadeIn pointer-events-none">
+ <div className="fixed inset-0 z-50 dark:bg-transparent bg-slate-900/40 flex items-center justify-end p-0 animate-fadeIn pointer-events-none">
  <div className="w-full md:w-[380px] bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 relative text-text-main animate-none h-[100dvh] pointer-events-auto flex flex-col">
  
  {/* Header */}
@@ -444,7 +494,7 @@ export const TableManagement: React.FC = () => {
 
  {/* ADD TABLE MODAL */}
  {isModalOpen && (
- <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+ <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
  <div className="bg-bg-surface border border-border-main rounded-3xl p-6 w-full max-w-md space-y-4 relative">
  <button 
  onClick={() => setIsModalOpen(false)}
@@ -458,19 +508,44 @@ export const TableManagement: React.FC = () => {
  </div>
 
  <form onSubmit={handleCreateTable} className="space-y-4">
- <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">
- Table Number <span className="text-text-muted">(Must match pattern S-01, L-01)</span>
- </label>
- <input
- type="text"
- value={tableNumber}
- onChange={e => setTableNumber(e.target.value.toUpperCase())}
- placeholder="e.g. S-01"
- className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
- required
- />
- </div>
+  <div>
+    <label className="block text-xs font-semibold text-text-muted mb-1">
+      Table Number <span className="text-text-muted">(Must match pattern S-01, L-01)</span>
+    </label>
+    <input
+      type="text"
+      value={tableNumber}
+      onChange={e => setTableNumber(e.target.value.toUpperCase())}
+      placeholder="e.g. S-01"
+      className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+      required
+    />
+    {/* Suggestions */}
+    {suggestions.length > 0 && (
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        <span className="text-[10px] text-text-muted font-bold self-center mr-1">Suggestions:</span>
+        {suggestions.map(sug => (
+          <button
+            key={sug}
+            type="button"
+            onClick={() => setTableNumber(sug)}
+            className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all border ${
+              normalizedInput === sug
+                ? 'bg-primary text-white border-primary'
+                : 'bg-bg-primary text-text-muted border-border-main hover:text-text-main hover:border-text-muted'
+            }`}
+          >
+            {sug}
+          </button>
+        ))}
+      </div>
+    )}
+    {isNameDuplicate && (
+      <p className="text-red-500 text-[10px] mt-1.5 font-bold">
+        Table name already exists. Please use a different table name.
+      </p>
+    )}
+  </div>
 
  <div>
  <label className="block text-xs font-semibold text-text-muted mb-1">Guest Seat Capacity (1 - 100)</label>

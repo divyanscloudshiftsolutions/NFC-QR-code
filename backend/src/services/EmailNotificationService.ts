@@ -9,6 +9,12 @@ export interface EmailJob {
   tokenNumber: string;
   customerName: string;
   attemptCount: number;
+  type?: 'ENTRY_PASS' | 'EXTENSION';
+  tableNumber?: string;
+  extraMinutes?: number;
+  newEndTime?: string;
+  additionalAmount?: number;
+  paymentMethod?: string;
 }
 
 export class EmailNotificationService {
@@ -33,12 +39,45 @@ export class EmailNotificationService {
       to,
       tokenNumber,
       customerName,
-      attemptCount: 0
+      attemptCount: 0,
+      type: 'ENTRY_PASS'
     };
     this.queue.push(job);
     console.info(`[Email Queue] Enqueued email job for ${to} (token: ${tokenNumber})`);
     
     // Trigger queue processing asynchronously
+    this.processQueue();
+  }
+
+
+
+  /**
+   * Enqueues a session extension notification email
+   */
+  enqueueExtensionEmailJob(
+    to: string,
+    tokenNumber: string,
+    customerName: string,
+    tableNumber: string,
+    extraMinutes: number,
+    newEndTime: Date,
+    additionalAmount: number,
+    paymentMethod: string
+  ): void {
+    const job: EmailJob = {
+      to,
+      tokenNumber,
+      customerName,
+      attemptCount: 0,
+      type: 'EXTENSION',
+      tableNumber,
+      extraMinutes,
+      newEndTime: newEndTime.toISOString(),
+      additionalAmount,
+      paymentMethod
+    };
+    this.queue.push(job);
+    console.info(`[Email Queue] Enqueued extension email job for ${to} (token: ${tokenNumber}, extra: ${extraMinutes} mins)`);
     this.processQueue();
   }
 
@@ -102,42 +141,93 @@ export class EmailNotificationService {
       console.warn(`[Email Worker] Failed to check token details, falling back to defaults: ${e.message}`);
     }
 
-    const subject = 'Your Entry Token QR Code';
-    const rawHtml = `
-      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-        <h2 style="color: #D4AF37; margin-bottom: 20px;">Entry Pass Confirmation</h2>
-        <p style="color: #475569; font-size: 16px; line-height: 1.5;">Dear ${customerName || 'Customer'},</p>
-        <p style="color: #475569; font-size: 14px; line-height: 1.5;">Your digital check-in has been successfully completed. Please present the QR code below when requested by staff:</p>
-        
-        <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}" alt="QR Code" style="border: 4px solid #D4AF37; border-radius: 8px; max-width: 250px; height: auto;" />
-          <p style="color: #64748b; font-size: 12px; margin-top: 10px; margin-bottom: 0;">Scan to verify entry</p>
-        </div>
+    let subject = 'Your Entry Token QR Code';
+    let rawHtml = '';
 
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Token Number:</td>
-            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-family: monospace; font-weight: bold;">${tokenNumber}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Seating Area:</td>
-            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">${placeTypeName}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Group Size:</td>
-            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">${personsCount} Person(s)</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Assigned Table:</td>
-            <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-weight: bold;">${tableNumber}</td>
-          </tr>
-        </table>
+    if (job.type === 'EXTENSION') {
+      subject = 'Session Extension — Bar Management System';
+      const formattedEndTime = job.newEndTime ? new Date(job.newEndTime).toLocaleString() : 'N/A';
+      rawHtml = `
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          <h2 style="color: #D4AF37; margin-bottom: 20px;">Session Extension Confirmed</h2>
+          <p style="color: #475569; font-size: 16px; line-height: 1.5;">Dear ${customerName || 'Customer'},</p>
+          <p style="color: #475569; font-size: 14px; line-height: 1.5;">Your active bar session has been successfully extended. Please see the updated session details below:</p>
+          
+          <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
+            <p style="color: #D4AF37; font-size: 18px; font-weight: bold; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 1px;">Session Extended</p>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}" alt="QR Code" style="border: 4px solid #D4AF37; border-radius: 8px; max-width: 250px; height: auto;" />
+            <p style="color: #64748b; font-size: 12px; margin-top: 10px; margin-bottom: 0;">Scan to verify extended entry</p>
+          </div>
 
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px;">
-          <p>Thank you for visiting.</p>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Token Number:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-family: monospace; font-weight: bold;">${tokenNumber}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Assigned Table:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-weight: bold;">${job.tableNumber || tableNumber}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Extension Duration:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">+${job.extraMinutes} Minutes</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">New End Time:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-weight: bold;">${formattedEndTime}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Additional Amount:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">₹${job.additionalAmount}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Payment Method:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">${job.paymentMethod}</td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px;">
+            <p>Thank you for visiting.</p>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      rawHtml = `
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          <h2 style="color: #D4AF37; margin-bottom: 20px;">Entry Pass Confirmation</h2>
+          <p style="color: #475569; font-size: 16px; line-height: 1.5;">Dear ${customerName || 'Customer'},</p>
+          <p style="color: #475569; font-size: 14px; line-height: 1.5;">Your digital check-in has been successfully completed. Please present the QR code below when requested by staff:</p>
+          
+          <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #f8fafc; border-radius: 8px;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}" alt="QR Code" style="border: 4px solid #D4AF37; border-radius: 8px; max-width: 250px; height: auto;" />
+            <p style="color: #64748b; font-size: 12px; margin-top: 10px; margin-bottom: 0;">Scan to verify entry</p>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Token Number:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-family: monospace; font-weight: bold;">${tokenNumber}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Seating Area:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">${placeTypeName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Group Size:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right;">${personsCount} Person(s)</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px 0; color: #64748b; font-size: 14px; font-weight: bold;">Assigned Table:</td>
+              <td style="padding: 10px 0; color: #111827; font-size: 14px; text-align: right; font-weight: bold;">${tableNumber}</td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px;">
+            <p>Thank you for visiting.</p>
+          </div>
+        </div>
+      `;
+    }
 
     // 2. HTML Sanitization
     const sanitizedHtml = this.sanitizeHtml(rawHtml);

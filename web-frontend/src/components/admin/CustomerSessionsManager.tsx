@@ -30,7 +30,7 @@ export const CustomerSessionsManager: React.FC = () => {
 
   // Extend Session Modal State
   const [extendingToken, setExtendingToken] = useState<any | null>(null);
-  const [extraMinutes, setExtraMinutes] = useState(60);
+  const [extraMinutes, setExtraMinutes] = useState(20);
   const [additionalAmount, setAdditionalAmount] = useState(500);
   const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
 
@@ -275,10 +275,9 @@ export const CustomerSessionsManager: React.FC = () => {
                   onChange={e => setExtraMinutes(Number(e.target.value))}
                   className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary"
                 >
+                  <option value={20}>20 Minutes</option>
+                  <option value={25}>25 Minutes</option>
                   <option value={30}>30 Minutes</option>
-                  <option value={60}>60 Minutes (1 Hour)</option>
-                  <option value={120}>120 Minutes (2 Hours)</option>
-                  <option value={180}>180 Minutes (3 Hours)</option>
                 </select>
               </div>
 
@@ -441,28 +440,7 @@ export const CustomerSessionsManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Transfer History */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted">Table Transfer Logs</h4>
-                {!viewingHistoryToken.transfers || viewingHistoryToken.transfers.length === 0 ? (
-                  <div className="text-xs text-text-muted italic bg-bg-primary/30 p-3 rounded-xl border border-border-main/50 text-center">No transfers recorded for this session.</div>
-                ) : (
-                  <div className="space-y-2">
-                    {viewingHistoryToken.transfers.map((tx: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-bg-primary rounded-xl border border-border-main text-xs flex flex-col sm:flex-row justify-between gap-2">
-                        <div>
-                          <div className="font-semibold text-text-main">Transferred Table: <span className="font-bold">{tx.sourceTableNumber}</span> &rarr; <span className="font-bold text-primary">{tx.destTableNumber}</span></div>
-                          <div className="text-[11px] text-text-muted mt-0.5 font-semibold">Old Token: <span className="font-mono text-text-main">{tx.oldTokenNumber}</span> | New Token: <span className="font-mono text-text-main">{tx.newTokenNumber}</span></div>
-                        </div>
-                        <div className="text-right text-[11px] text-text-muted shrink-0 self-end sm:self-center">
-                          <div>Time: <span className="text-text-main font-semibold">{new Date(tx.transferredAt).toLocaleString()}</span></div>
-                          <div>Operator: <span className="text-text-main font-semibold">{tx.transferredBy}</span></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+
 
               {/* Extension History */}
               <div className="space-y-2">

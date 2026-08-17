@@ -28,12 +28,12 @@ interface DashboardPageProps {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  const { showToast } = useAuth();
- const { tokens, tables, isLoading, refreshTokens, refreshTables } = useData();
+ const { tokens, tables, isLoading, refreshTokens, refreshTables, sessionAlerts, dismissAlert } = useData();
 
 
  // Extend Modal State
  const [extendingToken, setExtendingToken] = useState<Token | null>(null);
- const [extraMinutes, setExtraMinutes] = useState(60);
+ const [extraMinutes, setExtraMinutes] = useState(20);
  const [additionalAmount, setAdditionalAmount] = useState(500);
  const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
 
@@ -87,7 +87,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  const totalRevenue = tokens.reduce((acc, tk) => acc + (tk.amountPaid || 0), 0);
  
  const revenueTrends: any[] = [];
- const notifications: any[] = [];
+ const notifications = sessionAlerts.filter(a => !a.dismissed);
  const activities: any[] = [];
 
  return (
@@ -428,9 +428,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  const isPayment = notif.title.toLowerCase().includes('payment') || notif.title.toLowerCase().includes('confirm');
  const isCritical = notif.title.toLowerCase().includes('critical') || notif.title.toLowerCase().includes('alert');
  
- const iconColorClass = notif.read 
- ? 'text-text-muted bg-border-main/20' 
- : isExpiring 
+ const iconColorClass = isExpiring 
  ? 'text-amber-700 bg-amber-500/15 dark:bg-amber-500/10 dark:text-amber-400' 
  : isPayment 
  ? 'text-emerald-700 bg-emerald-500/15 dark:bg-emerald-500/10 dark:text-emerald-400' 
@@ -439,17 +437,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  : 'text-primary bg-primary/10';
 
  return (
- <div key={notif.id} className="p-3 rounded-xl bg-bg-secondary-surface dark:bg-black/10 border border-border-main flex items-start gap-3">
+ <div key={notif.id} className="p-3 rounded-xl bg-bg-secondary-surface dark:bg-black/10 border border-border-main flex items-start gap-3 relative animate-fadeIn">
  <div className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${iconColorClass}`}>
  <AlertCircle size={14} />
  </div>
- <div className="flex-1 min-w-0">
+ <div className="flex-1 min-w-0 pr-14 text-left">
  <h5 className="text-xs font-bold text-text-main flex items-center justify-between">
  <span className="truncate pr-1">{notif.title}</span>
  <span className="text-[9px] font-medium text-text-muted font-mono shrink-0">{notif.timestamp}</span>
  </h5>
- <p className="text-[11px] text-text-muted mt-1 leading-relaxed">{notif.message}</p>
+ <p className="text-[11px] text-text-muted mt-1 font-bold">Table {notif.tableNumber}</p>
+ <p className="text-[11px] text-text-muted">Customer: {notif.customerName}</p>
+ <p className="text-[11px] text-red-500 dark:text-red-400 font-extrabold mt-1">Expires in {notif.remainingTimeStr}</p>
  </div>
+ <button
+ onClick={() => dismissAlert(notif.id)}
+ className="absolute right-3 bottom-3 px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold border border-red-500/20 transition-all cursor-pointer"
+ >
+ Dismiss
+ </button>
  </div>
  );
  })
@@ -491,7 +497,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
  {/* EXTEND SESSION MODAL */}
  {extendingToken && (
- <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+ <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-4">
  <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
  <button 
  onClick={() => setExtendingToken(null)}
@@ -516,10 +522,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  onChange={e => setExtraMinutes(Number(e.target.value))}
  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
  >
+ <option value={20}>20 Minutes</option>
+ <option value={25}>25 Minutes</option>
  <option value={30}>30 Minutes</option>
- <option value={60}>60 Minutes (1 Hour)</option>
- <option value={120}>120 Minutes (2 Hours)</option>
- <option value={180}>180 Minutes (3 Hours)</option>
  </select>
  </div>
 
@@ -558,7 +563,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
  {/* CLOSE / CHECKOUT SESSION MODAL */}
  {closingToken && (
- <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+ <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-4">
  <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
  <button 
  onClick={() => setClosingToken(null)}

@@ -22,7 +22,7 @@ export const TableDiagram: React.FC<TableDiagramProps> = ({
 
  const isFull = (status === 'occupied' && occ >= cap) || (occ >= cap && cap > 0);
  const isPartial = (status === 'occupied' && occ > 0 && occ < cap) || (occ > 0 && occ < cap);
- const isAvailable = status === 'available' || (occ === 0 && status !== 'reserved' && status !== 'maintenance');
+ const isAvailable = status === 'available' || (occ === 0 && status !== 'reserved' && status !== 'maintenance' && status !== 'in_checkin');
 
  // Mathematical distribution of chairs around 4 edges
  let topCount = 0;
@@ -144,6 +144,15 @@ export const TableDiagram: React.FC<TableDiagramProps> = ({
  };
  }
 
+ if (status === 'in_checkin') {
+    return {
+      fill: 'rgba(245, 158, 11, 0.5)',
+      stroke: '#F59E0B',
+      strokeWidth: 1.2,
+      statusText: 'In Check-In (Locked)',
+    };
+  }
+
  // Completely Available (0 seats occupied)
  if (occ === 0) {
  return {
@@ -194,7 +203,10 @@ export const TableDiagram: React.FC<TableDiagramProps> = ({
  } else if (isPartial) {
  tableFill = 'rgba(245, 158, 11, 0.08)';
  tableStroke = 'rgba(245, 158, 11, 0.4)';
- } else if (isAvailable) {
+ } else if (status === 'in_checkin') {
+    tableFill = 'rgba(245, 158, 11, 0.08)';
+    tableStroke = 'rgba(245, 158, 11, 0.4)';
+  } else if (isAvailable) {
  tableFill = 'rgba(16, 185, 129, 0.08)';
  tableStroke = 'rgba(16, 185, 129, 0.4)';
  }
@@ -238,7 +250,7 @@ export const TableDiagram: React.FC<TableDiagramProps> = ({
  x={tx + tableWidth / 2}
  y={ty + tableHeight / 2 + 3.5}
  textAnchor="middle"
- fill={isFull ? '#EF4444' : isPartial ? '#F59E0B' : isAvailable ? '#10B981' : (isDark ? '#D4AF37' : '#7C3AED')}
+ fill={isFull ? '#EF4444' : isPartial ? '#F59E0B' : status === 'in_checkin' ? '#F59E0B' : isAvailable ? '#10B981' : (isDark ? '#D4AF37' : '#7C3AED')}
  fontSize="9.5"
  fontWeight="900"
  fontFamily="monospace"

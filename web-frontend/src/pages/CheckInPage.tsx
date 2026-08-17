@@ -71,6 +71,15 @@ export const CheckInPage: React.FC<{ onNavigate?: (tab: string) => void }> = ({ 
   const [showContinuePrompt, setShowContinuePrompt] = useState(false);
   const [hasCheckedIncomplete, setHasCheckedIncomplete] = useState(false);
 
+  // Stop Confirmation States
+  const [showStopCheckInConfirmModal, setShowStopCheckInConfirmModal] = useState(false);
+  const [onConfirmStop, setOnConfirmStop] = useState<(() => void) | null>(null);
+
+  // Capacity Warning States
+  const [showCapacityWarning, setShowCapacityWarning] = useState(false);
+  const [hasDismissedCapacityWarning, setHasDismissedCapacityWarning] = useState(false);
+  const [attemptedPersonsCount, setAttemptedPersonsCount] = useState<number | null>(null);
+
   // Load incomplete check-in state on mount
   useEffect(() => {
     const redirectOriginalStatus = localStorage.getItem('bar_checkin_original_status');
@@ -105,6 +114,77 @@ export const CheckInPage: React.FC<{ onNavigate?: (tab: string) => void }> = ({ 
     }
     setHasCheckedIncomplete(true);
   }, []);
+
+  const handleStopCheckInWithConfirmation = (action: () => void) => {
+    setOnConfirmStop(() => action);
+    setShowStopCheckInConfirmModal(true);
+  };
+
+  // Keyboard listeners for Stop Confirmation Modal
+  useEffect(() => {
+    if (!showStopCheckInConfirmModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const yesBtn = document.getElementById('stop-confirm-yes-btn');
+        if (yesBtn) {
+          (yesBtn as HTMLButtonElement).click();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        const noBtn = document.getElementById('stop-confirm-no-btn');
+        if (noBtn) {
+          (noBtn as HTMLButtonElement).click();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showStopCheckInConfirmModal]);
+
+  const renderStopCheckInConfirmModal = showStopCheckInConfirmModal && (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="bg-bg-surface border border-border-main rounded-3xl p-6 w-full max-w-sm space-y-6 text-center shadow-2xl animate-fadeIn text-text-main">
+        <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto">
+          <AlertTriangle size={24} />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-base font-black uppercase tracking-wider text-red-500">Stop Check-In?</h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Are you sure you want to stop this Check-In?
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <button
+            autoFocus
+            id="stop-confirm-yes-btn"
+            type="button"
+            onClick={() => {
+              if (onConfirmStop) onConfirmStop();
+              setShowStopCheckInConfirmModal(false);
+              setOnConfirmStop(null);
+            }}
+            className="flex-1 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          >
+            YES — Stop Check-In
+          </button>
+          <button
+            id="stop-confirm-no-btn"
+            type="button"
+            onClick={() => {
+              setShowStopCheckInConfirmModal(false);
+              setOnConfirmStop(null);
+            }}
+            className="flex-1 px-4 py-3 rounded-xl text-xs font-bold transition-all border border-border-main hover:bg-bg-primary text-text-muted hover:text-text-main cursor-pointer"
+          >
+            NO — Continue Check-In
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   // Save incomplete check-in state to localStorage on change
   useEffect(() => {
@@ -207,7 +287,18 @@ export const CheckInPage: React.FC<{ onNavigate?: (tab: string) => void }> = ({ 
   };
 
   const handleAbandonCheckIn = async () => {
-    const tableToUnlock = selectedTableId;
+    const savedDraft = localStorage.getItem('bar_incomplete_checkin');
+    let draftTableId = '';
+    if (savedDraft) {
+      try {
+        const state = JSON.parse(savedDraft);
+        draftTableId = state.selectedTableId || '';
+      } catch (e) {
+        console.error("Failed to parse saved draft inside abandon:", e);
+      }
+    }
+
+    const tableToUnlock = selectedTableId || draftTableId;
     localStorage.removeItem('bar_incomplete_checkin');
     
     // Load new target check-in details if present
@@ -486,7 +577,110 @@ setPersonsCount(preselectedTable.capacity);
  }
  };
 
- // Camera & QR control methods
+  // Capacity Warning State Handlers
+  const handlePersonsCountChange = (val: number | string) => {
+    if (val === '') {
+      setPersonsCount('');
+      return;
+    }
+    const finalVal = typeof val === 'string' ? parseInt(val, 10) : val;
+    if (isNaN(finalVal) || finalVal <= 0) return;
+
+    if (finalVal > maxCapacity) {
+      showToast(`Headcount cannot exceed Table maximum capacity of ${maxCapacity} seats.`, 'warning');
+      setPersonsCount(maxCapacity);
+      return;
+    }
+
+    if (selectedTableObj && finalVal > selectedTableObj.capacity) {
+      setAttemptedPersonsCount(finalVal);
+      setShowCapacityWarning(true);
+    } else {
+      setPersonsCount(finalVal);
+      setAttemptedPersonsCount(null);
+      setShowCapacityWarning(false);
+    }
+  };
+
+  const handleKeepTable = () => {
+    if (selectedTableObj) {
+      setPersonsCount(selectedTableObj.capacity);
+    }
+    setAttemptedPersonsCount(null);
+    setShowCapacityWarning(false);
+    setHasDismissedCapacityWarning(true);
+  };
+
+  const handleChangeTable = async () => {
+    const tableToUnlock = selectedTableId;
+    if (tableToUnlock) {
+      try {
+        await api.unlockTable(tableToUnlock);
+        refreshTables();
+      } catch (err: any) {
+        console.warn('Failed to unlock table on change table action:', err);
+      }
+    }
+
+    setSelectedTableId('');
+    setOriginalTableStatus('');
+
+    if (attemptedPersonsCount !== null) {
+      setPersonsCount(attemptedPersonsCount);
+    }
+
+    setAttemptedPersonsCount(null);
+    setShowCapacityWarning(false);
+    setHasDismissedCapacityWarning(false);
+    setStage(2);
+  };
+
+  // Trigger capacity popup when pre-filled count exceeds pre-filled table's capacity
+  useEffect(() => {
+    const personsCountNum = typeof personsCount === 'number' ? personsCount : 0;
+    if (selectedTableObj && personsCountNum > selectedTableObj.capacity) {
+      if (!hasDismissedCapacityWarning) {
+        setShowCapacityWarning(true);
+      }
+    } else {
+      setShowCapacityWarning(false);
+      setHasDismissedCapacityWarning(false);
+    }
+  }, [selectedTableId, selectedTableObj, hasDismissedCapacityWarning, personsCount]);
+
+  const renderCapacityWarningModal = showCapacityWarning && selectedTableObj && (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="bg-bg-surface border border-border-main rounded-3xl p-6 w-full max-w-sm space-y-6 text-center shadow-2xl animate-fadeIn text-text-main">
+        <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+          <AlertTriangle size={24} />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-base font-black uppercase tracking-wider text-amber-500">Table Capacity Exceeded</h3>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Do you want to change the table because the capacity is {selectedTableObj.capacity}, or continue with the current table with {selectedTableObj.capacity} people?
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <button
+            type="button"
+            onClick={handleKeepTable}
+            className="flex-1 px-4 py-3 rounded-xl text-xs font-bold transition-all border border-border-main hover:bg-bg-primary text-text-muted hover:text-text-main cursor-pointer"
+          >
+            Keep Current Table
+          </button>
+          <button
+            type="button"
+            onClick={handleChangeTable}
+            className="flex-1 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all bg-amber-500 hover:bg-amber-600 text-white cursor-pointer"
+          >
+            Change Table
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Camera & QR control methods
  const startCamera = async (mode: 'user' | 'environment' = facingMode) => {
  setCameraError(null);
  stopCamera();
@@ -827,7 +1021,18 @@ setPersonsCount(preselectedTable.capacity);
  };
 
   const handleResetWizard = async () => {
-    const tableToUnlock = selectedTableId;
+    const savedDraft = localStorage.getItem('bar_incomplete_checkin');
+    let draftTableId = '';
+    if (savedDraft) {
+      try {
+        const state = JSON.parse(savedDraft);
+        draftTableId = state.selectedTableId || '';
+      } catch (e) {
+        console.error("Failed to parse saved draft inside reset:", e);
+      }
+    }
+
+    const tableToUnlock = selectedTableId || draftTableId;
     localStorage.removeItem('bar_incomplete_checkin');
     setStage(1);
     setPhoneNumber('');
@@ -863,33 +1068,37 @@ setPersonsCount(preselectedTable.capacity);
 
   if (showContinuePrompt) {
     return (
-      <div className="max-w-md mx-auto my-12">
-        <div className="glass-panel p-6 rounded-3xl border border-amber-500/30 bg-amber-500/5 space-y-6 text-center shadow-xl">
-          <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto text-amber-500">
-            <AlertTriangle size={32} />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-xl font-bold text-text-main">Incomplete Check-In Found</h2>
-            <p className="text-sm text-text-muted">
-              An incomplete check-in session for a customer is currently saved. Would you like to resume it?
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 pt-2">
-            <button
-              onClick={handleContinueCheckIn}
-              className="w-full py-3.5 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.98] transition-all"
-            >
-              Resume Check-In
-            </button>
-            <button
-              onClick={handleAbandonCheckIn}
-              className="w-full py-3.5 rounded-xl border border-border-main text-text-muted hover:text-text-main font-semibold text-sm hover:bg-bg-primary/50 active:scale-[0.98] transition-all"
-            >
-              Close & Start New
-            </button>
+      <>
+        <div className="max-w-md mx-auto my-12">
+          <div className="glass-panel p-6 rounded-3xl border border-amber-500/30 bg-amber-500/5 space-y-6 text-center shadow-xl">
+            <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto text-amber-500">
+              <AlertTriangle size={32} />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-text-main">Incomplete Check-In Found</h2>
+              <p className="text-sm text-text-muted">
+                An incomplete check-in session for a customer is currently saved. Would you like to resume it?
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 pt-2">
+              <button
+                onClick={handleContinueCheckIn}
+                className="w-full py-3.5 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.98] transition-all"
+              >
+                Resume Check-In
+              </button>
+              <button
+                onClick={() => handleStopCheckInWithConfirmation(handleAbandonCheckIn)}
+                className="w-full py-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 font-bold text-sm hover:bg-red-500/20 active:scale-[0.98] transition-all"
+              >
+                STOP CHECK-IN
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+        {renderStopCheckInConfirmModal}
+        {renderCapacityWarningModal}
+      </>
     );
   }
 
@@ -954,10 +1163,10 @@ setPersonsCount(preselectedTable.capacity);
     <div className="flex justify-end mt-2 px-2">
       <button
         type="button"
-        onClick={handleResetWizard}
-        className="text-[10px] uppercase tracking-wider font-extrabold text-red-500 hover:text-red-600 transition-colors flex items-center gap-1 cursor-pointer"
+        onClick={() => handleStopCheckInWithConfirmation(handleResetWizard)}
+        className="px-3 py-1.5 rounded-lg border border-red-500/20 hover:border-red-500/40 bg-red-500/5 text-[10px] uppercase tracking-wider font-extrabold text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-1 cursor-pointer"
       >
-        Close & Start New
+        STOP CHECK-IN
       </button>
     </div>
   )}
@@ -1107,10 +1316,7 @@ setPersonsCount(preselectedTable.capacity);
  }`}>
  <button
  type="button"
- onClick={() => {
- const nextVal = Math.max(1, personsCountNum - 1);
- setPersonsCount(nextVal);
- }}
+ onClick={() => handlePersonsCountChange(Math.max(1, personsCountNum - 1))}
  disabled={personsCountNum <= 1}
  className="w-7 h-7 rounded-lg bg-bg-card hover:bg-bg-primary text-text-main flex items-center justify-center disabled:opacity-30 disabled:hover:bg-bg-card transition-all cursor-pointer border border-border-main/40 shrink-0"
  title={personsCountNum <= 1 ? "Minimum 1 guest" : "Decrease headcount"}
@@ -1123,33 +1329,12 @@ setPersonsCount(preselectedTable.capacity);
  pattern="[0-9]*"
  value={personsCount}
  placeholder="2"
- onChange={e => {
- const rawVal = e.target.value;
- if (rawVal === '') {
- setPersonsCount('');
- return;
- }
- const val = parseInt(rawVal, 10);
- if (!isNaN(val)) {
- if (val > maxCapacity) {
- showToast(`Headcount cannot exceed Table maximum capacity of ${maxCapacity} seats.`, 'warning');
- setPersonsCount(maxCapacity);
- } else {
- setPersonsCount(val);
- }
- }
- }}
+ onChange={e => handlePersonsCountChange(e.target.value)}
  className="w-12 bg-transparent text-center text-base md:text-sm font-black text-text-main focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text select-all"
  />
  <button
  type="button"
- onClick={() => {
- if (personsCountNum >= maxCapacity) {
- showToast(`Headcount cannot exceed Table maximum capacity of ${maxCapacity} seats.`, 'warning');
- } else {
- setPersonsCount(personsCountNum + 1);
- }
- }}
+ onClick={() => handlePersonsCountChange(personsCountNum + 1)}
  disabled={personsCountNum >= maxCapacity}
  className="w-7 h-7 rounded-lg bg-bg-card hover:bg-bg-primary text-text-main flex items-center justify-center disabled:opacity-30 disabled:hover:bg-bg-card transition-all cursor-pointer border border-border-main/40 shrink-0"
  title={personsCountNum >= maxCapacity ? "Maximum seats reached" : "Increase headcount"}
@@ -1163,14 +1348,7 @@ setPersonsCount(preselectedTable.capacity);
  <button
  type="button"
  key={count}
- onClick={() => {
- if (count > maxCapacity) {
- showToast(`Headcount cannot exceed Table maximum capacity of ${maxCapacity} seats.`, 'warning');
- setPersonsCount(maxCapacity);
- } else {
- setPersonsCount(count);
- }
- }}
+ onClick={() => handlePersonsCountChange(count)}
  className={`px-3.5 py-2.5 text-xs font-bold transition-all ${
  personsCount === count
  ? 'premium-tab-secondary active active:scale-95'
@@ -1835,8 +2013,9 @@ setPersonsCount(preselectedTable.capacity);
  </div>
  </div>
 
- </div>
- </div>
+      {renderStopCheckInConfirmModal}
+      {renderCapacityWarningModal}
+    </div>
+  </div>
  );
 };
-

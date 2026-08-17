@@ -30,11 +30,8 @@ function generateTestCustomer(prefix: string) {
 
 async function cleanupDb() {
   const dbUrl = process.env.DATABASE_URL || '';
-  if (!dbUrl.includes('_test') && !dbUrl.includes('test_db') && !dbUrl.includes('localhost') && process.env.NODE_ENV === 'test') {
-    console.warn('\n⚠️ WARNING: Attempted destructive database operation against a non-test database URL!');
-    console.warn(`Database URL: ${dbUrl}`);
-    console.warn('To proceed with destructive tests, the database name must contain "_test" or "test_db", or point to "localhost".');
-    console.warn('Aborting tests to protect production/development data.\n');
+  if (!dbUrl.includes('_test') && !dbUrl.includes('test_db')) {
+    console.error('\n❌ ERROR: Destructive database operation blocked. Test suite is configured to run against the main development database. Please set DATABASE_URL_TEST to a dedicated test database (e.g. nfc_bar_test_db) and run again.');
     process.exit(1);
   }
   console.log('Cleaning up database for Email QR tests...');

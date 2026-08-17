@@ -224,14 +224,14 @@ async function main() {
     {
       name: 'STANDING_BAR',
       ratePerPerson: 500.0,
-      baseTimeMinutes: 120,
+      baseTimeMinutes: 20,
       redemptionsPerPerson: 2,
       isActive: true,
     },
     {
       name: 'PREMIUM_LOUNGE',
       ratePerPerson: 1200.0,
-      baseTimeMinutes: 180,
+      baseTimeMinutes: 30,
       redemptionsPerPerson: 3,
       isActive: true,
     },

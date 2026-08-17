@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus, AlertTriangle, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus, AlertTriangle, Clock, Lock, Mail } from 'lucide-react';
 import { api } from '../services/api';
 import type { Table, Token } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,63 @@ interface TablesPageProps {
  activeTab: string;
  setActiveTab: (tab: string) => void;
 }
+
+export const TableTimer: React.FC<{ endTime: string }> = ({ endTime }) => {
+  const [remainingTime, setRemainingTime] = useState<string>('--:--:--');
+  const [isCloseToExpiry, setIsCloseToExpiry] = useState<boolean>(false);
+  const [isExpired, setIsExpired] = useState<boolean>(false);
+
+  useEffect(() => {
+    const calculate = () => {
+      const end = new Date(endTime).getTime();
+      const diffMs = end - Date.now();
+
+      if (diffMs <= 0) {
+        setRemainingTime('00:00:00');
+        setIsCloseToExpiry(false);
+        setIsExpired(true);
+        return;
+      }
+
+      setIsExpired(false);
+      
+      const totalSecs = Math.floor(diffMs / 1000);
+      const hours = Math.floor(totalSecs / 3600);
+      const minutes = Math.floor((totalSecs % 3600) / 60);
+      const seconds = totalSecs % 60;
+
+      // Close to expiry is defined as <= 10 minutes remaining (600 seconds)
+      const closeToExpiry = totalSecs <= 10 * 60;
+      setIsCloseToExpiry(closeToExpiry);
+
+      const hStr = String(hours).padStart(2, '0');
+      const mStr = String(minutes).padStart(2, '0');
+      const sStr = String(seconds).padStart(2, '0');
+
+      setRemainingTime(`${hStr}:${mStr}:${sStr}`);
+    };
+
+    calculate();
+    const interval = setInterval(calculate, 1000);
+    return () => clearInterval(interval);
+  }, [endTime]);
+
+  if (isExpired) {
+    return (
+      <span className="font-mono text-red-500 font-extrabold animate-pulse">
+        Expired
+      </span>
+    );
+  }
+
+  return (
+    <span className={`font-mono font-bold transition-colors ${
+      isCloseToExpiry ? 'text-red-500 font-black animate-pulse' : 'text-text-main font-bold'
+    }`}>
+      {remainingTime}
+    </span>
+  );
+};
 
 export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, activeTab, setActiveTab }) => {
  const { showToast, user } = useAuth();
@@ -204,19 +261,40 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  const [cancellingReservation, setCancellingReservation] = useState<any | null>(null);
  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
- // Transfer Modal State
- const [transferringTable, setTransferringTable] = useState<Table | null>(null);
- const [destTableId, setDestTableId] = useState('');
- const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
-
  // Extend Modal State
  const [extendingTable, setExtendingTable] = useState<Table | null>(null);
- const [extensionMinutes, setExtensionMinutes] = useState(30);
+ const [extensionMinutes, setExtensionMinutes] = useState(20);
  const [extensionAmount, setExtensionAmount] = useState(0);
  const [extensionPaymentMethod, setExtensionPaymentMethod] = useState<'CASH' | 'UPI' | 'COMPLIMENTARY'>('CASH');
- const [sendExtensionEmail, setSendExtensionEmail] = useState(true);
- const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
- const [showExtensionUpiQr, setShowExtensionUpiQr] = useState(false);
+  const [sendExtensionEmail, setSendExtensionEmail] = useState(false);
+  const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
+  const emailYesButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+
+  useEffect(() => {
+    if (!showEmailConfirmModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setSendExtensionEmail(true);
+        setShowEmailConfirmModal(false);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setSendExtensionEmail(false);
+        setShowEmailConfirmModal(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    setTimeout(() => {
+      emailYesButtonRef.current?.focus();
+    }, 50);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showEmailConfirmModal]);
 
  // Close Session Modal State
  const [closingTableSession, setClosingTableSession] = useState<Table | null>(null);
@@ -224,9 +302,56 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  const [closureCustomExplanation, setClosureCustomExplanation] = useState('');
  const [isSubmittingCloseSession, setIsSubmittingCloseSession] = useState(false);
 
- const handleRefresh = async () => {
-   await Promise.all([refreshTables(), refreshTokens(), refreshReservations()]);
- };
+  const handleRefresh = async () => {
+    await Promise.all([refreshTables(), refreshTokens(), refreshReservations()]);
+  };
+
+  useEffect(() => {
+    handleRefresh();
+  }, [activeTab]);
+
+  const inspectTableById = (tableId: string) => {
+    if (realTables.length > 0) {
+      const targetTable = realTables.find(t => t.id === tableId);
+      if (targetTable) {
+        localStorage.removeItem('bar_auto_inspect_table_id');
+        if (targetTable.status === 'occupied') {
+          const targetZone = targetTable.tableNumber.startsWith('L-') ? 'PREMIUM_LOUNGE' : 'STANDING_BAR';
+          if (placeZone !== targetZone) {
+            setPlaceZone(targetZone);
+          }
+          if (activeTab !== 'tables/layout') {
+            setActiveTab('tables/layout');
+          }
+          setInspectingTable(targetTable);
+        } else {
+          showToast(`Table ${targetTable.tableNumber}'s session has already expired or is no longer active.`, 'info');
+          handleRefresh();
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    const autoInspectId = localStorage.getItem('bar_auto_inspect_table_id');
+    if (autoInspectId) {
+      inspectTableById(autoInspectId);
+    }
+  }, [realTables, activeTab]);
+
+  useEffect(() => {
+    const handleAutoInspect = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const tableId = customEvent.detail?.tableId;
+      if (tableId) {
+        inspectTableById(tableId);
+      }
+    };
+    window.addEventListener('bar_auto_inspect', handleAutoInspect);
+    return () => {
+      window.removeEventListener('bar_auto_inspect', handleAutoInspect);
+    };
+  }, [realTables, placeZone, activeTab]);
 
  const zoneFilteredTables = tables.filter(tb => {
  const p = (tb.placeTypeId || tb.categoryName || tb.tableNumber || '').toUpperCase();
@@ -277,33 +402,6 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     }
   };
 
-  const performTransfer = async (emailOption: boolean) => {
-
-    if (!transferringTable || !destTableId) return;
-    const token = tokens.find(tk => tk.tableId === transferringTable.id || (tk.table && tk.table.id === transferringTable.id));
-    if (!token) {
-      showToast('No active token session found for this table.', 'danger');
-      return;
-    }
-
-    setIsSubmittingTransfer(true);
-    try {
-      await api.transferTable(token.id, destTableId, emailOption);
-      showToast('Table transfer completed successfully!', 'success');
-      setTransferringTable(null);
-      setDestTableId('');
-      if (inspectingTable && inspectingTable.id === transferringTable.id) {
-        setInspectingTable(null);
-      }
-      refreshTables();
-      refreshTokens();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to transfer table.', 'danger');
-    } finally {
-      setIsSubmittingTransfer(false);
-    }
-  };
-
   const handleExtendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!extendingTable) return;
@@ -324,7 +422,6 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
       );
       showToast(`Session extended by +${extensionMinutes} minutes successfully!`, 'success');
       setExtendingTable(null);
-      setShowExtensionUpiQr(false);
       if (inspectingTable && inspectingTable.id === extendingTable.id) {
         setInspectingTable(null);
       }
@@ -355,7 +452,6 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  setIsSubmittingAssign(false);
  }
  };
-
   const handleAssignClick = (tb: Table) => {
     setReservingTable(tb);
     setIsAssignFlow(true);
@@ -378,36 +474,132 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     e.preventDefault();
     if (!reservingTable) return;
 
-    if (!resName.trim() || !resPhone.trim() || !resEmail.trim() || !resPersons) {
+    const trimmedName = resName.trim();
+    const trimmedPhone = resPhone.trim();
+    const trimmedEmail = resEmail.trim();
+
+    const nameRegex = /^[a-zA-Z\s.'-]{2,100}$/;
+    const phoneRegex = /^(?:\+91)?[6-9]\d{9}$/;
+    const emailRegex = /^(?!.*\.\.)(?!\.)(?!.*\.$)[a-z0-9]+(\.[a-z0-9]+)*@gmail\.com$/;
+
+    // 1. Mandatory & Format Validations
+    if (!trimmedName || !trimmedPhone || !trimmedEmail || !resPersons) {
       showToast('All fields are mandatory to confirm the reservation.', 'warning');
       return;
     }
 
+    if (!nameRegex.test(trimmedName)) {
+      showToast('Please enter a valid customer full name (2-100 letters).', 'danger');
+      return;
+    }
+
+    if (!phoneRegex.test(trimmedPhone)) {
+      showToast('Please enter a valid 10-digit Indian mobile number.', 'danger');
+      return;
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      showToast('Please enter a valid email address.', 'danger');
+      return;
+    }
+
+    const countVal = Number(resPersons);
+    if (isNaN(countVal) || countVal <= 0 || countVal % 1 !== 0) {
+      showToast('Please enter a valid, non-decimal guest count.', 'warning');
+      return;
+    }
+
+    if (countVal > reservingTable.capacity) {
+      showToast(`Headcount cannot exceed Table maximum capacity of ${reservingTable.capacity} seats.`, 'warning');
+      return;
+    }
+
     setIsSubmittingReserve(true);
+
     try {
-      const res = await api.createReservation({
-        customerName: resName.trim(),
-        phoneNumber: resPhone.trim(),
-        email: resEmail.trim(),
-        personsCount: Number(resPersons),
-        tableId: reservingTable.id
-      });
-      
-      if (res.success && res.reservation) {
-        if (isAssignFlow) {
-          showToast(`Reservation for Table ${reservingTable.tableNumber} created! Proceeding to check-in.`, 'success');
-          setReservingTable(null);
-          setResName('');
-          setResPhone('');
-          setResEmail('');
-          try {
-            await handleAssignReservation(res.reservation);
-          } catch (assignErr: any) {
-            showToast(assignErr.message || 'Reservation created, but failed to lock table for immediate check-in.', 'warning');
-            refreshTables();
-            refreshReservations();
+      // 2. Local Duplicate Session Check against Active Tokens
+      const normalizedPhone = trimmedPhone.startsWith('+91') ? trimmedPhone : `+91${trimmedPhone}`;
+      const isPhoneActive = tokens.some(t => 
+        (t.customer?.phoneNumber === trimmedPhone || t.customer?.phoneNumber === normalizedPhone) &&
+        (t.status?.toUpperCase() === 'ACTIVE' || t.status?.toUpperCase() === 'EXTENDED')
+      );
+
+      const isEmailActive = trimmedEmail ? tokens.some(t =>
+        t.customer?.email?.toLowerCase() === trimmedEmail.toLowerCase() &&
+        (t.status?.toUpperCase() === 'ACTIVE' || t.status?.toUpperCase() === 'EXTENDED')
+      ) : false;
+
+      if (isPhoneActive) {
+        showToast('This phone number is already checked in.', 'danger');
+        setIsSubmittingReserve(false);
+        return;
+      }
+
+      if (isEmailActive) {
+        showToast('This email ID is already checked in.', 'danger');
+        setIsSubmittingReserve(false);
+        return;
+      }
+
+      // 3. Backend Duplicate Validation Check
+      try {
+        const validateRes = await api.validateDuplicate({
+          phoneNumber: trimmedPhone,
+          email: trimmedEmail
+        });
+
+        if (validateRes && validateRes.conflicts) {
+          if (validateRes.conflicts.phone) {
+            showToast('This phone number is already checked in.', 'danger');
+            setIsSubmittingReserve(false);
+            return;
           }
-        } else {
+          if (validateRes.conflicts.email) {
+            showToast('This email ID is already checked in.', 'danger');
+            setIsSubmittingReserve(false);
+            return;
+          }
+        }
+      } catch (validateErr) {
+        console.warn('Backend duplicate validation check failed, relying on local state check:', validateErr);
+      }
+      if (isAssignFlow) {
+        // Direct table assignment: Lock the table directly (status becomes in_checkin, Redis lock created)
+        await api.lockTable(reservingTable.id);
+
+        localStorage.setItem('bar_checkin_assign_target', JSON.stringify({
+          customerName: resName.trim(),
+          phoneNumber: resPhone.trim(),
+          email: resEmail.trim(),
+          personsCount: Number(resPersons),
+          tableId: reservingTable.id,
+          tableNumber: reservingTable.tableNumber,
+          capacity: reservingTable.capacity || 4,
+          placeTypeId: reservingTable.placeTypeId || (reservingTable.tableNumber.startsWith('L-') ? 'PREMIUM_LOUNGE' : 'STANDING_BAR')
+        }));
+        localStorage.setItem('bar_checkin_original_status', 'available');
+
+        showToast(`Table ${reservingTable.tableNumber} locked! Proceeding to check-in.`, 'success');
+        setReservingTable(null);
+        setResName('');
+        setResPhone('');
+        setResEmail('');
+        if (onNavigateToCheckIn) {
+          onNavigateToCheckIn();
+        }
+        refreshTables();
+        refreshReservations();
+      } else {
+        // Normal reservation creation flow
+        const res = await api.createReservation({
+          customerName: resName.trim(),
+          phoneNumber: resPhone.trim(),
+          email: resEmail.trim(),
+          personsCount: Number(resPersons),
+          tableId: reservingTable.id
+        });
+        
+        if (res.success && res.reservation) {
           showToast(`Reservation for Table ${reservingTable.tableNumber} confirmed!`, 'success');
           setReservingTable(null);
           setResName('');
@@ -418,7 +610,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         }
       }
     } catch (err: any) {
-      showToast(err.message || 'Failed to create reservation.', 'danger');
+      showToast(err.message || 'Failed to complete action.', 'danger');
     } finally {
       setIsSubmittingReserve(false);
     }
@@ -484,6 +676,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         onNavigateToCheckIn();
       }
       refreshTables();
+      refreshReservations();
     } catch (err: any) {
       showToast(err.message || 'Failed to lock table for check-in. It may have been selected by another user.', 'danger');
     }
@@ -516,6 +709,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
         onNavigateToCheckIn();
       }
       refreshTables();
+      refreshReservations();
     } catch (err: any) {
       showToast(err.message || 'Failed to lock table for check-in. It may have been selected by another user.', 'danger');
     }
@@ -627,28 +821,43 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
                   <span className="font-bold dark:text-primary text-primary font-mono text-sm">{res.table?.tableNumber || 'N/A'}</span>
                 </div>
               </div>
-
               {(() => {
                 const isOwner = !res.userId || res.userId === user?.id || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager';
+                const isTableInCheckin = res.table?.status === 'in_checkin';
+                
+                const assignDisabled = !isOwner || isTableInCheckin;
+                const assignTooltip = !isOwner 
+                  ? "This reservation is owned by another receptionist." 
+                  : isTableInCheckin 
+                  ? "Check-in is already in progress for this reservation."
+                  : undefined;
+
+                const cancelDisabled = !isOwner || isTableInCheckin;
+                const cancelTooltip = !isOwner 
+                  ? "This reservation is owned by another receptionist." 
+                  : isTableInCheckin 
+                  ? "Reservation cannot be cancelled while check-in is in progress."
+                  : undefined;
+
                 return (
                   <div className="flex gap-3 pt-2">
                     <button
                       onClick={() => handleAssignReservation(res)}
-                      disabled={!isOwner}
-                      title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+                      disabled={assignDisabled}
+                      title={assignTooltip}
                       className={`flex-1 py-2.5 rounded-xl primary-btn text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 ${
-                        !isOwner ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+                        assignDisabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
                       }`}
                     >
                       <UserPlus size={14} /> Assign
                     </button>
                     <button
                       onClick={() => setCancellingReservation(res)}
-                      disabled={!isOwner}
-                      title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+                      disabled={cancelDisabled}
+                      title={cancelTooltip}
                       className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all text-center ${
-                        !isOwner 
-                          ? 'bg-gray-100 dark:bg-[#1C1C1E]/50 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-white/5 cursor-not-allowed' 
+                        cancelDisabled 
+                          ? 'bg-gray-100 dark:bg-[#1C1C1E]/50 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-white/5 cursor-not-allowed opacity-40' 
                           : 'dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 border border-red-500/30 cursor-pointer'
                       }`}
                     >
@@ -656,8 +865,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
                     </button>
                   </div>
                 );
-              })()}
-            </div>
+              })()}            </div>
           ))}
       </div>
     )
@@ -697,45 +905,49 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  className={`w-[290px] shrink-0 snap-start p-5 rounded-3xl dark:rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between gap-3 min-h-[295px] dark:bg-[#1C1C1E] ${
  inspectingTable?.id === tb.id ? 'dark:border-primary' : 'dark:border-white/10'
  } ${
- isFull
- ? 'bg-bg-surface/50 border-red-500/30 '
- : isPartial
- ? 'bg-bg-surface/50 border-amber-500/30 '
- : tb.status === 'reserved'
- ? 'bg-bg-surface border-blue-500/20 '
- : tb.status === 'maintenance'
- ? 'bg-bg-surface/50 border-border-main opacity-60 '
- : 'bg-bg-surface border-emerald-500/30 dark:hover:border-primary/50 hover:border-primary/50 dark: '
- }`}
- >
- {/* Header: Table Number & Semantic Status Pill */}
- <div className="flex items-center justify-between">
- <div>
- <span className="font-mono dark:text-[#D4AF37] text-primary font-black text-xl tracking-wide">{tb.tableNumber}</span>
- <p className="text-[10px] text-text-muted font-semibold uppercase tracking-wider block mt-0.5">
- {placeZone === 'STANDING_BAR' ? 'Standard Zone' : 'Premium Zone'}
- </p>
- </div>
+  isFull
+  ? 'bg-bg-surface/50 border-red-500/30 '
+  : isPartial
+  ? 'bg-bg-surface/50 border-amber-500/30 '
+  : tb.status === 'in_checkin'
+  ? 'bg-bg-surface/90 border-amber-500/40 opacity-90 '
+  : tb.status === 'reserved'
+  ? 'bg-bg-surface border-blue-500/20 '
+  : tb.status === 'maintenance'
+  ? 'bg-bg-surface/50 border-border-main opacity-60 '
+  : 'bg-bg-surface border-emerald-500/30 dark:hover:border-primary/50 hover:border-primary/50 dark: '
+  }`}
+  >
+  {/* Header: Table Number & Semantic Status Pill */}
+  <div className="flex items-center justify-between">
+  <div>
+  <span className="font-mono dark:text-[#D4AF37] text-primary font-black text-xl tracking-wide">{tb.tableNumber}</span>
+  <p className="text-[10px] text-text-muted font-semibold uppercase tracking-wider block mt-0.5">
+  {placeZone === 'STANDING_BAR' ? 'Standard Zone' : 'Premium Zone'}
+  </p>
+  </div>
 
- <span
- className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
- isFull
- ? 'dark:bg-red-500/15 bg-red-500/10 dark:text-red-400 text-red-700 border border-red-500/30'
- : isPartial
- ? 'dark:bg-amber-500/15 bg-amber-500/10 dark:text-amber-400 text-amber-700 border border-amber-500/30'
- : tb.status === 'reserved'
- ? 'dark:bg-blue-500/15 bg-blue-500/10 dark:text-blue-400 text-blue-700 border border-blue-500/30'
- : tb.status === 'maintenance'
- ? 'dark:bg-zinc-800/50 bg-zinc-200/50 text-text-muted border border-border-main'
- : 'dark:bg-emerald-500/15 bg-emerald-500/10 dark:text-emerald-400 text-emerald-700 border border-emerald-500/30'
- }`}
- >
- {isOccupied ? <Users size={12} /> : <CheckCircle2 size={12} />}
- <span className="capitalize">
- {isFull ? 'Occupied' : isPartial ? 'Partially Occupied' : tb.status}
- </span>
- </span>
- </div>
+  <span
+  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+  isFull
+  ? 'dark:bg-red-500/15 bg-red-500/10 dark:text-red-400 text-red-700 border border-red-500/30'
+  : isPartial
+  ? 'dark:bg-amber-500/15 bg-amber-500/10 dark:text-amber-400 text-amber-700 border border-amber-500/30'
+  : tb.status === 'in_checkin'
+  ? 'dark:bg-amber-500/10 bg-amber-500/5 dark:text-amber-400 text-amber-600 border border-amber-500/25'
+  : tb.status === 'reserved'
+  ? 'dark:bg-blue-500/15 bg-blue-500/10 dark:text-blue-400 text-blue-700 border border-blue-500/30'
+  : tb.status === 'maintenance'
+  ? 'dark:bg-zinc-800/50 bg-zinc-200/50 text-text-muted border border-border-main'
+  : 'dark:bg-emerald-500/15 bg-emerald-500/10 dark:text-emerald-400 text-emerald-700 border border-emerald-500/30'
+  }`}
+  >
+  {isOccupied ? <Users size={12} /> : tb.status === 'in_checkin' ? <Lock size={12} /> : <CheckCircle2 size={12} />}
+  <span className="capitalize">
+  {isFull ? 'Occupied' : isPartial ? 'Partially Occupied' : tb.status === 'in_checkin' ? 'In Check-In' : tb.status}
+  </span>
+  </span>
+  </div>
 
  {/* Central Dynamic Table Diagram Container */}
  <div className="py-1 px-2 rounded-2xl bg-bg-primary/80 border border-border-main flex items-center justify-center h-28 relative">
@@ -756,6 +968,8 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  ? 'dark:text-red-400 text-red-700 font-extrabold'
  : isPartial
  ? 'dark:text-amber-400 text-amber-700 font-extrabold'
+ : tb.status === 'in_checkin'
+ ? 'dark:text-amber-400 text-amber-700 font-extrabold'
  : tb.status === 'reserved'
  ? 'dark:text-blue-400 text-blue-700 font-extrabold'
  : 'dark:text-emerald-400 text-emerald-700 font-extrabold'
@@ -765,10 +979,20 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  </div>
 
  {assignedToken ? (
- <div className="flex items-center justify-between text-[11px] border-t border-border-main/40 pt-1 text-text-muted">
- <span className="font-semibold truncate max-w-[120px]">👤 {assignedToken.customer?.name || 'Guest'}</span>
- <span className="font-mono text-text-main font-bold">{assignedToken.tokenNumber}</span>
- </div>
+  <div className="space-y-1 border-t border-border-main/40 pt-1 text-text-muted">
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="font-semibold truncate max-w-[120px]">👤 {assignedToken.customer?.name || 'Guest'}</span>
+      <span className="font-mono text-text-main font-bold">{assignedToken.tokenNumber}</span>
+    </div>
+    {tb.status === 'occupied' && (
+      <div className="mt-2 px-3 py-2 rounded-2xl bg-bg-secondary-surface dark:bg-black/25 border border-border-main/60 flex items-center justify-between text-xs font-semibold shadow-sm animate-fadeIn">
+        <span className="text-[10px] text-text-muted uppercase tracking-wider font-extrabold">Time Remaining</span>
+        <div className="text-[13px] font-black tracking-wide">
+          <TableTimer endTime={assignedToken.endTime} />
+        </div>
+      </div>
+    )}
+  </div>
  ) : (
  <div className="text-[10px] text-text-muted border-t border-border-main/30 pt-1 flex justify-between">
  <span>Rate Allowance:</span>
@@ -937,17 +1161,23 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  </div>
 
  {inspectingToken && (
- <div className="dark:bg-transparent p-4 rounded-none bg-bg-primary border border-border-main dark:border-[rgba(255,255,255,0.1)] space-y-2 text-xs">
- <div className="flex justify-between">
- <span className="text-text-muted">Assigned Customer:</span>
- <span className="font-bold text-text-main">{inspectingToken.customer?.name || 'Guest'} ({inspectingToken.customer?.phoneNumber || '—'})</span>
- </div>
- <div className="flex justify-between">
- <span className="text-text-muted">Token Pass:</span>
- <span className="font-mono text-text-main font-bold">{inspectingToken.tokenNumber}</span>
- </div>
- </div>
- )}
+  <div className="dark:bg-transparent p-4 rounded-none bg-bg-primary border border-border-main dark:border-[rgba(255,255,255,0.1)] space-y-2 text-xs">
+  <div className="flex justify-between">
+  <span className="text-text-muted">Assigned Customer:</span>
+  <span className="font-bold text-text-main">{inspectingToken.customer?.name || 'Guest'} ({inspectingToken.customer?.phoneNumber || '—'})</span>
+  </div>
+  <div className="flex justify-between">
+  <span className="text-text-muted">Token Pass:</span>
+  <span className="font-mono text-text-main font-bold">{inspectingToken.tokenNumber}</span>
+  </div>
+  {inspectingTable.status === 'occupied' && (
+    <div className="flex justify-between">
+      <span className="text-text-muted">Time Remaining:</span>
+      <TableTimer endTime={inspectingToken.endTime} />
+    </div>
+  )}
+  </div>
+  )}
  </div>
 
  {/* Action Buttons (Footer) */}
@@ -961,28 +1191,17 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
       >
         Close Session
       </button>
-      <div className="grid grid-cols-2 gap-3">
-        <button 
-          onClick={() => {
-            setTransferringTable(inspectingTable);
-            setDestTableId('');
-          }}
-          className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer"
-        >
-          Transfer
-        </button>
-        <button 
-          onClick={() => {
-            setExtendingTable(inspectingTable);
-            setExtensionMinutes(30);
-            setExtensionPaymentMethod('CASH');
-            setShowExtensionUpiQr(false);
-          }}
-          className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] transition-all cursor-pointer"
-        >
-          Extend
-        </button>
-      </div>
+      <button 
+        onClick={() => {
+          setExtendingTable(inspectingTable);
+          setExtensionMinutes(20);
+          setExtensionPaymentMethod('CASH');
+          setSendExtensionEmail(false);
+        }}
+        className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[13px] transition-all cursor-pointer"
+      >
+        Extend
+      </button>
     </>
   ) : inspectingTable.status === 'in_checkin' ? (
     <button
@@ -1058,7 +1277,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  {/* ASSIGN TABLE MODAL */}
  {assigningTable && (
- <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+ <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
  <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
  <button 
  onClick={() => setAssigningTable(null)}
@@ -1117,7 +1336,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  {/* RESERVE TABLE MODAL */}
  {reservingTable && (
-   <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+   <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
      <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
        <button 
          onClick={() => setReservingTable(null)}
@@ -1204,7 +1423,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  {/* CANCEL RESERVATION CONFIRMATION MODAL */}
  {cancellingReservation && (
-   <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+   <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
      <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
        <button 
          onClick={() => setCancellingReservation(null)}
@@ -1263,93 +1482,13 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  )}
 
   {/* TRANSFER TABLE MODAL */}
-  {transferringTable && (
-    <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
-      <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
-        <button 
-          onClick={() => setTransferringTable(null)}
-          className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
-        >
-          <X size={18} />
-        </button>
 
-        <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8">
-          <Grid3X3 size={18} className="shrink-0" /> <span className="truncate">Transfer Table {transferringTable.tableNumber}</span>
-        </div>
-
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
-          <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-text-muted">Current Table:</span>
-              <span className="font-semibold text-text-main">{transferringTable.tableNumber}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-text-muted">Customer:</span>
-              <span className="font-semibold text-text-main">
-                {tokens.find(tk => tk.tableId === transferringTable.id || (tk.table && tk.table.id === transferringTable.id))?.customer?.name || 'Guest'}
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-text-muted mb-1">Select Destination Table <span className="text-red-500">*</span></label>
-            <select
-              value={destTableId}
-              onChange={e => setDestTableId(e.target.value)}
-              className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
-              required
-            >
-              <option value="">-- Choose an available table --</option>
-              {tables
-                .filter(t => t.status === 'available' && t.isActive && t.placeTypeId === transferringTable.placeTypeId)
-                .map(t => (
-                  <option key={t.id} value={t.id}>Table {t.tableNumber} ({t.capacity} Guests Max)</option>
-                ))
-              }
-            </select>
-          </div>
-
-          <div className="text-xs font-semibold text-text-muted text-center py-1">
-            Send table transfer update email to customer?
-          </div>
-
-          <div className="flex flex-col gap-2 pt-2">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTransferringTable(null)}
-                className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingTransfer || !destTableId}
-                onClick={() => performTransfer(false)}
-                className="flex-1 py-2.5 rounded-xl bg-transparent border border-primary text-primary font-bold text-xs hover:bg-primary/5 transition-all cursor-pointer"
-              >
-                Transfer Without Email
-              </button>
-            </div>
-            <button
-              type="button"
-              disabled={isSubmittingTransfer || !destTableId}
-              onClick={() => performTransfer(true)}
-              className="w-full py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer"
-            >
-              {isSubmittingTransfer ? 'Transferring...' : 'Transfer & Send Email'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )}
 
   {/* EXTEND SESSION MODAL */}
   {extendingTable && (() => {
     const token = tokens.find(tk => tk.tableId === extendingTable.id || (tk.table && tk.table.id === extendingTable.id));
     const rateConfig = rates?.find((r: any) => r.id === extendingTable.placeTypeId);
-    const hourlyRate = rateConfig ? (rateConfig.ratePerPerson || 0) / ((rateConfig.baseTimeMinutes || 120) / 60) : 0;
+    const hourlyRate = rateConfig ? (rateConfig.ratePerPerson || 0) / ((rateConfig.baseTimeMinutes || 20) / 60) : 0;
     const calculatedAmount = Math.round(hourlyRate * (extensionMinutes / 60) * (token?.personsCount || 1));
     
     // Calculate times
@@ -1358,12 +1497,11 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     const newEndTimeStr = new Date(baseTime.getTime() + extensionMinutes * 60 * 1000).toLocaleString();
 
     return (
-      <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
         <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
           <button 
             onClick={() => {
               setExtendingTable(null);
-              setShowExtensionUpiQr(false);
             }}
             className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
           >
@@ -1374,14 +1512,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
             <Clock size={18} className="shrink-0" /> <span className="truncate">Extend Table {extendingTable.tableNumber}</span>
           </div>
 
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (extensionPaymentMethod === 'UPI' && !showExtensionUpiQr) {
-              setShowExtensionUpiQr(true);
-            } else {
-              handleExtendSubmit(e);
-            }
-          }} className="space-y-4">
+          <form onSubmit={handleExtendSubmit} className="space-y-4">
             <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
               <div className="flex justify-between">
                 <span className="text-text-muted">Customer:</span>
@@ -1401,64 +1532,49 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
               </div>
             </div>
 
-            {!showExtensionUpiQr ? (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-text-muted mb-1">Select Extension Duration <span className="text-red-500">*</span></label>
-                  <select
-                    value={extensionMinutes}
-                    onChange={e => {
-                      const mins = Number(e.target.value);
-                      setExtensionMinutes(mins);
-                      const amt = Math.round(hourlyRate * (mins / 60) * (token?.personsCount || 1));
-                      setExtensionAmount(amt);
-                    }}
-                    className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
-                    required
-                  >
-                    <option value={30}>+30 Minutes (₹{Math.round(hourlyRate * 0.5 * (token?.personsCount || 1))})</option>
-                    <option value={60}>+1 Hour (₹{Math.round(hourlyRate * 1 * (token?.personsCount || 1))})</option>
-                    <option value={120}>+2 Hours (₹{Math.round(hourlyRate * 2 * (token?.personsCount || 1))})</option>
-                  </select>
-                </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-muted mb-1">Select Extension Duration <span className="text-red-500">*</span></label>
+              <select
+                value={extensionMinutes}
+                onChange={e => {
+                  const mins = Number(e.target.value);
+                  setExtensionMinutes(mins);
+                  const amt = Math.round(hourlyRate * (mins / 60) * (token?.personsCount || 1));
+                  setExtensionAmount(amt);
+                }}
+                className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+                required
+              >
+                <option value={20}>+20 Minutes (₹{Math.round(hourlyRate * (20 / 60) * (token?.personsCount || 1))})</option>
+                <option value={25}>+25 Minutes (₹{Math.round(hourlyRate * (25 / 60) * (token?.personsCount || 1))})</option>
+                <option value={30}>+30 Minutes (₹{Math.round(hourlyRate * (30 / 60) * (token?.personsCount || 1))})</option>
+              </select>
+            </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-text-muted mb-1">Payment Method <span className="text-red-500">*</span></label>
-                  <select
-                    value={extensionPaymentMethod}
-                    onChange={e => {
-                      const method = e.target.value as any;
-                      setExtensionPaymentMethod(method);
-                      if (method === 'COMPLIMENTARY') {
-                        setExtensionAmount(0);
-                      } else {
-                        setExtensionAmount(calculatedAmount);
-                      }
-                    }}
-                    className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
-                    required
-                  >
-                    <option value="CASH">Cash Payment (Confirm Collection)</option>
-                    <option value="UPI">UPI QR Code (Simulated)</option>
-                    <option value="COMPLIMENTARY">Complimentary (No Charge)</option>
-                  </select>
-                </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-muted mb-1">Payment Method <span className="text-red-500">*</span></label>
+              <select
+                value={extensionPaymentMethod}
+                onChange={e => {
+                  const method = e.target.value as any;
+                  setExtensionPaymentMethod(method);
+                  if (method === 'COMPLIMENTARY') {
+                    setExtensionAmount(0);
+                  } else {
+                    setExtensionAmount(calculatedAmount);
+                  }
+                }}
+                className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
+                required
+              >
+                <option value="CASH">Cash Payment (Confirm Collection)</option>
+                <option value="UPI">UPI QR Code (Simulated)</option>
+                <option value="COMPLIMENTARY">Complimentary (No Charge)</option>
+              </select>
+            </div>
 
-                <div className="flex items-center gap-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="sendExtensionEmail"
-                    checked={sendExtensionEmail}
-                    onChange={e => setSendExtensionEmail(e.target.checked)}
-                    className="rounded bg-bg-primary border-border-main text-primary focus:ring-0 focus:ring-offset-0"
-                  />
-                  <label htmlFor="sendExtensionEmail" className="text-xs font-semibold text-text-muted cursor-pointer select-none">
-                    Send updated session details email to customer
-                  </label>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-4 space-y-3 bg-bg-primary rounded-2xl border border-border-main">
+            {extensionPaymentMethod === 'UPI' && (
+              <div className="flex flex-col items-center justify-center py-4 space-y-3 bg-bg-primary rounded-2xl border border-border-main mt-4 animate-fadeIn">
                 <p className="text-xs font-bold text-text-main">Scan UPI QR to Pay ₹{extensionAmount}</p>
                 <img 
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=barmanagement@upi&pn=BarSystem&am=${extensionAmount}&cu=INR`)}`}
@@ -1469,26 +1585,42 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
               </div>
             )}
 
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="sendExtensionEmail"
+                checked={sendExtensionEmail}
+                onChange={e => {
+                  const val = e.target.checked;
+                  if (val) {
+                    setShowEmailConfirmModal(true);
+                  } else {
+                    setSendExtensionEmail(false);
+                  }
+                }}
+                className="rounded bg-bg-primary border-border-main text-primary focus:ring-0 focus:ring-offset-0"
+              />
+              <label htmlFor="sendExtensionEmail" className="text-xs font-semibold text-text-muted cursor-pointer select-none">
+                Send updated session details email to customer
+              </label>
+            </div>
+
             <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
               <button
                 type="button"
                 onClick={() => {
-                  if (showExtensionUpiQr) {
-                    setShowExtensionUpiQr(false);
-                  } else {
-                    setExtendingTable(null);
-                  }
+                  setExtendingTable(null);
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
               >
-                {showExtensionUpiQr ? 'Back' : 'Cancel'}
+                Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmittingExtension}
                 className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer"
               >
-                {isSubmittingExtension ? 'Saving...' : showExtensionUpiQr ? 'Confirm Payment Done' : 'Next'}
+                {isSubmittingExtension ? 'Saving...' : 'Confirm Extension'}
               </button>
             </div>
           </form>
@@ -1499,7 +1631,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
   {/* CLOSE SESSION MODAL */}
   {closingTableSession && (
-    <div className="fixed inset-0 z-50 dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
       <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
         <button 
           onClick={() => setClosingTableSession(null)}
@@ -1572,6 +1704,45 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )}
+
+  {showEmailConfirmModal && (
+    <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-bg-surface border border-border-main rounded-3xl p-6 w-full max-w-sm space-y-6 text-center shadow-2xl animate-fadeIn text-text-main">
+        <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mx-auto text-primary">
+          <Mail size={24} />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-base font-black uppercase tracking-wider">Confirm Email</h3>
+          <p className="text-xs text-text-muted">
+            Are you sure you want to send an email to the user?
+          </p>
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            ref={emailYesButtonRef}
+            onClick={() => {
+              setSendExtensionEmail(true);
+              setShowEmailConfirmModal(false);
+            }}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white font-bold text-xs shadow-md shadow-primary/10 hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer border-none"
+          >
+            Yes
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSendExtensionEmail(false);
+              setShowEmailConfirmModal(false);
+            }}
+            className="flex-1 py-2.5 rounded-xl border border-border-main text-text-muted hover:text-text-main font-semibold text-xs hover:bg-bg-primary/50 active:scale-[0.98] transition-all cursor-pointer bg-transparent"
+          >
+            No
+          </button>
+        </div>
       </div>
     </div>
   )}

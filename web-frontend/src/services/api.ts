@@ -290,6 +290,8 @@ class ApiService {
         },
         tableId: t.tableId || t.table?.id || null,
         tableNumber: t.tableNumber || t.table?.number,
+        startTime: t.startTime || new Date().toISOString(),
+        endTime: t.endTime || new Date().toISOString(),
         createdAt: t.createdAt || new Date().toISOString(),
         expiresAt: t.expiresAt || new Date().toISOString(),
       }));
@@ -354,12 +356,6 @@ class ApiService {
     });
   }
 
-  async transferTable(tokenId: string, destTableId: string, sendEmail?: boolean) {
-    return this.request<any>('/tables/transfer', {
-      method: 'POST',
-      body: JSON.stringify({ tokenId, destTableId, sendEmail }),
-    });
-  }
 
   async getAllSessions(): Promise<any[]> {
     try {
@@ -370,10 +366,10 @@ class ApiService {
     }
   }
 
-  async activateSession(tokenNumber: string, tableNumber: string, amountPaid: number) {
+  async activateSession(tokenNumber: string, tableNumber: string, amountPaid: number, bypassCapacity?: boolean) {
     const res = await this.request<any>('/check-in/activate', {
       method: 'POST',
-      body: JSON.stringify({ tokenNumber, tableNumber, amountPaid }),
+      body: JSON.stringify({ tokenNumber, tableNumber, amountPaid, bypassCapacity }),
     });
     return {
       success: true,
@@ -536,9 +532,9 @@ class ApiService {
         return rawList.map((r: any) => ({
           id: r.id || r.placeTypeId || (r.name ? r.name.toLowerCase().replace(/\s+/g, '_') : 'standing_bar'),
           name: r.name || r.categoryName || (r.id === 'premium_lounge' ? 'Premium Lounge' : 'Standing Bar'),
-          ratePerPerson: r.ratePerPerson ?? r.pricePerPerson ?? r.rate ?? (r.id === 'premium_lounge' ? 1000 : 500),
-          baseTimeMinutes: r.baseTimeMinutes ?? r.durationMinutes ?? (r.id === 'premium_lounge' ? 180 : 120),
-          redemptionsPerPerson: r.redemptionsPerPerson ?? r.drinksPerPerson ?? (r.id === 'premium_lounge' ? 4 : 2),
+          ratePerPerson: r.ratePerPerson ?? r.pricePerPerson ?? r.rate ?? (r.id === 'premium_lounge' ? 1200 : 500),
+          baseTimeMinutes: r.baseTimeMinutes ?? r.durationMinutes ?? (r.id === 'premium_lounge' ? 30 : 20),
+          redemptionsPerPerson: r.redemptionsPerPerson ?? r.drinksPerPerson ?? (r.id === 'premium_lounge' ? 3 : 2),
         }));
       }
       return [];
@@ -601,7 +597,7 @@ class ApiService {
     });
   }
 
-  async updateReservation(id: string, payload: { customerName?: string; phoneNumber?: string; email?: string; personsCount?: number; tableId?: string | null }) {
+  async updateReservation(id: string, payload: { customerName?: string; phoneNumber?: string; email?: string; personsCount?: number; tableId?: string | null; bypassCapacity?: boolean }) {
     return this.request<{ success: boolean; reservation: any }>(`/reservations/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
