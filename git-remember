@@ -162,7 +162,13 @@ NOT:
 
 BRANCH:
 
-webfrontend-branch
+main
+
+IMPORTANT BRANCH RULE:
+
+NEVER create dev, feature, fix, temporary, or any other branch.
+All Web Frontend development and commits must go directly to main.
+The main branch is the ONLY branch allowed in this repository.
 
 NEVER synchronize:
 
@@ -407,7 +413,7 @@ The command block must clearly identify:
     web-frontend/
 
     Branch:
-    webfrontend-branch
+    main
 
 The command block must contain the required synchronization, commit, and push
 commands.
