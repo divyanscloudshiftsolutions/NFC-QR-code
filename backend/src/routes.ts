@@ -1171,7 +1171,7 @@ router.get('/tables/occupancy', authenticate, async (req: Request, res: Response
 });
 
 // Assign Table
-router.post('/tables/assign', authenticate, authorize(['receptionist', 'admin']), async (req: Request, res: Response) => {
+router.post('/tables/assign', authenticate, authorize(['receptionist', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
   const { tableId, tokenId } = req.body;
   if (!tableId || !tokenId) {
     return res.status(400).json({ success: false, error: { code: 'VAL_005', message: 'tableId and tokenId are required' } });
@@ -1181,7 +1181,7 @@ router.post('/tables/assign', authenticate, authorize(['receptionist', 'admin'])
   }
 
   try {
-    const table = await tableService.assignTableToToken(tableId, tokenId);
+    const table = await tableService.assignTableToToken(tableId, tokenId, req.user?.id);
     const token = await prisma.token.findUnique({
       where: { id: tokenId },
       include: { customer: true }

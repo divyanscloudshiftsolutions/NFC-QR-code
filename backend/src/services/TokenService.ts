@@ -195,6 +195,18 @@ export class TokenService {
       if (!table) {
         throw new Error('Table not found');
       }
+
+      if (table.status === 'in_checkin' && request.issuedBy) {
+        const lockKey = `table:lock:${table.id}`;
+        const lockDataStr = await redisService.get(lockKey);
+        if (lockDataStr) {
+          const lockData = JSON.parse(lockDataStr);
+          if (lockData.lockedBy !== request.issuedBy) {
+            throw new Error(`Table ${table.tableNumber} is already taken by another user.`);
+          }
+        }
+      }
+
       if (request.personsCount > table.capacity) {
         throw new Error(`Group size of ${request.personsCount} exceeds table capacity of ${table.capacity}.`);
       }
@@ -1052,6 +1064,16 @@ export class TokenService {
       }
       if (table.status !== 'available' && table.status !== 'in_checkin' && table.currentTokenId !== token.id) {
         throw new Error(`Table '${tableNumber}' is not available.`);
+      }
+      if (table.status === 'in_checkin' && activatedBy) {
+        const lockKey = `table:lock:${table.id}`;
+        const lockDataStr = await redisService.get(lockKey);
+        if (lockDataStr) {
+          const lockData = JSON.parse(lockDataStr);
+          if (lockData.lockedBy !== activatedBy) {
+            throw new Error(`Table ${table.tableNumber} is already taken by another user.`);
+          }
+        }
       }
       if (token.personsCount > table.capacity && !bypassCapacity) {
         throw new Error(`Group size of ${token.personsCount} exceeds table capacity of ${table.capacity}.`);

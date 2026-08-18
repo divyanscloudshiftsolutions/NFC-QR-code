@@ -76,13 +76,14 @@ export class TableService {
     return tables;
   }
 
-  async assignTableToToken(tableId: string, tokenId: string): Promise<any> {
+  async assignTableToToken(tableId: string, tokenId: string, userId?: string): Promise<any> {
     return await prisma.$transaction(async (tx) => {
       // Lock the table for update using Raw SQL to prevent concurrent assignments
       const tables = await tx.$queryRaw<any[]>`
-        SELECT id, status, "place_type_id" as "placeTypeId" 
+        SELECT id, status, "place_type_id" as "placeTypeId", "table_number" as "tableNumber"
         FROM tables 
-        WHERE id = ${tableId}::uuid 
+        WHERE id = ${tableId} 
+        LIMIT 1
         FOR UPDATE
       `;
 
@@ -93,6 +94,17 @@ export class TableService {
 
       if (table.status !== 'available' && table.status !== 'in_checkin') {
         throw new Error(`Table is currently ${table.status}`);
+      }
+
+      if (table.status === 'in_checkin' && userId) {
+        const lockKey = `table:lock:${tableId}`;
+        const lockDataStr = await redisService.get(lockKey);
+        if (lockDataStr) {
+          const lockData = JSON.parse(lockDataStr);
+          if (lockData.lockedBy !== userId) {
+            throw new Error(`Table ${table.tableNumber} is already taken by another user.`);
+          }
+        }
       }
 
       // Update table status
