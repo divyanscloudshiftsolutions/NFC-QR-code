@@ -1,0 +1,209 @@
+MASTER INSTRUCTION — DAILY UI/UX WEB UI ISSUE REPORT GENERATOR
+
+Whenever the user says:
+"Read prompt"
+or
+"Read prompt file"
+
+immediately read this prompt.txt file and follow its complete procedure.
+
+============================================================
+1. TARGET LOCATION
+============================================================
+All daily UI/UX issue reports MUST be created inside:
+
+Issues/UI UX/Web UI/
+
+Do not create reports anywhere else.
+
+If any incorrectly created report/file/folder exists outside this exact location and was created by this workflow, remove the unnecessary duplicate/misplaced item.
+
+============================================================
+2. DAILY FILE NAMING
+============================================================
+Use exactly one Markdown file per calendar date:
+
+YYYY-MM-DD-[Relevant-Report-Title].md
+
+The title must be derived from the overall report title or the main module work completed that day.
+
+Example:
+
+Issues/UI UX/Web UI/2026-08-11-Admin-Chart-Responsive-Optimization.md
+
+Never create multiple Markdown files for the same date. Use the existing matching dated file when updating that day's report.
+
+============================================================
+3. SAME-DATE UPDATE RULE
+============================================================
+When "Read prompt" is triggered:
+
+- Determine today's date.
+- Check whether today's Markdown file already exists.
+- If it does not exist, create it.
+- If it already exists, update/append to that same file.
+- NEVER create another file for the same date.
+- NEVER overwrite existing issues.
+- Continue issue numbering from the highest existing issue number.
+
+============================================================
+4. DO NOT DEPEND ON HISTORICAL FILES
+============================================================
+This master prompt itself contains the complete report template and formatting rules.
+
+Do NOT read previous daily Markdown files just to discover or reconstruct the template.
+
+Only read today's existing file when necessary to append new issues and determine the next issue number.
+
+============================================================
+5. REPORT TITLE
+============================================================
+Every daily file must begin with:
+
+# Daily Technical & Architectural Issues Log — [Full Month Day, Year]
+
+============================================================
+6. ISSUE TEMPLATE
+============================================================
+Every issue MUST use this exact structure:
+
+---
+
+## Issue [Number]: [Technical Title]
+
+| Attribute | Details |
+| :--- | :--- |
+| **Project Overview** | [Module focus and primary implementation objective] |
+| **Problems Identified** | [Actual technical/UI/UX/responsive problems identified] |
+| **Resolution** | [Exact technical implementation performed to resolve the problems] |
+| **Activities Completed** | [Work completed, responsive validation, testing and verification] |
+| **Files / Modules Updated** | [Actual files/modules modified] |
+
+Do not add unrelated sections such as Learning, Lessons Learned, Future Scope, Conclusion, or Recommendations.
+
+============================================================
+7. ISSUE ANALYSIS RULE
+============================================================
+Generate issues only from actual implementation work performed during the current task/session.
+
+Do not invent problems, fixes, files, test results, viewport results, or technical changes.
+
+Focus on:
+- UI/UX implementation
+- Responsive optimization
+- Mobile optimization
+- Tablet optimization
+- Desktop MASTER preservation
+- Layout behavior
+- Component optimization
+- Performance-related UI optimization
+- Interaction improvements
+- Accessibility-related UI improvements
+- Redundant UI removal
+- Overflow prevention
+- Spacing and sizing optimization
+- Touch usability
+- Modal/dialog responsiveness
+- Tables, charts, filters, cards and controls
+
+============================================================
+8. OPTIMIZATION-FIRST ANALYSIS
+============================================================
+Before creating an issue, analyze the completed implementation for additional meaningful optimization opportunities.
+
+Avoid documenting redundant or duplicate issues that describe the same underlying change.
+
+Combine closely related fixes into one technically meaningful issue where appropriate.
+
+The goal is to reduce repetitive reporting while preserving important implementation details.
+
+============================================================
+9. RESPONSIVE ANALYSIS
+============================================================
+When relevant, evaluate:
+- Small mobile devices
+- Standard mobile devices
+- Tablet portrait
+- Tablet landscape
+- Desktop
+- Large desktop
+
+Respect the existing Desktop MASTER design.
+
+Do NOT redesign the desktop UI unless the current implementation explicitly requires it.
+
+============================================================
+10. BUSINESS LOGIC SAFETY
+============================================================
+Do not modify or claim modifications to:
+- Business logic
+- API contracts
+- Database behavior
+- Authentication
+- Authorization
+- Existing application functionality
+
+unless those changes were actually performed.
+
+UI/UX reporting must clearly preserve functional integrity.
+
+============================================================
+11. FILE ACCURACY
+============================================================
+Only mention files that were actually modified or directly affected by the current implementation.
+
+Do not invent file names.
+
+============================================================
+12. APPENDING NEW ISSUES
+============================================================
+If today's file already exists:
+
+- Read only today's file.
+- Find the highest existing issue number.
+- Append the next issue using the exact same table-based structure. Ensure there is a `---` horizontal rule separating the previous issue and the new issue.
+- Preserve every existing issue.
+- Do not recreate the title.
+- Do not duplicate existing issues.
+
+============================================================
+13. FILE CREATION IS MANDATORY
+============================================================
+When the user triggers "Read prompt", do not merely describe or print the report in chat.
+
+Actually create or update the Markdown file inside:
+
+Issues/UI UX/Web UI/
+
+The final response should briefly confirm:
+- the file was created or updated
+- the exact file path
+- the issue numbers added
+
+============================================================
+14. FINAL VALIDATION
+============================================================
+Before finishing, verify:
+
+- Correct directory
+- Correct YYYY-MM-DD-[Relevant-Report-Title].md filename
+- Only one file for today's date
+- Existing issues preserved
+- Correct next issue number
+- Exact table-based template used
+- No unnecessary sections
+- No fabricated technical information
+- Actual files/modules listed
+- UI/UX and responsive work accurately documented
+- Desktop MASTER preservation respected
+- No duplicate issue reporting
+
+This prompt.txt is the permanent master instruction.
+
+Do not require the user to explain these rules again in future sessions.
+Whenever the user says "Read prompt" or "Read prompt file", execute this procedure automatically.
+
+============================================================
+15. TESTING REPORT POLICY
+============================================================
+Testing activities must be recorded in the date-wise Test Reports system, and testing itself should not be converted into multiple normal issues. Only major testing-discovered issues may be added to the Issue Log, with a maximum of two testing-related issues per day.

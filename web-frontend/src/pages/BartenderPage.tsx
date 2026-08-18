@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Wine, Search, RotateCcw, Camera, CheckCircle2, AlertCircle, RefreshCw, VideoOff, Clock, LogOut, Users, Mail, Phone, X, QrCode, Plus, Minus } from 'lucide-react';
+import { Wine, Search, RotateCcw, Camera, CheckCircle2, AlertCircle, RefreshCw, VideoOff, Clock, Users, Mail, Phone, QrCode, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
+import { ExtendSessionModal } from '../components/modals/ExtendSessionModal';
+import { CancelReservationModal } from '../components/modals/CancelReservationModal';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import jsQR from 'jsqr';
@@ -13,7 +15,7 @@ interface BartenderPageProps {
 
 export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActiveTab }) => {
  const { showToast } = useAuth();
- const { refreshTokens, refreshTables } = useData();
+ const { refreshTokens, refreshTables, rates } = useData();
  const [tokenInput, setTokenInput] = useState('');
  const [scannedToken, setScannedToken] = useState<Token | null>(null);
  const [isVerifying, setIsVerifying] = useState(false);
@@ -27,12 +29,8 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
 
  // Modal States
  const [extendingToken, setExtendingToken] = useState<Token | null>(null);
- const [closingToken, setClosingToken] = useState<Token | null>(null);
- const [extraMinutes, setExtraMinutes] = useState(60);
- const [additionalAmount, setAdditionalAmount] = useState(500);
- const [closeReason, setCloseReason] = useState('CHECKOUT');
- const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
- const [isSubmittingClose, setIsSubmittingClose] = useState(false);
+ const [cancellingToken, setCancellingToken] = useState<Token | null>(null);
+ 
 
  // Camera State
  const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -386,52 +384,7 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  }
  };
 
- // Close/Checkout modal submit handler
- const handleCloseSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!closingToken) return;
- setIsSubmittingClose(true);
- try {
- await api.closeToken(closingToken.tokenNumber, closeReason);
- showToast(`Session ${closingToken.tokenNumber} checked out successfully.`, 'success');
- setClosingToken(null);
- fetchActiveTokens();
- refreshTokens();
- refreshTables();
- if (scannedToken?.tokenNumber === closingToken.tokenNumber) {
- setScannedToken(null);
- }
- } catch (err: any) {
- showToast(err.message || 'Checkout failed.', 'danger');
- } finally {
- setIsSubmittingClose(false);
- }
- };
-
- // Extend modal submit handler
- const handleExtendSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!extendingToken) return;
- setIsSubmittingExtend(true);
- try {
- await api.extendToken(extendingToken.tokenNumber, extraMinutes, additionalAmount);
- showToast(`Session ${extendingToken.tokenNumber} extended by ${extraMinutes} mins.`, 'success');
- setExtendingToken(null);
- fetchActiveTokens();
- refreshTokens();
- refreshTables();
- if (scannedToken?.tokenNumber === extendingToken.tokenNumber) {
-   const verifyRes = await api.verifyQR(scannedToken.tokenNumber);
-   if (verifyRes.success && verifyRes.token) {
-     setScannedToken(verifyRes.token);
-   }
- }
- } catch (err: any) {
- showToast(err.message || 'Extension failed.', 'danger');
- } finally {
- setIsSubmittingExtend(false);
- }
- };
+ 
 
  // Filter Tokens list based on search query
  const filteredTokens = searchQuery.trim() === '' 
@@ -893,12 +846,12 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  </button>
 
  <button
- onClick={() => setClosingToken(tk)}
- className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/20 flex-1 sm:flex-none"
- title="Checkout Session"
- >
- <LogOut size={14} /> Checkout
- </button>
+  onClick={() => setCancellingToken(tk)}
+  className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/20 flex-1 sm:flex-none"
+  title="Cancel Session"
+  >
+  <AlertTriangle size={14} /> Cancel
+  </button>
 
  <button
  onClick={() => {
@@ -926,135 +879,51 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  {/* MODALS */}
  {/* ======================================================== */}
 
- {/* 1. EXTEND SESSION MODAL */}
  {extendingToken && (
- <div className="fixed inset-0 z-50 dark:bg-transparent bg-black/75 flex items-center justify-end p-0 pointer-events-none animate-fadeIn">
- <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main animate-none h-[100dvh] pointer-events-auto flex flex-col">
- 
- <div className="flex items-center justify-between pb-4 dark:pb-5 border-b border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
- <div className="flex items-center gap-2 dark:text-amber-400 text-amber-700 font-bold text-sm">
- <Clock size={18} className="shrink-0" /> Extend Customer Session
- </div>
- <button 
- onClick={() => setExtendingToken(null)}
- className="p-0 rounded-lg dark:bg-transparent bg-bg-surface hover:bg-bg-card text-text-muted hover:text-text-main shrink-0 cursor-pointer"
- >
- <X size={18} />
- </button>
- </div>
+    <ExtendSessionModal
+      isOpen={!!extendingToken}
+      token={extendingToken}
+      rates={rates || []}
+      onClose={() => setExtendingToken(null)}
+      onSuccess={() => {
+        setExtendingToken(null);
+        fetchActiveTokens();
+        refreshTokens();
+        refreshTables();
+        if (scannedToken?.tokenNumber === extendingToken.tokenNumber) {
+          api.verifyQR(scannedToken.tokenNumber).then(verifyRes => {
+            if (verifyRes.success && verifyRes.token) {
+              setScannedToken(verifyRes.token);
+            }
+          }).catch(() => {});
+        }
+      }}
+    />
+  )}
 
- <div className="flex-1 overflow-y-auto py-5 space-y-4 no-scrollbar">
- <p className="text-xs text-text-muted">
- Token Number: <span className="font-mono font-bold text-text-main">{extendingToken.tokenNumber}</span> ({extendingToken.customer?.name})
- </p>
-
- <form onSubmit={handleExtendSubmit} className="space-y-4">
- <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">Additional Minutes</label>
- <select
- value={extraMinutes}
- onChange={e => setExtraMinutes(Number(e.target.value))}
- className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
- >
- <option value={30}>30 Minutes</option>
- <option value={60}>60 Minutes (1 Hour)</option>
- <option value={120}>120 Minutes (2 Hours)</option>
- <option value={180}>180 Minutes (3 Hours)</option>
- </select>
- </div>
-
- <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">Additional Extension Fee (₹)</label>
- <input
- type="number"
- value={additionalAmount}
- onChange={e => setAdditionalAmount(Number(e.target.value))}
- className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
- required
- />
- </div>
-
- <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
- <button
- type="button"
- onClick={() => setExtendingToken(null)}
- className="flex-1 py-2.5 rounded-md bg-transparent border border-border-main dark:border-[rgba(255,255,255,0.1)] text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
- >
- Cancel
- </button>
- <button
- type="submit"
- disabled={isSubmittingExtend}
- title={isSubmittingExtend ? "Request in progress" : undefined}
- className="flex-1 py-2.5 rounded-md primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer dark:text-black"
- >
- {isSubmittingExtend ? 'Extending...' : 'Confirm Extension'}
- </button>
- </div>
- </form>
- </div>
- </div>
- </div>
- )}
-
- {/* 2. CLOSE / CHECKOUT SESSION MODAL */}
- {closingToken && (
- <div className="fixed inset-0 z-50 dark:bg-transparent bg-black/75 flex items-center justify-end p-0 pointer-events-none animate-fadeIn">
- <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main animate-none h-[100dvh] pointer-events-auto flex flex-col">
- 
- <div className="flex items-center justify-between pb-4 dark:pb-5 border-b border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
- <div className="flex items-center gap-2 text-red-500 font-bold text-sm">
- <LogOut size={18} className="shrink-0" /> Checkout / Close Session
- </div>
- <button 
- onClick={() => setClosingToken(null)}
- className="p-0 rounded-lg dark:bg-transparent bg-bg-surface hover:bg-bg-card text-text-muted hover:text-text-main shrink-0 cursor-pointer"
- >
- <X size={18} />
- </button>
- </div>
-
- <div className="flex-1 overflow-y-auto py-5 space-y-4 no-scrollbar">
- <p className="text-xs text-text-muted">
- Token Number: <span className="font-mono font-bold text-text-main">{closingToken.tokenNumber}</span> ({closingToken.customer?.name})
- </p>
-
- <form onSubmit={handleCloseSubmit} className="space-y-4">
- <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">Select Close Reason</label>
- <select
- value={closeReason}
- onChange={e => setCloseReason(e.target.value)}
- className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
- >
- <option value="CHECKOUT">Standard Guest Checkout</option>
- <option value="EXPIRED">Session Time Expired</option>
- <option value="CANCELLED">Session Cancelled by Reception</option>
- </select>
- </div>
-
- <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
- <button
- type="button"
- onClick={() => setClosingToken(null)}
- className="flex-1 py-2.5 rounded-md bg-transparent border border-border-main dark:border-[rgba(255,255,255,0.1)] text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
- >
- Cancel
- </button>
- <button
- type="submit"
- disabled={isSubmittingClose}
- title={isSubmittingClose ? "Request in progress" : undefined}
- className="flex-1 py-2.5 rounded-md dark:bg-red-500/20 bg-red-500/10 dark:hover:bg-red-600 hover:bg-red-600 dark:text-red-200 text-red-700 dark:hover:text-white hover:text-white text-xs font-bold uppercase tracking-wider border border-red-500/30 transition-all cursor-pointer"
- >
- {isSubmittingClose ? 'Closing...' : 'Close Session'}
- </button>
- </div>
- </form>
- </div>
- </div>
- </div>
- )}
+    {cancellingToken && (
+    <CancelReservationModal
+      isOpen={!!cancellingToken}
+      reservation={{
+        id: '',
+        tableId: cancellingToken.tableId || '',
+        customerName: cancellingToken.customer?.name || 'Walk-in Guest',
+        phoneNumber: cancellingToken.customer?.phoneNumber || '',
+        table: cancellingToken.table,
+        tokenNumber: cancellingToken.tokenNumber
+      }}
+      onClose={() => setCancellingToken(null)}
+      onSuccess={() => {
+        setCancellingToken(null);
+        fetchActiveTokens();
+        refreshTokens();
+        refreshTables();
+        if (scannedToken?.tokenNumber === cancellingToken.tokenNumber) {
+          setScannedToken(null);
+        }
+      }}
+    />
+  )}
 
  </div>
  );

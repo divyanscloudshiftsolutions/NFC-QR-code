@@ -1,0 +1,96 @@
+==================================================
+DAILY TESTING REPORT WORKFLOW
+==================================================
+
+1. TEST REPORT FOLDER
+--------------------------------------------------
+All testing reports must be stored in the root-level folder:
+Test Reports/
+
+Filename format for daily reports:
+Test Reports/YYYY-MM-DD.md (only when actual testing happened)
+
+This test.txt file serves as the MASTER INSTRUCTION/PROMPT for daily testing reports.
+
+2. PURPOSE OF test.txt
+--------------------------------------------------
+Whenever the user query matches "Read test.txt", perform the following:
+1. Read Test Reports/test.txt.
+2. Determine today's date.
+3. Check whether today's testing report already exists.
+4. If testing was performed today:
+   - Create the date-wise YYYY-MM-DD.md file if it does not exist.
+   - If the file exists, append/update it with new results.
+5. Record ONLY testing actually performed on that date.
+6. Never fabricate testing activities.
+
+3. DAILY TESTING REPORT TEMPLATE
+--------------------------------------------------
+The YYYY-MM-DD.md files must follow this structure:
+
+# Daily Testing & End-to-End Verification Report
+
+## Detail
+
+| Information | Details |
+|---|---|
+| Date | <actual date> |
+| Employee Name | <actual name if known> |
+| Project Name | <actual project> |
+| Working Hours | <actual testing/work time if known> |
+| Module Tested | <actual module(s) tested> |
+
+## Testing / Work Summary
+Record the actual testing performed that day.
+Do NOT create fake Hour 1 / Hour 2 / Hour 3 entries.
+
+## Test Cases Executed
+| Test ID | Test Scenario | Expected Result | Actual Result | Status |
+|---|---|---|---|---|
+| TC-001 | <actual test> | <expected> | <actual> | Passed/Failed/Pending |
+
+## Bugs Identified
+| Bug ID | Test ID | Bug Description | Severity | Status |
+|---|---|---|---|---|
+| BUG-001 | TC-XXX | <actual major bug> | High/Medium/Low/Critical | Fixed/Open/Pending |
+
+## Bugs Fixed
+| Bug ID | Fix Completed | Retest Status |
+|---|---|---|
+| BUG-001 | <actual fix> | Passed/Failed/Pending |
+
+## Pending Work
+| Test ID or Bug ID | Pending Work | Reason |
+|---|---|---|
+| <actual pending item> | <details> | <reason> |
+
+4. CRITICAL ISSUE RULE FOR TESTING
+--------------------------------------------------
+Testing itself must NOT generate multiple normal issues.
+Testing activities must be recorded inside the daily Testing Report.
+If testing discovers a major/significant problem, that problem may be recorded separately in the normal Issue Log.
+Maximum testing-related issues allowed:
+- Normally: 1 issue
+- Genuinely necessary: maximum 2 issues
+- NEVER create more than 2 issues from the same day's testing activity.
+
+Minor observations, passed test cases, routine verification, and regression testing must remain inside the Test Report.
+
+5. ADD TEST COMMAND
+--------------------------------------------------
+When the command "Add test" or "Add today's test" is triggered:
+1. Read Test Reports/test.txt.
+2. Determine today's date.
+3. Check whether today's report already exists.
+4. If it does not exist, create Test Reports/YYYY-MM-DD.md.
+5. If it exists, read and append/update it with newly performed testing.
+6. Preserve previous data, do not duplicate, and update statuses.
+7. Do not convert every test activity into an Issue Log entry.
+
+6. READ TEST FILE COMMAND
+--------------------------------------------------
+When "Read test.txt" is triggered, read Test Reports/test.txt first, and use its instructions to determine the correct action. Do not invent information.
+
+7. NO TESTING = NO REPORT
+--------------------------------------------------
+If no actual testing was performed on a date, DO NOT create a daily testing report.
