@@ -1,4 +1,4 @@
-# CRITICAL GIT DEPLOYMENT & REPOSITORY SYNC RULES — ANTIGRAVITY EXECUTION MODE
+# CRITICAL GIT DEPLOYMENT & REPOSITORY SYNC RULES — ANTIGRAVITY AUTO-EXECUTION MODE
 
 ===============================================================================
 IMPORTANT — READ GITREMEMBER FILE BEFORE ANY GIT ACTION
@@ -7,28 +7,48 @@ IMPORTANT — READ GITREMEMBER FILE BEFORE ANY GIT ACTION
 This file is the AUTHORITATIVE Git deployment and repository synchronization
 instruction for this project.
 
-Whenever the user says:
-
-    "Read GitRemember file"
-    "Read git remember"
-    "Follow GitRemember"
-    "Use GitRemember rules"
-
-Antigravity MUST first read this entire file and follow the repository mapping
-defined here.
+Whenever Git synchronization, commit, push, deployment, or repository update
+is required, Antigravity MUST first read and follow this entire file.
 
 DO NOT make Git decisions based on assumptions.
 
 ===============================================================================
-1. EXECUTION ENVIRONMENT
+1. PRIMARY OBJECTIVE — AUTOMATIC GIT SYNCHRONIZATION
 ===============================================================================
 
-ALL FOUR repository synchronization operations must be prepared from the
-MONOREPO ROOT DIRECTORY.
+Antigravity is responsible for automatically performing the required Git
+synchronization.
 
-The user will open Git Bash from the project ROOT directory.
+The user does NOT want Git commands merely displayed for manual copy/paste.
 
-Example:
+Antigravity MUST:
+
+1. Read this GitRemember file.
+2. Identify the project changes that have actually been made.
+3. Determine which repository/repositories are affected.
+4. Synchronize each affected repository according to the repository mapping.
+5. Commit the changes using a meaningful commit message.
+6. Push the commit to the correct remote repository.
+7. Use ONLY the main branch.
+8. Report the repositories that were successfully synchronized.
+
+DO NOT stop after generating commands.
+
+DO NOT ask the user to manually copy and paste Git commands.
+
+DO NOT ask the user to open multiple Git Bash windows.
+
+DO NOT require manual repository navigation when the synchronization can be
+performed automatically.
+
+===============================================================================
+2. EXECUTION ENVIRONMENT
+===============================================================================
+
+All repository synchronization operations must be performed from the
+MONOREPO ROOT whenever possible.
+
+The project structure is:
 
 PROJECT ROOT/
 ├── backend/
@@ -37,58 +57,20 @@ PROJECT ROOT/
 ├── other project files
 └── GitRemember file
 
-Therefore, all generated Git commands must be executable from the ROOT
-directory.
+Antigravity must work from the project root and use the appropriate Git
+mechanism to synchronize the dedicated repositories.
 
-DO NOT require the user to manually open four different Git Bash windows.
-
-DO NOT require the user to manually navigate into separate repositories.
-
-Generate the complete command sets from the project ROOT.
+Do NOT require the user to manually navigate between repositories.
 
 ===============================================================================
-2. VERY IMPORTANT — DO NOT PERFORM GIT INSPECTION
-===============================================================================
-
-When the user explicitly asks:
-
-    "Read GitRemember file"
-
-Antigravity MUST NOT perform Git inspection commands before generating the
-commands.
-
-DO NOT run:
-
-    git status
-    git ls-files
-    git branch
-    git remote -v
-    git remote
-    git log
-    git diff
-    git diff --cached
-    git rev-parse
-    git branch -a
-    git checkout
-    git fetch
-    git pull
-
-DO NOT ask the user to run these commands.
-
-DO NOT inspect Git state merely for confirmation.
-
-The GitRemember file already defines the required repository mapping,
-repository URLs, source folders, and target branches.
-
-Use those rules directly.
-
-===============================================================================
-3. FOUR REQUIRED REPOSITORY TARGETS
+3. FOUR REQUIRED REPOSITORIES
 ===============================================================================
 
 There are FOUR repositories.
 
-Every valid project update must be synchronized according to the mapping below.
+ALL FOUR repositories MUST use the `main` branch.
+
+NO OTHER BRANCH IS ALLOWED.
 
 -------------------------------------------------------------------------------
 A. PERSONAL / CENTRAL REPOSITORY
@@ -112,7 +94,7 @@ main
 
 RULE:
 
-ALL legitimate project changes must be pushed to this repository.
+All legitimate project changes must be synchronized to this repository.
 
 This includes:
 
@@ -146,29 +128,35 @@ dedicated repository.
 
 Required structure:
 
-    Web-Frontend---NFC-QR-code-Management/
-    ├── src/
-    ├── public/
-    ├── package.json
-    ├── index.html
-    ├── vite.config.*
-    └── other Web Frontend files
+    src/
+    public/
+    package.json
+    index.html
+    vite.config.*
+    other Web Frontend files
 
 NOT:
 
-    Web-Frontend---NFC-QR-code-Management/
-    └── web-frontend/
-        └── src/
+    web-frontend/
+        src/
 
 BRANCH:
 
 main
 
-IMPORTANT BRANCH RULE:
+IMPORTANT:
 
-NEVER create dev, feature, fix, temporary, or any other branch.
-All Web Frontend development and commits must go directly to main.
-The main branch is the ONLY branch allowed in this repository.
+Only `main` is allowed.
+
+NEVER create:
+
+    dev
+    feature/*
+    fix/*
+    release/*
+    temporary/*
+    test/*
+    any other branch
 
 NEVER synchronize:
 
@@ -196,22 +184,26 @@ repository.
 
 Required structure:
 
-    Backend---NFC-QR-code-Management/
-    ├── src/
-    ├── prisma/
-    ├── package.json
-    ├── tsconfig.json
-    └── other Backend files
+    src/
+    prisma/
+    package.json
+    tsconfig.json
+    other Backend files
 
 NOT:
 
-    Backend---NFC-QR-code-Management/
-    └── backend/
-        └── src/
+    backend/
+        src/
 
 BRANCH:
 
 main
+
+IMPORTANT:
+
+Only `main` is allowed.
+
+NEVER create any other branch.
 
 NEVER synchronize:
 
@@ -238,27 +230,30 @@ repository.
 
 Required structure:
 
-    Frontend---NFC-QR-code-Management/
-    ├── src/
-    ├── assets/
-    ├── App.tsx
-    ├── package.json
-    ├── app.json
-    ├── eas.json
-    └── other React Native files
+    src/
+    assets/
+    App.tsx
+    package.json
+    app.json
+    eas.json
+    other React Native files
 
 NOT:
 
-    Frontend---NFC-QR-code-Management/
-    └── frontend/
-        └── src/
+    frontend/
+        src/
 
 BRANCH:
 
-Use the existing React Native deployment branch defined by the GitRemember
-rules.
+main
 
-DO NOT invent a branch name.
+IMPORTANT:
+
+Only `main` is allowed.
+
+NEVER create any other branch.
+
+NEVER invent or use a deployment branch other than `main`.
 
 NEVER synchronize:
 
@@ -267,7 +262,38 @@ NEVER synchronize:
     unrelated project files
 
 ===============================================================================
-4. CHANGE → REPOSITORY MAPPING
+4. ABSOLUTE BRANCH RULE
+===============================================================================
+
+ALL FOUR REPOSITORIES MUST USE:
+
+    main
+
+This is an absolute requirement.
+
+Antigravity MUST NOT:
+
+    git checkout -b ...
+    git switch -c ...
+    git branch <new-branch>
+    create feature branches
+    create development branches
+    create fix branches
+    create temporary branches
+    create deployment branches
+
+NEVER create a new branch for synchronization.
+
+All commits must be made directly to:
+
+    main
+
+All pushes must target:
+
+    origin main
+
+===============================================================================
+5. CHANGE → REPOSITORY MAPPING
 ===============================================================================
 
 Use this exact mapping.
@@ -302,47 +328,265 @@ WEB FRONTEND REPOSITORY
     = web-frontend/ CONTENTS ONLY
 
 ===============================================================================
-5. IMPORTANT — GENERATE FOUR SEPARATE COMMAND BLOCKS
+6. AUTOMATIC CHANGE DETECTION
 ===============================================================================
 
-Whenever the user asks to synchronize/push the project, generate FOUR
-separate copyable command blocks.
+Before committing, Antigravity must determine which project scopes contain
+actual changes relevant to the current task.
 
-The order MUST be:
+Possible scopes:
 
-    1. Personal / Central Repository
-    2. Web Frontend Repository
-    3. Backend Repository
-    4. React Native Frontend Repository
+    backend/
+    frontend/
+    web-frontend/
+    project-root files
 
-Each repository MUST have its own separate copy-code block.
+Use the actual changed files and task context to determine affected
+repositories.
 
-DO NOT combine all repositories into one command block.
-
-DO NOT make the user manually construct commands.
+Do NOT push unchanged dedicated repositories merely because they exist.
 
 ===============================================================================
-6. EACH COMMAND BLOCK MUST CONTAIN
+7. REPOSITORY SELECTION RULE
 ===============================================================================
 
-Every repository command block must clearly contain:
+The Central Repository is always required when legitimate project changes
+have been made.
 
-    Repository name
-    Repository URL
-    Source directory
-    Target branch
-    Exact synchronization commands
-    Git add/staging command
-    Git commit command
-    Git push command
+Dedicated repositories are synchronized ONLY when their corresponding source
+directory has changed.
 
-The commit message must be meaningful and specific to the actual changes.
+Examples:
 
-Example:
+If changes are only in:
 
-    git commit -m "fix: resolve QR auto-scanning in check-in flow"
+    web-frontend/
 
-DO NOT use meaningless messages such as:
+Synchronize:
+
+    Central Repository
+    Web Frontend Repository
+
+Do NOT synchronize:
+
+    Backend Repository
+    React Native Repository
+
+
+If changes are only in:
+
+    backend/
+
+Synchronize:
+
+    Central Repository
+    Backend Repository
+
+Do NOT synchronize:
+
+    Web Frontend Repository
+    React Native Repository
+
+
+If changes are in:
+
+    backend/
+    web-frontend/
+
+Synchronize:
+
+    Central Repository
+    Backend Repository
+    Web Frontend Repository
+
+Do NOT synchronize:
+
+    React Native Repository
+
+
+If changes are in:
+
+    frontend/
+
+Synchronize:
+
+    Central Repository
+    React Native Frontend Repository
+
+
+If changes exist in all three:
+
+    backend/
+    frontend/
+    web-frontend/
+
+Synchronize all four repositories.
+
+===============================================================================
+8. CENTRAL REPOSITORY SYNCHRONIZATION
+===============================================================================
+
+Repository:
+
+https://github.com/divyanscloudshiftsolutions/NFC-QR-code
+
+Source:
+
+Complete monorepo root.
+
+Branch:
+
+main
+
+The Central Repository must receive all legitimate project changes.
+
+Antigravity must:
+
+1. Stage the required project changes.
+2. Create a meaningful commit.
+3. Commit directly to main.
+4. Push directly to origin/main.
+
+Do NOT create another branch.
+
+===============================================================================
+9. WEB FRONTEND REPOSITORY SYNCHRONIZATION
+===============================================================================
+
+Repository:
+
+https://github.com/cloudshiftsolutions-dev/Web-Frontend---NFC-QR-code-Management
+
+Source:
+
+web-frontend/
+
+Branch:
+
+main
+
+Only the CONTENTS of web-frontend/ may be published.
+
+The dedicated repository root must look like:
+
+    src/
+    public/
+    package.json
+    index.html
+    vite.config.*
+    ...
+
+NOT:
+
+    web-frontend/
+        src/
+
+Use Git subtree or another safe equivalent that publishes the contents of
+web-frontend/ directly to the dedicated repository root.
+
+Commit directly to main.
+
+Push directly to origin/main.
+
+===============================================================================
+10. BACKEND REPOSITORY SYNCHRONIZATION
+===============================================================================
+
+Repository:
+
+https://github.com/cloudshiftsolutions-dev/Backend---NFC-QR-code-Management
+
+Source:
+
+backend/
+
+Branch:
+
+main
+
+Only the CONTENTS of backend/ may be published.
+
+The dedicated repository root must contain:
+
+    src/
+    prisma/
+    package.json
+    tsconfig.json
+    ...
+
+NOT:
+
+    backend/
+        src/
+
+Use Git subtree or another safe equivalent.
+
+Commit directly to main.
+
+Push directly to origin/main.
+
+===============================================================================
+11. REACT NATIVE REPOSITORY SYNCHRONIZATION
+===============================================================================
+
+Repository:
+
+https://github.com/cloudshiftsolutions-dev/Frontend---NFC-QR-code-Management
+
+Source:
+
+frontend/
+
+Branch:
+
+main
+
+Only the CONTENTS of frontend/ may be published.
+
+The dedicated repository root must contain:
+
+    src/
+    assets/
+    App.tsx
+    package.json
+    app.json
+    eas.json
+    ...
+
+NOT:
+
+    frontend/
+        src/
+
+Use Git subtree or another safe equivalent.
+
+Commit directly to main.
+
+Push directly to origin/main.
+
+===============================================================================
+12. COMMIT MESSAGE RULE
+===============================================================================
+
+Every repository that receives changes must receive a meaningful commit.
+
+Commit messages must describe the actual implementation.
+
+Good examples:
+
+    fix: resolve QR auto-scanning in check-in flow
+
+    fix: prevent duplicate QR email dispatch
+
+    fix: correct table reservation state synchronization
+
+    feat: update check-in QR verification workflow
+
+    fix: resolve admin session authorization mismatch
+
+    feat: improve responsive tables layout
+
+Do NOT use:
 
     update
     changes
@@ -350,208 +594,33 @@ DO NOT use meaningless messages such as:
     latest
     test
 
-===============================================================================
-7. PERSONAL / CENTRAL REPOSITORY COMMANDS
-===============================================================================
-
-The central repository is the normal monorepo Git repository.
-
-Its command block must synchronize the COMPLETE project.
-
-The command block should follow this structure:
-
-    # Personal / Central Repository
-    # Repository:
-    # https://github.com/divyanscloudshiftsolutions/NFC-QR-code
-    # Branch: main
-
-    git add <required project changes>
-    git commit -m "<appropriate commit message>"
-    git push origin main
-
-If the task contains multiple legitimate project changes, include all relevant
-project changes required for the central repository.
-
-The central repository MUST receive all project updates.
+When the same logical feature is synchronized to multiple repositories, use
+the same logical commit description where appropriate.
 
 ===============================================================================
-8. WEB FRONTEND REPOSITORY COMMANDS
+13. NO UNRELATED FILES IN DEDICATED REPOSITORIES
 ===============================================================================
 
-The Web Frontend repository receives ONLY:
+Before synchronizing a dedicated repository, verify that only its mapped
+source directory is being published.
 
-    web-frontend/
-
-The resulting dedicated repository must expose the contents directly at ROOT.
-
-The synchronization method must preserve this root-level structure.
-
-Preferred approach:
-
-    git subtree
-
-or another equivalent Git mechanism that correctly publishes:
-
-    web-frontend/
-
-as:
-
-    repository-root/
-
-DO NOT publish:
-
-    web-frontend/
-
-as a nested folder.
-
-The command block must clearly identify:
-
-    Repository:
-    https://github.com/cloudshiftsolutions-dev/Web-Frontend---NFC-QR-code-Management
-
-    Source:
-    web-frontend/
-
-    Branch:
-    main
-
-The command block must contain the required synchronization, commit, and push
-commands.
-
-===============================================================================
-9. BACKEND REPOSITORY COMMANDS
-===============================================================================
-
-The Backend repository receives ONLY:
-
-    backend/
-
-The resulting dedicated repository must expose backend contents directly at
-repository ROOT.
-
-Use subtree or an equivalent synchronization mechanism when operating from
-the monorepo root.
-
-Do NOT create:
-
-    backend/backend/
-
-Do NOT publish unrelated project folders.
-
-The command block must clearly show:
-
-    Repository:
-    https://github.com/cloudshiftsolutions-dev/Backend---NFC-QR-code-Management
-
-    Source:
-    backend/
-
-    Branch:
-    <existing backend deployment branch defined by GitRemember>
-
-Then provide the synchronization, commit, and push commands.
-
-===============================================================================
-10. REACT NATIVE FRONTEND REPOSITORY COMMANDS
-===============================================================================
-
-The React Native repository receives ONLY:
-
-    frontend/
-
-The resulting dedicated repository must expose frontend contents directly at
-repository ROOT.
-
-Use subtree or an equivalent synchronization mechanism.
-
-Do NOT create:
-
-    frontend/frontend/
-
-Do NOT publish:
-
-    backend/
-    web-frontend/
-    unrelated files
-
-The command block must clearly show:
-
-    Repository:
-    https://github.com/cloudshiftsolutions-dev/Frontend---NFC-QR-code-Management
-
-    Source:
-    frontend/
-
-    Branch:
-    <existing React Native deployment branch defined by GitRemember>
-
-Then provide the synchronization, commit, and push commands.
-
-===============================================================================
-11. ONLY PUSH RELEVANT DEDICATED REPOSITORIES
-===============================================================================
-
-If today's changes affect only:
-
-    web-frontend/
-
-Then:
-
-CENTRAL REPOSITORY
-    → PUSH
-
-WEB FRONTEND REPOSITORY
-    → PUSH
-
-BACKEND REPOSITORY
-    → DO NOT PUSH
-
-REACT NATIVE REPOSITORY
-    → DO NOT PUSH
-
-If today's changes affect:
-
-    backend/
-    web-frontend/
-
-Then:
-
-CENTRAL REPOSITORY
-    → PUSH BOTH
-
-WEB FRONTEND REPOSITORY
-    → PUSH web-frontend ONLY
-
-BACKEND REPOSITORY
-    → PUSH backend ONLY
-
-REACT NATIVE REPOSITORY
-    → DO NOT PUSH
-
-Never push an unchanged dedicated project merely because the repository
-exists.
-
-===============================================================================
-12. NEVER MIX PROJECT SCOPES
-===============================================================================
-
-WEB FRONTEND REPOSITORY:
+WEB FRONTEND:
 
     ONLY web-frontend/
 
-BACKEND REPOSITORY:
+BACKEND:
 
     ONLY backend/
 
-REACT NATIVE REPOSITORY:
+REACT NATIVE:
 
     ONLY frontend/
 
-CENTRAL REPOSITORY:
+CENTRAL:
 
     COMPLETE PROJECT
 
-NEVER push:
+Never publish:
 
     backend → Web Frontend repository
     frontend → Web Frontend repository
@@ -560,33 +629,70 @@ NEVER push:
     entire monorepo → dedicated repository
 
 ===============================================================================
-13. COMMIT MESSAGE RULE
+14. AUTOMATIC EXECUTION — NO COPY/PASTE MODE
 ===============================================================================
 
-Every repository must receive a proper commit message.
+Antigravity must execute the required Git operations itself.
 
-The commit message should describe the actual implementation.
+The user does NOT need to manually run:
 
-Examples:
+    git add
+    git commit
+    git push
+    git subtree
+    git checkout
+    git switch
 
-    fix: resolve check-in QR email delivery flow
+Do not merely print command blocks when automatic execution is possible.
 
-    fix: enable full-frame webcam QR auto-scanning
+Do not ask the user to manually execute the generated commands.
 
-    fix: prevent duplicate QR email dispatch
-
-    fix: improve responsive tables layout
-
-    feat: update check-in QR verification workflow
-
-Use the same logical change description across repositories when the same
-feature is synchronized to multiple repositories.
+The Git synchronization task is considered incomplete until the required
+repositories have been committed and pushed successfully.
 
 ===============================================================================
-14. NO UNNECESSARY TEST EMAILS
+15. BRANCH SAFETY
 ===============================================================================
 
-When synchronizing code related to email, QR, check-in, or notifications:
+Before committing:
+
+    remain on main
+
+If a required repository is not currently on main, do NOT create a new branch.
+
+Switch to the existing main branch only when safe and appropriate.
+
+NEVER create a branch.
+
+The final synchronization target for every repository is:
+
+    main
+
+===============================================================================
+16. GIT AUTHENTICATION
+===============================================================================
+
+Use the Git credentials/authentication already configured in the execution
+environment.
+
+Do NOT ask the user to provide passwords, personal access tokens, or secrets
+in chat.
+
+Do NOT expose credentials in command output.
+
+If authentication prevents a push, report the authentication failure clearly
+instead of inventing credentials or bypassing security.
+
+===============================================================================
+17. NO UNNECESSARY TEST EMAILS
+===============================================================================
+
+When synchronizing code related to:
+
+    email
+    QR
+    check-in
+    notifications
 
 DO NOT send test emails merely to verify Git synchronization.
 
@@ -597,7 +703,7 @@ DO NOT generate unnecessary QR emails.
 Git synchronization and application testing are separate operations.
 
 ===============================================================================
-15. EAS / EIS RULE
+18. EAS / EIS RULE
 ===============================================================================
 
 EAS/EIS commands may ONLY be executed from:
@@ -615,44 +721,66 @@ Never run EAS/EIS commands from:
     web-frontend/
 
 ===============================================================================
-16. OUTPUT FORMAT — MANDATORY
+19. COMPLETION REPORT
 ===============================================================================
 
-When the user asks:
+After synchronization, provide a concise report.
 
-    "Read GitRemember file"
+The report must contain:
 
-and requests Git synchronization commands, respond with a concise execution
-plan followed by separate copy-code blocks.
+    Git Synchronization Completed
 
-Use this structure:
+    Updated repositories:
+    - Central Repository
+    - Web Frontend Repository
+    - Backend Repository
+    - React Native Repository
 
-    ## Git Synchronization Plan
+Only list repositories that were actually updated.
 
-    Changed scopes:
-    - backend/
-    - web-frontend/
-    - etc.
+For each updated repository report:
 
-    The following repositories require synchronization:
-    - Personal / Central
-    - Web Frontend
-    - Backend
-    - React Native
+    Repository
+    Branch: main
+    Commit message
+    Synchronization result
 
-Then provide separate blocks.
+For repositories that were not affected, optionally report:
 
--------------------------------------------------------------------------------
-COPY BLOCK 1 — PERSONAL / CENTRAL
--------------------------------------------------------------------------------
+    Not synchronized — no relevant changes in mapped source directory.
 
-```bash
-# Personal / Central Repository
-# Repository: https://github.com/divyanscloudshiftsolutions/NFC-QR-code
-# Source: Complete monorepo
-# Branch: main
+===============================================================================
+20. FAILURE HANDLING
+===============================================================================
 
-<commands>
+If synchronization fails for one repository:
 
-git commit -m "<proper commit message>"
-git push origin main
+1. Do not falsely report success.
+2. Clearly identify the failed repository.
+3. Report the reason if available.
+4. Continue synchronizing other independent affected repositories when safe.
+5. Do not create another branch as a workaround.
+6. Do not push unrelated files to another repository.
+
+===============================================================================
+21. FINAL ABSOLUTE RULES
+===============================================================================
+
+1. There are FOUR repositories.
+2. ALL FOUR repositories use `main`.
+3. NEVER create a new branch.
+4. Central Repository = complete monorepo.
+5. Backend Repository = backend/ contents only.
+6. Web Frontend Repository = web-frontend/ contents only.
+7. React Native Repository = frontend/ contents only.
+8. Synchronize only repositories affected by actual changes.
+9. Central Repository receives all legitimate project changes.
+10. Dedicated repositories receive only their mapped source contents.
+11. Dedicated repository contents must appear directly at repository root.
+12. Commit directly to main.
+13. Push directly to origin/main.
+14. Antigravity performs Git synchronization automatically.
+15. Do not merely generate copy/paste commands.
+16. Do not create unnecessary branches.
+17. Do not mix repository scopes.
+18. Report the actual synchronization result after execution.

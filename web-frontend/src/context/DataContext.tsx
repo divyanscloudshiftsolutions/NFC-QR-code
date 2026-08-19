@@ -281,12 +281,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }, 1000);
 
-      // 10-second sync interval for background fetches (multi-user updates)
+      // 3-second sync interval for background fetches (multi-user updates)
       const syncInterval = setInterval(() => {
         refreshTokens();
         refreshTables();
         refreshReservations();
-      }, 10000);
+      }, 3000);
 
       return () => {
         clearInterval(countdownInterval);

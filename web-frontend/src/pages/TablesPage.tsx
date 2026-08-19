@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus, AlertTriangle, Clock, Lock, Mail } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Grid3X3, RefreshCw, X, CheckCircle2, Users, ArrowRight, Search, UserPlus, AlertTriangle, Lock } from 'lucide-react';
 import { api } from '../services/api';
 import type { Table, Token } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { TableDiagram } from '../components/TableDiagram';
 import { SeatingRow } from '../components/SeatingRow';
+import { ExtendSessionModal } from '../components/modals/ExtendSessionModal';
+import { CancelReservationModal } from '../components/modals/CancelReservationModal';
 
 interface TablesPageProps {
  onNavigateToCheckIn?: () => void;
@@ -72,6 +74,7 @@ export const TableTimer: React.FC<{ endTime: string }> = ({ endTime }) => {
 
 export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, activeTab, setActiveTab }) => {
  const { showToast, user } = useAuth();
+ const isBartender = user?.role?.toLowerCase() === 'bartender';
  const { 
     tables: realTables, 
     tokens: realTokens, 
@@ -259,42 +262,10 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  // Cancel Confirmation State
  const [cancellingReservation, setCancellingReservation] = useState<any | null>(null);
- const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
  // Extend Modal State
  const [extendingTable, setExtendingTable] = useState<Table | null>(null);
- const [extensionMinutes, setExtensionMinutes] = useState(20);
- const [extensionAmount, setExtensionAmount] = useState(0);
- const [extensionPaymentMethod, setExtensionPaymentMethod] = useState<'CASH' | 'UPI' | 'COMPLIMENTARY'>('CASH');
-  const [sendExtensionEmail, setSendExtensionEmail] = useState(false);
-  const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
-  const emailYesButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
-
-  useEffect(() => {
-    if (!showEmailConfirmModal) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        setSendExtensionEmail(true);
-        setShowEmailConfirmModal(false);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setSendExtensionEmail(false);
-        setShowEmailConfirmModal(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    setTimeout(() => {
-      emailYesButtonRef.current?.focus();
-    }, 50);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [showEmailConfirmModal]);
+ 
 
  // Close Session Modal State
  const [closingTableSession, setClosingTableSession] = useState<Table | null>(null);
@@ -402,57 +373,28 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     }
   };
 
-  const handleExtendSubmit = async (e: React.FormEvent) => {
+  const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!extendingTable) return;
-    const token = tokens.find(tk => tk.tableId === extendingTable.id || (tk.table && tk.table.id === extendingTable.id));
-    if (!token) {
-      showToast('No active token session found for this table.', 'danger');
-      return;
-    }
+    if (isBartender) return;
+    if (!assigningTable || !selectedTokenId) return;
 
-    setIsSubmittingExtension(true);
+    setIsSubmittingAssign(true);
     try {
-      await api.extendToken(
-        token.tokenNumber,
-        extensionMinutes,
-        extensionAmount,
-        sendExtensionEmail,
-        extensionPaymentMethod
-      );
-      showToast(`Session extended by +${extensionMinutes} minutes successfully!`, 'success');
-      setExtendingTable(null);
-      if (inspectingTable && inspectingTable.id === extendingTable.id) {
-        setInspectingTable(null);
-      }
+      await api.assignTable(assigningTable.id, selectedTokenId);
+      showToast(`Table ${assigningTable.tableNumber} assigned successfully!`, 'success');
+      setAssigningTable(null);
+      setSelectedTokenId('');
       refreshTables();
       refreshTokens();
     } catch (err: any) {
-      showToast(err.message || 'Failed to extend session.', 'danger');
+      showToast(err.message || 'Failed to assign table.', 'danger');
     } finally {
-      setIsSubmittingExtension(false);
+      setIsSubmittingAssign(false);
     }
   };
 
- const handleAssignSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!assigningTable || !selectedTokenId) return;
-
- setIsSubmittingAssign(true);
- try {
- await api.assignTable(assigningTable.id, selectedTokenId);
- showToast(`Table ${assigningTable.tableNumber} assigned successfully!`, 'success');
- setAssigningTable(null);
- setSelectedTokenId('');
- refreshTables();
- refreshTokens();
- } catch (err: any) {
- showToast(err.message || 'Failed to assign table.', 'danger');
- } finally {
- setIsSubmittingAssign(false);
- }
- };
   const handleAssignClick = (tb: Table) => {
+    if (isBartender) return;
     setReservingTable(tb);
     setIsAssignFlow(true);
     setResPersons(tb.capacity || 4);
@@ -462,6 +404,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
   };
 
   const handleReserveClick = (tb: Table) => {
+    if (isBartender) return;
     setReservingTable(tb);
     setIsAssignFlow(false);
     setResPersons(tb.capacity || 4);
@@ -472,6 +415,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
   const handleReserveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBartender) return;
     if (!reservingTable) return;
 
     const trimmedName = resName.trim();
@@ -617,6 +561,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
   };
 
   const handleCancelClick = (tb: Table) => {
+    if (isBartender) return;
     const res = realReservations.find((r: any) => r.tableId === tb.id && r.status === 'PENDING');
     if (res) {
       setCancellingReservation(res);
@@ -631,30 +576,8 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     }
   };
 
-  const handleCancelConfirm = async () => {
-    if (!cancellingReservation) return;
-    setIsSubmittingCancel(true);
-    try {
-      if (cancellingReservation.id) {
-        await api.cancelReservation(cancellingReservation.id);
-      } else {
-        await api.patchTableStatus(cancellingReservation.tableId, 'available');
-      }
-      showToast('Reservation cancelled successfully.', 'success');
-      setCancellingReservation(null);
-      if (inspectingTable && inspectingTable.id === cancellingReservation.tableId) {
-        setInspectingTable(null);
-      }
-      refreshTables();
-      refreshReservations();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to cancel reservation.', 'danger');
-    } finally {
-      setIsSubmittingCancel(false);
-    }
-  };
-
   const handleAssignReservation = async (res: any) => {
+    if (isBartender) return;
     try {
       await api.lockTable(res.tableId);
       
@@ -683,6 +606,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
   };
 
   const handleCheckInReservedTable = (tb: Table) => {
+    if (isBartender) return;
     const res = realReservations.find((r: any) => r.tableId === tb.id && r.status === 'PENDING');
     if (res) {
       handleAssignReservation(res);
@@ -692,6 +616,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
   };
 
   const handleRedirectToCheckIn = async (tb: Table) => {
+    if (isBartender) return;
     try {
       const originalStatus = tb.status; // 'available' or 'reserved'
       await api.lockTable(tb.id);
@@ -839,7 +764,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
                   ? "Reservation cannot be cancelled while check-in is in progress."
                   : undefined;
 
-                return (
+                 return isBartender ? null : (
                   <div className="flex gap-3 pt-2">
                     <button
                       onClick={() => handleAssignReservation(res)}
@@ -865,7 +790,7 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
                     </button>
                   </div>
                 );
-              })()}            </div>
+              })()}</div>
           ))}
       </div>
     )
@@ -1003,7 +928,17 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  {/* Card Action Row */}
  <div className="flex gap-2 pt-1 border-t border-border-main/50">
-    {tb.status === 'occupied' ? (
+    {isBartender ? (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setInspectingTable(tb);
+        }}
+        className="w-full py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:hover:bg-amber-500/20 dark:text-amber-300 text-amber-700 text-xs font-bold border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+      >
+        <Search size={14} /> Inspect Details
+      </button>
+    ) : tb.status === 'occupied' ? (
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -1182,94 +1117,91 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
 
  {/* Action Buttons (Footer) */}
  <div className="pt-5 border-t border-border-main dark:border-[rgba(255,255,255,0.1)] flex flex-col gap-3 shrink-0">
-  {inspectingTable.status === 'occupied' ? (
-    <>
+    {inspectingTable.status === 'occupied' ? (
+      <>
+        <button
+          type="button"
+          onClick={() => setClosingTableSession(inspectingTable)}
+          className="w-full py-2.5 rounded-md dark:rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
+        >
+          Close Session
+        </button>
+        <button 
+          onClick={() => {
+            setExtendingTable(inspectingTable);
+          }}
+          className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[13px] transition-all cursor-pointer"
+        >
+          Extend
+        </button>
+      </>
+    ) : isBartender ? null : inspectingTable.status === 'in_checkin' ? (
       <button
         type="button"
-        onClick={() => setClosingTableSession(inspectingTable)}
-        className="w-full py-2.5 rounded-md dark:rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 font-bold text-[13px] border border-red-500/30 transition-all text-center cursor-pointer"
+        disabled
+        className="w-full py-3 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/30 text-[13px] font-bold text-center cursor-not-allowed"
       >
-        Close Session
+        In Check-In (Locked)
       </button>
-      <button 
-        onClick={() => {
-          setExtendingTable(inspectingTable);
-          setExtensionMinutes(20);
-          setExtensionPaymentMethod('CASH');
-          setSendExtensionEmail(false);
-        }}
-        className="py-2.5 rounded-md bg-transparent border border-primary text-primary font-bold text-[13px] transition-all cursor-pointer"
-      >
-        Extend
-      </button>
-    </>
-  ) : inspectingTable.status === 'in_checkin' ? (
-    <button
-      type="button"
-      disabled
-      className="w-full py-3 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/30 text-[13px] font-bold text-center cursor-not-allowed"
-    >
-      In Check-In (Locked)
-    </button>
-  ) : (
-    (() => {
-      const res = realReservations.find((r: any) => r.tableId === inspectingTable.id && r.status === 'PENDING');
-      const isOwner = !res || !res.userId || res.userId === user?.id || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager';
-      const isReserved = inspectingTable.status === 'reserved';
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => isReserved ? handleCheckInReservedTable(inspectingTable) : handleAssignClick(inspectingTable)}
-            disabled={isReserved && !isOwner}
-            title={isReserved && !isOwner ? "This reservation is owned by another receptionist." : undefined}
-            className={`w-full py-3 rounded-md primary-btn text-[13px] font-black uppercase tracking-wider flex items-center justify-center gap-2 dark:text-black ${
-              isReserved && !isOwner ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
-            }`}
-          >
-            <span className="dark:hidden">Assign Guest & Check-In</span>
-            <span className="hidden dark:block">+ Add Order</span>
-            <ArrowRight size={16} className="dark:hidden" />
-          </button>
-          
-          {isReserved && (
+    ) : (
+      (() => {
+        const res = realReservations.find((r: any) => r.tableId === inspectingTable.id && r.status === 'PENDING');
+        const isOwner = !res || !res.userId || res.userId === user?.id || user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager';
+        const isReserved = inspectingTable.status === 'reserved';
+        return (
+          <>
             <button
               type="button"
-              onClick={() => handleCancelClick(inspectingTable)}
-              disabled={!isOwner}
-              title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
-              className={`w-full py-2.5 rounded-md font-bold text-[13px] border transition-all text-center ${
-                !isOwner 
-                  ? 'bg-gray-100 dark:bg-[#1C1C1E]/50 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-white/5 cursor-not-allowed' 
-                  : 'bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-500/30 cursor-pointer'
+              onClick={() => isReserved ? handleCheckInReservedTable(inspectingTable) : handleAssignClick(inspectingTable)}
+              disabled={isReserved && !isOwner}
+              title={isReserved && !isOwner ? "This reservation is owned by another receptionist." : undefined}
+              className={`w-full py-3 rounded-md primary-btn text-[13px] font-black uppercase tracking-wider flex items-center justify-center gap-2 dark:text-black ${
+                isReserved && !isOwner ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
               }`}
             >
-              Cancel Reservation
+              <span className="dark:hidden">Assign Guest & Check-In</span>
+              <span className="hidden dark:block">+ Add Order</span>
+              <ArrowRight size={16} className="dark:hidden" />
             </button>
-          )}
+            
+            {isReserved && (
+              <button
+                type="button"
+                onClick={() => handleCancelClick(inspectingTable)}
+                disabled={!isOwner}
+                title={!isOwner ? "This reservation is owned by another receptionist." : undefined}
+                className={`w-full py-2.5 rounded-md font-bold text-[13px] border transition-all text-center ${
+                  !isOwner 
+                    ? 'bg-gray-100 dark:bg-[#1C1C1E]/50 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-white/5 cursor-not-allowed' 
+                    : 'bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-500/30 cursor-pointer'
+                }`}
+              >
+                Cancel Reservation
+              </button>
+            )}
 
-          {inspectingTable.status === 'available' && (
-            <button
-              type="button"
-              onClick={() => { setInspectingTable(null); handleReserveClick(inspectingTable); }}
-              className="w-full py-2 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] hover:bg-primary/5 transition-all text-center cursor-pointer"
-            >
-              Reserve Table
-            </button>
-          )}
-        </>
-      );
-    })()
-  )}
+            {inspectingTable.status === 'available' && (
+              <button
+                type="button"
+                onClick={() => { setInspectingTable(null); handleReserveClick(inspectingTable); }}
+                className="w-full py-2 rounded-md bg-transparent border border-primary text-primary font-bold text-[11px] hover:bg-primary/5 transition-all text-center cursor-pointer"
+              >
+                Reserve Table
+              </button>
+            )}
+          </>
+        );
+      })()
+    )}
 
- <button
- type="button"
- onClick={() => setInspectingTable(null)}
- className="w-full py-2.5 rounded-md bg-transparent text-[11px] font-bold text-text-muted hover:text-text-main border border-border-main dark:border-[rgba(255,255,255,0.1)] cursor-pointer"
- >
- Close Drawer
- </button>
- </div>
+    <button
+      type="button"
+      onClick={() => setInspectingTable(null)}
+      className="w-full py-2.5 rounded-md bg-transparent text-[11px] font-bold text-text-muted hover:text-text-main border border-border-main dark:border-[rgba(255,255,255,0.1)] cursor-pointer"
+    >
+      Close Drawer
+    </button>
+  </div>
  </div>
  </div>
  );
@@ -1422,64 +1354,21 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
  )}
 
  {/* CANCEL RESERVATION CONFIRMATION MODAL */}
- {cancellingReservation && (
-   <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
-     <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
-       <button 
-         onClick={() => setCancellingReservation(null)}
-         className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
-       >
-         <X size={18} />
-       </button>
-
-       <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8 text-red-500">
-         <AlertTriangle size={18} className="shrink-0" /> <span className="truncate">Cancel Reservation</span>
-       </div>
-
-       <div className="space-y-2">
-         <p className="text-xs text-text-muted">
-           Are you sure you want to cancel the reservation for:
-         </p>
-         <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
-           <div className="flex justify-between">
-             <span className="text-text-muted">Customer:</span>
-             <span className="font-semibold text-text-main">{cancellingReservation.customerName}</span>
-           </div>
-           {cancellingReservation.phoneNumber && (
-             <div className="flex justify-between">
-               <span className="text-text-muted">Phone:</span>
-               <span className="font-semibold text-text-main">{cancellingReservation.phoneNumber}</span>
-             </div>
-           )}
-           <div className="flex justify-between">
-             <span className="text-text-muted">Table:</span>
-             <span className="font-bold dark:text-primary text-primary font-mono">{cancellingReservation.table?.tableNumber || 'N/A'}</span>
-           </div>
-         </div>
-         <p className="text-[11px] text-red-500/80 italic">
-           This will release the table back to "available" immediately.
-         </p>
-       </div>
-
-       <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
-         <button
-           type="button"
-           onClick={() => setCancellingReservation(null)}
-           className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
-         >
-           No, Keep it
-         </button>
-         <button
-           onClick={handleCancelConfirm}
-           disabled={isSubmittingCancel}
-           className="flex-1 py-2.5 rounded-xl bg-red-500 text-white hover:bg-red-600 active:bg-red-700 text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer border-none"
-         >
-           {isSubmittingCancel ? 'Cancelling...' : 'Yes, Cancel'}
-         </button>
-       </div>
-     </div>
-   </div>
- )}
+  {cancellingReservation && (
+    <CancelReservationModal
+      isOpen={!!cancellingReservation}
+      reservation={cancellingReservation}
+      onClose={() => setCancellingReservation(null)}
+      onSuccess={() => {
+        setCancellingReservation(null);
+        if (inspectingTable && inspectingTable.id === cancellingReservation.tableId) {
+          setInspectingTable(null);
+        }
+        refreshTables();
+        refreshReservations();
+      }}
+    />
+  )}
 
   {/* TRANSFER TABLE MODAL */}
 
@@ -1487,145 +1376,22 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
   {/* EXTEND SESSION MODAL */}
   {extendingTable && (() => {
     const token = tokens.find(tk => tk.tableId === extendingTable.id || (tk.table && tk.table.id === extendingTable.id));
-    const rateConfig = rates?.find((r: any) => r.id === extendingTable.placeTypeId);
-    const hourlyRate = rateConfig ? (rateConfig.ratePerPerson || 0) / ((rateConfig.baseTimeMinutes || 20) / 60) : 0;
-    const calculatedAmount = Math.round(hourlyRate * (extensionMinutes / 60) * (token?.personsCount || 1));
-    
-    // Calculate times
-    const currentEndTimeStr = token ? new Date(token.endTime).toLocaleString() : 'N/A';
-    const baseTime = token && new Date(token.endTime).getTime() > Date.now() ? new Date(token.endTime) : new Date();
-    const newEndTimeStr = new Date(baseTime.getTime() + extensionMinutes * 60 * 1000).toLocaleString();
-
+    if (!token) return null;
     return (
-      <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
-        <div className="bg-bg-surface border border-border-main rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
-          <button 
-            onClick={() => {
-              setExtendingTable(null);
-            }}
-            className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer p-1"
-          >
-            <X size={18} />
-          </button>
-
-          <div className="flex items-center gap-2 text-text-main font-bold text-sm pr-8">
-            <Clock size={18} className="shrink-0" /> <span className="truncate">Extend Table {extendingTable.tableNumber}</span>
-          </div>
-
-          <form onSubmit={handleExtendSubmit} className="space-y-4">
-            <div className="p-3 bg-bg-primary rounded-xl space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-text-muted">Customer:</span>
-                <span className="font-semibold text-text-main">{token?.customer?.name || 'Guest'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">Group Size:</span>
-                <span className="font-semibold text-text-main">{token?.personsCount || 1} Guests</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-muted">Current End Time:</span>
-                <span className="font-semibold text-text-main">{currentEndTimeStr}</span>
-              </div>
-              <div className="flex justify-between border-t border-border-main/50 pt-1 mt-1 font-bold">
-                <span className="text-text-muted">New End Time:</span>
-                <span className="text-primary">{newEndTimeStr}</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-text-muted mb-1">Select Extension Duration <span className="text-red-500">*</span></label>
-              <select
-                value={extensionMinutes}
-                onChange={e => {
-                  const mins = Number(e.target.value);
-                  setExtensionMinutes(mins);
-                  const amt = Math.round(hourlyRate * (mins / 60) * (token?.personsCount || 1));
-                  setExtensionAmount(amt);
-                }}
-                className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
-                required
-              >
-                <option value={20}>+20 Minutes (₹{Math.round(hourlyRate * (20 / 60) * (token?.personsCount || 1))})</option>
-                <option value={25}>+25 Minutes (₹{Math.round(hourlyRate * (25 / 60) * (token?.personsCount || 1))})</option>
-                <option value={30}>+30 Minutes (₹{Math.round(hourlyRate * (30 / 60) * (token?.personsCount || 1))})</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-text-muted mb-1">Payment Method <span className="text-red-500">*</span></label>
-              <select
-                value={extensionPaymentMethod}
-                onChange={e => {
-                  const method = e.target.value as any;
-                  setExtensionPaymentMethod(method);
-                  if (method === 'COMPLIMENTARY') {
-                    setExtensionAmount(0);
-                  } else {
-                    setExtensionAmount(calculatedAmount);
-                  }
-                }}
-                className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
-                required
-              >
-                <option value="CASH">Cash Payment (Confirm Collection)</option>
-                <option value="UPI">UPI QR Code (Simulated)</option>
-                <option value="COMPLIMENTARY">Complimentary (No Charge)</option>
-              </select>
-            </div>
-
-            {extensionPaymentMethod === 'UPI' && (
-              <div className="flex flex-col items-center justify-center py-4 space-y-3 bg-bg-primary rounded-2xl border border-border-main mt-4 animate-fadeIn">
-                <p className="text-xs font-bold text-text-main">Scan UPI QR to Pay ₹{extensionAmount}</p>
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`upi://pay?pa=barmanagement@upi&pn=BarSystem&am=${extensionAmount}&cu=INR`)}`}
-                  alt="UPI Payment QR"
-                  className="border-4 border-primary rounded-xl p-1 bg-white w-[150px] h-[150px]"
-                />
-                <p className="text-[10px] text-text-muted italic">Development Simulator Mode</p>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 pt-2">
-              <input
-                type="checkbox"
-                id="sendExtensionEmail"
-                checked={sendExtensionEmail}
-                onChange={e => {
-                  const val = e.target.checked;
-                  if (val) {
-                    setShowEmailConfirmModal(true);
-                  } else {
-                    setSendExtensionEmail(false);
-                  }
-                }}
-                className="rounded bg-bg-primary border-border-main text-primary focus:ring-0 focus:ring-offset-0"
-              />
-              <label htmlFor="sendExtensionEmail" className="text-xs font-semibold text-text-muted cursor-pointer select-none">
-                Send updated session details email to customer
-              </label>
-            </div>
-
-            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setExtendingTable(null);
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main border border-border-main cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmittingExtension}
-                className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer"
-              >
-                {isSubmittingExtension ? 'Saving...' : 'Confirm Extension'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <ExtendSessionModal
+        isOpen={!!extendingTable}
+        token={token}
+        rates={rates || []}
+        onClose={() => setExtendingTable(null)}
+        onSuccess={() => {
+          setExtendingTable(null);
+          if (inspectingTable && inspectingTable.id === extendingTable.id) {
+            setInspectingTable(null);
+          }
+          refreshTables();
+          refreshTokens();
+        }}
+      />
     );
   })()}
 
@@ -1708,44 +1474,6 @@ export const TablesPage: React.FC<TablesPageProps> = ({ onNavigateToCheckIn, act
     </div>
   )}
 
-  {showEmailConfirmModal && (
-    <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-bg-surface border border-border-main rounded-3xl p-6 w-full max-w-sm space-y-6 text-center shadow-2xl animate-fadeIn text-text-main">
-        <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mx-auto text-primary">
-          <Mail size={24} />
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-base font-black uppercase tracking-wider">Confirm Email</h3>
-          <p className="text-xs text-text-muted">
-            Are you sure you want to send an email to the user?
-          </p>
-        </div>
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            ref={emailYesButtonRef}
-            onClick={() => {
-              setSendExtensionEmail(true);
-              setShowEmailConfirmModal(false);
-            }}
-            className="flex-1 py-2.5 rounded-xl bg-primary text-white font-bold text-xs shadow-md shadow-primary/10 hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer border-none"
-          >
-            Yes
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSendExtensionEmail(false);
-              setShowEmailConfirmModal(false);
-            }}
-            className="flex-1 py-2.5 rounded-xl border border-border-main text-text-muted hover:text-text-main font-semibold text-xs hover:bg-bg-primary/50 active:scale-[0.98] transition-all cursor-pointer bg-transparent"
-          >
-            No
-          </button>
-        </div>
-      </div>
-    </div>
-  )}
 
  </div>
  );

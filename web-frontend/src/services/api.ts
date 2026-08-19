@@ -67,14 +67,19 @@ class ApiService {
       headers,
     });
 
-    if (response.status === 401 || response.status === 403) {
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 401) {
       localStorage.removeItem('bar_web_token');
       localStorage.removeItem('bar_web_user');
+      if (data && data.error && data.error.code === 'AUTH_DEACTIVATED') {
+        localStorage.setItem('auth_error_msg', 'Access denied. Contact your administrator.');
+      } else {
+        localStorage.setItem('auth_error_msg', data.message || (data.error && typeof data.error === 'object' ? data.error.message : data.error) || 'Session expired. Please log in again.');
+      }
       window.location.reload();
-      throw new Error('Session expired. Please log in again.');
+      throw new Error(data.message || 'Session expired. Please log in again.');
     }
-
-    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       const errMsg = data.message || 
@@ -225,6 +230,19 @@ class ApiService {
     return this.request<{ success: boolean; table: Table }>('/tables', {
       method: 'POST',
       body: JSON.stringify(tableData),
+    });
+  }
+
+  async updateTable(tableId: string, tableData: { tableNumber: string; placeTypeId: string; capacity: number }) {
+    return this.request<{ success: boolean; table: Table }>(`/tables/${tableId}`, {
+      method: 'PUT',
+      body: JSON.stringify(tableData),
+    });
+  }
+
+  async deleteTable(tableId: string) {
+    return this.request<{ success: boolean }>(`/tables/${tableId}`, {
+      method: 'DELETE',
     });
   }
 

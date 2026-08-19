@@ -98,7 +98,10 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
         }
       });
 
-      if (session && session.user && session.user.isActive) {
+      if (session && session.user) {
+        if (!session.user.isActive) {
+          return res.status(401).json({ success: false, error: { code: 'AUTH_DEACTIVATED', message: 'Access denied. Contact your administrator.' } });
+        }
         req.user = {
           id: session.user.id,
           username: session.user.username,
@@ -133,7 +136,10 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
             include: { role: true }
           });
 
-          if (localUser && localUser.isActive) {
+          if (localUser) {
+            if (!localUser.isActive) {
+              return res.status(401).json({ success: false, error: { code: 'AUTH_DEACTIVATED', message: 'Access denied. Contact your administrator.' } });
+            }
             req.user = {
               id: localUser.id,
               username: localUser.username,
@@ -505,7 +511,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     }
 
     if (!user.isActive) {
-      return res.status(403).json({ success: false, error: { code: 'AUTH_005', message: 'User account is deactivated' } });
+      return res.status(401).json({ success: false, error: { code: 'AUTH_DEACTIVATED', message: 'Access denied. Contact your administrator.' } });
     }
 
     await prisma.user.update({
@@ -1293,8 +1299,8 @@ router.post('/tables', authenticate, authorize(['admin']), async (req: Request, 
   }
 
   const finalCapacity = capacity ? parseInt(capacity, 10) : 2;
-  if (isNaN(finalCapacity) || finalCapacity < 1 || finalCapacity > 100) {
-    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table capacity must be between 1 and 100.' } });
+  if (isNaN(finalCapacity) || finalCapacity < 1 || finalCapacity > 20) {
+    return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table capacity must be between 1 and 20.' } });
   }
 
   try {
@@ -1398,17 +1404,37 @@ router.put('/tables/:id', authenticate, authorize(['admin']), async (req: Reques
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Table not found' } });
     }
 
-    // 2. Business Rule: Prevent editing occupied tables
-    if (table.status === 'occupied' || table.tokens.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'CONFLICT_OCCUPIED', message: 'Cannot edit table details while it is occupied or has active sessions.' }
-      });
-    }
-
     // 3. Resolve inputs
     const finalTableNumber = (tableNumber || number) ? (tableNumber || number).trim().toUpperCase() : undefined;
     let finalPlaceTypeId = placeTypeId;
+    if (finalPlaceTypeId && (finalPlaceTypeId === 'STANDING_BAR' || finalPlaceTypeId === 'PREMIUM_LOUNGE')) {
+      const ptObj = await prisma.placeTypeConfig.findUnique({
+        where: { name: finalPlaceTypeId }
+      });
+      if (ptObj) finalPlaceTypeId = ptObj.id;
+    }
+    if (!finalPlaceTypeId && placeType) {
+      if (placeType === 'STANDING_BAR' || placeType === 'PREMIUM_LOUNGE') {
+        const ptObj = await prisma.placeTypeConfig.findUnique({
+          where: { name: placeType }
+        });
+        if (ptObj) finalPlaceTypeId = ptObj.id;
+      }
+    }
+
+    // 2. Business Rule: Prevent editing occupied tables' critical fields (table number / place type) while occupied or active
+    const isOccupiedOrActive = table.status === 'occupied' || table.tokens.length > 0;
+    if (isOccupiedOrActive) {
+      const isTableNumberChanging = finalTableNumber !== undefined && finalTableNumber !== table.tableNumber.toUpperCase();
+      const isPlaceTypeChanging = finalPlaceTypeId !== undefined && finalPlaceTypeId !== table.placeTypeId;
+
+      if (isTableNumberChanging || isPlaceTypeChanging) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'CONFLICT_OCCUPIED', message: 'Cannot edit table details while it is occupied or has active sessions.' }
+        });
+      }
+    }
 
     if (finalTableNumber) {
       const tableNumRegex = /^[SL]-\d{2,4}$/;
@@ -1454,8 +1480,8 @@ router.put('/tables/:id', authenticate, authorize(['admin']), async (req: Reques
     }
 
     const finalCapacity = capacity ? parseInt(capacity, 10) : undefined;
-    if (finalCapacity !== undefined && (isNaN(finalCapacity) || finalCapacity < 1 || finalCapacity > 100)) {
-      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table capacity must be between 1 and 100.' } });
+    if (finalCapacity !== undefined && (isNaN(finalCapacity) || finalCapacity < 1 || finalCapacity > 20)) {
+      return res.status(400).json({ success: false, error: { code: 'VAL_ERR', message: 'Table capacity must be between 1 and 20.' } });
     }
 
     const updated = await prisma.table.update({
@@ -3282,8 +3308,8 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
-router.post('/extend', authenticate, authorize(['receptionist', 'admin']), extendSessionHandler);
-router.put('/tokens/:tokenNumber/extend', authenticate, authorize(['receptionist', 'admin']), extendSessionHandler);
+router.post('/extend', authenticate, authorize(['receptionist', 'admin', 'manager']), extendSessionHandler);
+router.put('/tokens/:tokenNumber/extend', authenticate, authorize(['receptionist', 'admin', 'bartender', 'manager']), extendSessionHandler);
 
 // Checkout Session
 const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) => {
@@ -3361,11 +3387,11 @@ const checkoutSessionHandler = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
-router.post('/checkout', authenticate, authorize(['receptionist', 'admin']), checkoutSessionHandler);
-router.put('/tokens/:tokenNumber/close', authenticate, authorize(['receptionist', 'admin']), checkoutSessionHandler);
+router.post('/checkout', authenticate, authorize(['receptionist', 'admin', 'manager']), checkoutSessionHandler);
+router.put('/tokens/:tokenNumber/close', authenticate, authorize(['receptionist', 'admin', 'bartender', 'manager']), checkoutSessionHandler);
 
 // Manual Close Section Route
-router.post('/sessions/:tokenNumber/close', authenticate, authorize(['admin', 'receptionist', 'bartender']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/sessions/:tokenNumber/close', authenticate, authorize(['admin', 'receptionist', 'bartender', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
   const { tokenNumber } = req.params;
   const { force } = req.body;
 

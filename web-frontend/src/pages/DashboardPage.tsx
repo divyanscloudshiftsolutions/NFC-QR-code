@@ -33,6 +33,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
  // Extend Modal State
  const [extendingToken, setExtendingToken] = useState<Token | null>(null);
+  const [showExtendPaymentConfirm, setShowExtendPaymentConfirm] = useState(false);
  const [extraMinutes, setExtraMinutes] = useState(20);
  const [additionalAmount, setAdditionalAmount] = useState(500);
  const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
@@ -43,21 +44,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  const [isSubmittingClose, setIsSubmittingClose] = useState(false);
 
  const handleExtendSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!extendingToken) return;
+    e.preventDefault();
+    if (!extendingToken) return;
+    setShowExtendPaymentConfirm(true);
+  };
 
- setIsSubmittingExtend(true);
- try {
- await api.extendToken(extendingToken.tokenNumber, extraMinutes, additionalAmount);
- showToast(`Session for ${extendingToken.tokenNumber} extended by ${extraMinutes} mins.`, 'success');
- setExtendingToken(null);
- refreshTokens();
- } catch (err: any) {
- showToast(err.message || 'Failed to extend session.', 'danger');
- } finally {
- setIsSubmittingExtend(false);
- }
- };
+  const executeExtend = async () => {
+    setShowExtendPaymentConfirm(false);
+    if (!extendingToken) return;
+    setIsSubmittingExtend(true);
+    try {
+      await api.extendToken(extendingToken.tokenNumber, extraMinutes, additionalAmount);
+      showToast(`Session for ${extendingToken.tokenNumber} extended by ${extraMinutes} mins.`, 'success');
+      setExtendingToken(null);
+      refreshTokens();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to extend session.', 'danger');
+    } finally {
+      setIsSubmittingExtend(false);
+    }
+  };
 
  const handleCloseSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
@@ -495,7 +501,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
  </div>
 
- {/* EXTEND SESSION MODAL */}
+ {showExtendPaymentConfirm && (
+      <div className="fixed inset-0 z-[110] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+        <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
+          <h3 className="text-base font-black uppercase tracking-wider text-primary">Confirm Extension Payment?</h3>
+          <p className="text-xs text-text-muted">
+            Payment has been collected. Do you want to confirm the session extension?
+          </p>
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={executeExtend}
+              className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider cursor-pointer"
+            >
+              YES — Confirm Extension
+            </button>
+            <button
+              onClick={() => setShowExtendPaymentConfirm(false)}
+              className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card border border-border-main text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
+            >
+              NO — Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* EXTEND SESSION MODAL */}
  {extendingToken && (
  <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-4">
  <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">

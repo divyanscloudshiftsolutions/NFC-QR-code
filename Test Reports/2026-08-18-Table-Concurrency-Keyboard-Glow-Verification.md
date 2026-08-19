@@ -1,4 +1,4 @@
-# Daily Testing & End-to-End Verification Report
+# Complete Authentication, Table Assignment, Check-In, Capacity Validation, Concurrency, Locking, Keyboard Interaction and Dark Theme UI verification required to identify and resolve lifecycle, state synchronization, validation and frontend/backend workflow mismatches across Tables, Reservations, Check-In and Session workflows.
 
 ## Detail
 
@@ -30,6 +30,10 @@
 | **12** | Reviewed keyboard-first interaction requirements and identified **Manual Token Verification** in Check-In as a missing ENTER-key action. An implementation plan was prepared so pressing ENTER after entering/pasting a token performs the same action as clicking Verify. |
 | **13** | Reviewed the Dark Theme **Sign Out Shift Account** button and identified that its Purple interaction styling should not be used in the Luxury Dark theme. The existing Gold theme palette should be used instead. |
 | **14** | Performed TypeScript and production build verification after the implemented changes. `npx tsc --noEmit` and `npm run build` completed successfully. |
+| **15** | Relocated customer-input and duplicate validation feedback from global toast notifications to inline warning messages displayed directly inside the **Assign Table** modal. Submit button is dynamically disabled when inputs are invalid or conflicts exist. |
+| **16** | Audited and corrected the Check-In pre-fill and Resume/Stop Check-In regression: resolved user-isolated localStorage key mismatches in TablesPage, handled user resolution timing in CheckInPage, and implemented a tab visibility/focus check-in draft listener. |
+| **17** | Extracted inline Extend modal from `TablesPage` into a reusable `ExtendSessionModal` component, and integrated it into both the Tables inspect panel and the Bartender Check-ins active token card. |
+| **18** | Extracted inline Cancel Reservation modal from `TablesPage` into a reusable `CancelReservationModal` component, and integrated it into both the Tables inspect panel and the Bartender Check-ins active token card to unify the cancellation flow. |
 
 ---
 
@@ -65,6 +69,11 @@
 | **TC-026** | Dark Theme Sign Out Styling | Dark Theme should use the existing Gold palette | Sign Out button hover, active, focus, and press states styled with existing Gold theme tokens, glow reduced | **Passed** |
 | **TC-027** | TypeScript Verification | No TypeScript compilation errors | `npx tsc --noEmit` passed | **Passed** |
 | **TC-028** | Production Build | Production build should complete successfully | `npm run build` passed | **Passed** |
+| **TC-029** | Inline Validation UI Correction | Inputs show dynamic red borders/warnings inside modal; button disables; no global toasts | Modal inline validation verified successfully | **Passed** |
+| **TC-030** | Check-In Pre-filled Seating | Reservation assignment hydrates CheckInPage inputs correctly | Verified pre-fill data loads successfully on mount | **Passed** |
+| **TC-031** | Resume/Stop Check-In Draft | Draft prompt appears after reload/tab switch and resumes/unlocks correctly | Focus/visibility listeners and timing checks verified | **Passed** |
+| **TC-032** | Bartender Extend Session Modal | Extend action in Bartender Check-ins opens the shared ExtendSessionModal with correct rate context and duration options | Verified exact same UI and calculation behavior | **Passed** |
+| **TC-033** | Bartender Cancel Session Modal | Cancel action in Bartender Check-ins opens the shared CancelReservationModal with customer name/table context | Verified cancellation flow releasing table to available | **Passed** |
 
 ---
 

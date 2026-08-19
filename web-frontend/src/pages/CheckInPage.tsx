@@ -79,6 +79,7 @@ export const CheckInPage: React.FC<{ onNavigate?: (tab: string) => void }> = ({ 
   const [showCapacityWarning, setShowCapacityWarning] = useState(false);
   const [hasDismissedCapacityWarning, setHasDismissedCapacityWarning] = useState(false);
   const [attemptedPersonsCount, setAttemptedPersonsCount] = useState<number | null>(null);
+  const [showPaymentCollectedConfirm, setShowPaymentCollectedConfirm] = useState(false);
 
   // Load incomplete check-in state on mount
   useEffect(() => {
@@ -955,70 +956,74 @@ setPersonsCount(preselectedTable.capacity);
  };
 
  const handleFinalCheckInSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!isStep1Valid) {
- showToast('Form inputs are invalid. Please check Stage 1 details.', 'danger');
- setStage(1);
- return;
- }
+    e.preventDefault();
+    if (!isStep1Valid) {
+      showToast('Form inputs are invalid. Please check Stage 1 details.', 'danger');
+      setStage(1);
+      return;
+    }
+    setShowPaymentCollectedConfirm(true);
+  };
 
- setIsSubmitting(true);
+  const executeFinalCheckIn = async () => {
+    setShowPaymentCollectedConfirm(false);
+    setIsSubmitting(true);
 
- try {
- let res;
- if (activePendingToken) {
- const selectedTable = tables.find(t => t.id === selectedTableId);
- const tableNumber = selectedTable ? selectedTable.tableNumber : '';
+    try {
+      let res;
+      if (activePendingToken) {
+        const selectedTable = tables.find(t => t.id === selectedTableId);
+        const tableNumber = selectedTable ? selectedTable.tableNumber : '';
 
- // 1. Update check-in and table allocation options inside pending state first
- await api.createPendingCheckIn({
- phoneNumber: phoneNumber.trim(),
- customerName: customerName.trim(),
- email: email.trim() || '',
- personsCount: typeof personsCount === 'number' ? personsCount : 1,
- placeTypeId: selectedPlaceTypeId,
- tableId: selectedTableId || undefined,
- tableNumber: tableNumber || undefined,
- tokenNumber: activePendingToken.tokenNumber
- });
+        // 1. Update check-in and table allocation options inside pending state first
+        await api.createPendingCheckIn({
+          phoneNumber: phoneNumber.trim(),
+          customerName: customerName.trim(),
+          email: email.trim() || '',
+          personsCount: typeof personsCount === 'number' ? personsCount : 1,
+          placeTypeId: selectedPlaceTypeId,
+          tableId: selectedTableId || undefined,
+          tableNumber: tableNumber || undefined,
+          tokenNumber: activePendingToken.tokenNumber
+        });
 
- // 2. Activate token payment and seat occupation
- res = await api.activateSession(activePendingToken.tokenNumber, tableNumber, calculatedTotal);
- } else {
- res = await api.createCustomerCheckIn({
- phoneNumber: phoneNumber.trim(),
- customerName: customerName.trim(),
- email: email.trim() || undefined,
- personsCount,
- placeTypeId: selectedPlaceTypeId,
- deliveryMode
- });
- }
+        // 2. Activate token payment and seat occupation
+        res = await api.activateSession(activePendingToken.tokenNumber, tableNumber, calculatedTotal);
+      } else {
+        res = await api.createCustomerCheckIn({
+          phoneNumber: phoneNumber.trim(),
+          customerName: customerName.trim(),
+          email: email.trim() || undefined,
+          personsCount: typeof personsCount === 'number' ? personsCount : 1,
+          placeTypeId: selectedPlaceTypeId,
+          deliveryMode
+        });
+      }
 
- if (res.success && res.token) {
- setCreatedToken(res.token);
- if (!activePendingToken && selectedTableId) {
- await api.assignTable(selectedTableId, res.token.id).catch(() => {});
- }
- if (reservationId) {
-   await api.assignReservation(reservationId).catch(() => {});
-   setReservationId('');
- }
- showToast(`Guest ${customerName} checked in successfully! Token: ${res.token.tokenNumber}`, 'success');
- refreshTokens();
- refreshTables();
- refreshReservations();
- setActivePendingToken(null); // Reset pending check-in tracker
- setStage(5);
- } else {
- showToast('Check-in failed. Please try again.', 'danger');
- }
- } catch (err: any) {
- showToast(err.message || 'Check-in failed.', 'danger');
- } finally {
- setIsSubmitting(false);
- }
- };
+      if (res.success && res.token) {
+        setCreatedToken(res.token);
+        if (!activePendingToken && selectedTableId) {
+          await api.assignTable(selectedTableId, res.token.id).catch(() => {});
+        }
+        if (reservationId) {
+          await api.assignReservation(reservationId).catch(() => {});
+          setReservationId('');
+        }
+        showToast(`Guest ${customerName} checked in successfully! Token: ${res.token.tokenNumber}`, 'success');
+        refreshTokens();
+        refreshTables();
+        refreshReservations();
+        setActivePendingToken(null); // Reset pending check-in tracker
+        setStage(5);
+      } else {
+        showToast('Check-in failed. Please try again.', 'danger');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Check-in failed.', 'danger');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleResetWizard = async () => {
     const savedDraft = localStorage.getItem('bar_incomplete_checkin');
@@ -2015,6 +2020,30 @@ setPersonsCount(preselectedTable.capacity);
 
       {renderStopCheckInConfirmModal}
       {renderCapacityWarningModal}
+      {showPaymentCollectedConfirm && (
+        <div className="fixed inset-0 z-[100] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+          <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
+            <h3 className="text-base font-black uppercase tracking-wider text-primary">Confirm Payment Collection?</h3>
+            <p className="text-xs text-text-muted">
+              Payment has been collected. Do you want to proceed with Check-In?
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={executeFinalCheckIn}
+                className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider cursor-pointer border-none"
+              >
+                YES — Proceed
+              </button>
+              <button
+                onClick={() => setShowPaymentCollectedConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card border border-border-main text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
+              >
+                NO — Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   </div>
  );

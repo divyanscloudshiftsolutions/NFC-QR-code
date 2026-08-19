@@ -76,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
  if (group === 'tables') {
  setActiveTab('tables/layout');
  } else if (group === 'bartender') {
- setActiveTab('bartender/scan');
+ setActiveTab('bartender/checkins');
  } else if (group === 'administration') {
  setActiveTab('admin/tables');
  }
@@ -106,8 +106,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
  icon: Wine,
  roles: [UserRole.ADMIN, UserRole.BARTENDER],
  subItems: [
- { label: 'QR Scan', onClick: () => setActiveTab('bartender/scan'), active: activeTab === 'bartender/scan' },
- { label: 'Check-ins', onClick: () => setActiveTab('bartender/checkins'), active: activeTab === 'bartender/checkins' }
+ { label: 'Check-ins', onClick: () => setActiveTab('bartender/checkins'), active: activeTab === 'bartender/checkins' },
+ { label: 'QR Scan', onClick: () => setActiveTab('bartender/scan'), active: activeTab === 'bartender/scan' }
  ]
  },
  {
@@ -263,7 +263,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
  {renderNavButton('checkin', 'Reception', UserCheck, [UserRole.ADMIN, UserRole.RECEPTIONIST])}
  {renderGroup(groups.find(g => g.id === 'tables'))}
  {renderGroup(groups.find(g => g.id === 'bartender'))}
- {renderNavButton('quick_attendance', 'Attendance', Camera, [UserRole.ADMIN, UserRole.MANAGER, UserRole.RECEPTIONIST])}
+ {renderNavButton('quick_attendance', 'Attendance', Camera, [UserRole.ADMIN, UserRole.MANAGER, UserRole.RECEPTIONIST, UserRole.BARTENDER])}
  {renderGroup(groups.find(g => g.id === 'administration'))}
  </nav>
  </div>

@@ -3,6 +3,7 @@ import { Wine, Search, RotateCcw, Camera, CheckCircle2, AlertCircle, RefreshCw, 
 import { api } from '../services/api';
 import { ExtendSessionModal } from '../components/modals/ExtendSessionModal';
 import { CancelReservationModal } from '../components/modals/CancelReservationModal';
+import { QuickAttendanceWebPage } from './QuickAttendanceWebPage';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import jsQR from 'jsqr';
@@ -409,6 +410,10 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  const mins = diffMins % 60;
  return `${diffHours}h ${mins}m`;
  };
+
+ if (activeTab === 'bartender/attendance') {
+   return <QuickAttendanceWebPage />;
+ }
 
  const isScanTab = activeTab !== 'bartender/checkins';
 

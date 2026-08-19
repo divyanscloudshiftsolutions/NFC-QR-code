@@ -192,7 +192,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onSidebarToggle, onRefres
  setIsOpen(false);
  logout();
  }}
- className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-primary border border-primary-hover text-white 0_0_20px_rgba(212,175,55,0.55)] hover:bg-[#7B59DD] 0_0_24px_rgba(212,175,55,0.75)] transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+ className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-primary border border-primary-hover text-white [box-shadow:0_0_8px_rgba(212,175,55,0.25)] hover:bg-[#7B59DD] dark:hover:bg-primary-hover dark:hover:text-black dark:active:bg-primary-hover dark:active:text-black dark:focus:bg-primary-hover dark:focus:text-black focus:outline-none dark:focus:ring-2 dark:focus:ring-primary hover:[box-shadow:0_0_12px_rgba(212,175,55,0.35)] transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
  >
  <LogOut size={14} />
  <span>Sign Out Shift Account</span>

@@ -31,7 +31,19 @@
 | Attribute | Details |
 | :--- | :--- |
 | **Project Overview** | Comprehensive system-wide authentication, user role verification, and capacity warning checks |
-| **Problems Identified** | Detailed verification was required to confirm that non-admin login rejections, capacity warnings, direct assignment lifecycles, and multi-user lock conflicts function correctly and authoritatively across the entire system. |
-| **Resolution** | Executed 28 test cases covering login (Admin, Manager, Receptionist, Bartender), capacity validations, draft isolations, concurrency collisions, and manual token entry behaviors. Updated `api.ts` request interceptor to exclude `403 Forbidden` statuses from the session-expiry key eviction list. Token/user keys are now only evicted on explicit `401 Unauthorized` responses, letting the frontend correctly render normal access restrictions/toasts instead of forced reloads. |
-| **Activities Completed** | Ran integration scripts and verified correct state rollbacks in PostgreSQL/Redis. Verified that valid Admin, Manager, Receptionist, and Bartender credentials work correctly after the authentication correction. Verified zero TypeScript compiler or Vite build errors. |
+| **Problems Identified** | Detailed verification was required to confirm that non-admin login rejections, capacity warnings, direct assignment lifecycles, and multi-user lock conflicts function correctly across the entire system. Additionally, validation feedback in the Assign Table dialog was displayed via global toasts behind the modal, and a regression in user-isolated localStorage key prefixes broke the pre-filled seating details and Continue/Resume prompts in Check-In. |
+| **Resolution** | Executed 31 test cases covering login, capacity validations, draft isolations, concurrency collisions, manual token entry, modal inline validation, and Check-In pre-fill/resume logic. Synchronized TablesPage writes to match the user-specific keys expected by CheckInPage, added dynamic user-ID timing checks in the mount loader effect, and registered visibilitychange/focus listeners to recheck drafts on tab return. |
+| **Activities Completed** | Ran integration scripts and verified correct state rollbacks in PostgreSQL/Redis. Verified that valid Admin, Manager, Receptionist, and Bartender credentials work correctly. Verified modal inline warnings, pre-filled guest/seating details on mount, Resume/Stop modal behavior, and zero TypeScript compiler or Vite build errors. |
 | **Files / Modules Updated** | `web-frontend/src/pages/CheckInPage.tsx`, `web-frontend/src/pages/TablesPage.tsx`, `web-frontend/src/services/api.ts`, `backend/src/services/TableService.ts`, `backend/src/services/TokenService.ts` |
+
+---
+
+## Issue 4: Unification of Session Extension & Cancellation modals on Bartender Check-ins
+
+| Attribute | Details |
+| :--- | :--- |
+| **Project Overview** | Code reuse, modal UI consistency, and session lifecycles across Bartender Page and Tables Page |
+| **Problems Identified** | In Bartender -> Check-ins active token card, the Extend and Cancel actions were either missing or had disconnected duplicate flows. Specifically, extending or cancelling a guest session from the Bartender Page needed to open the exact same dialog styles, perform the same rate calculations, payment options, and API calls as the Tables Page to avoid business logic drift and duplicate UI layouts. |
+| **Resolution** | Extracted the inline Extend and Cancel Reservation modals in `TablesPage.tsx` into shared reusable components: `ExtendSessionModal.tsx` and `CancelReservationModal.tsx`. Integrated them into both the Tables inspect panel drawer and the active session list in `BartenderPage.tsx`. Mapped the token session context to the expected reservation data interface before opening the Cancel modal. Removed old inline states, handlers, and markup from both pages. |
+| **Activities Completed** | Created reusable components, integrated them into TablesPage and BartenderPage, cleaned up obsolete states/handlers, verified the shared extension and cancellation workflows, and ran clean production builds. |
+| **Files / Modules Updated** | `web-frontend/src/components/modals/ExtendSessionModal.tsx`, `web-frontend/src/components/modals/CancelReservationModal.tsx`, `web-frontend/src/pages/TablesPage.tsx`, `web-frontend/src/pages/BartenderPage.tsx` |

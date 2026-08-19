@@ -8,7 +8,14 @@ export const LoginPage: React.FC = () => {
  const [username, setUsername] = useState('ADM-03');
  const [pin, setPin] = useState('1234');
  const [isSubmitting, setIsSubmitting] = useState(false);
- const [errorMsg, setErrorMsg] = useState('');
+ const [errorMsg, setErrorMsg] = useState(() => {
+    const saved = localStorage.getItem('auth_error_msg');
+    if (saved) {
+      localStorage.removeItem('auth_error_msg');
+      return saved;
+    }
+    return '';
+  });
 
  const handleRoleSelect = (role: 'REC' | 'BAR' | 'ADM' | 'MGR') => {
  setSelectedRole(role);

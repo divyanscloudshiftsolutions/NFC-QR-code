@@ -33,7 +33,7 @@ export const RateManagement: React.FC = () => {
  const priceVal = parseFloat(ratePerPerson);
  const isPriceValid = !isNaN(priceVal) && priceVal >= 0;
  const durationVal = parseInt(durationMinutes, 10);
- const isDurationValid = !isNaN(durationVal) && durationVal >= 5 && durationVal <= 1440;
+ const isDurationValid = !isNaN(durationVal) && durationVal >= 30 && durationVal <= 1440;
  const drinksVal = parseInt(drinkAllowance, 10);
  const isDrinksValid = !isNaN(drinksVal) && drinksVal >= 0 && drinksVal <= 50;
  const isFormValid = isPriceValid && isDurationValid && isDrinksValid;
@@ -151,12 +151,12 @@ export const RateManagement: React.FC = () => {
  </div>
 
  <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">Base Duration (Minutes: 5 - 1440)</label>
+ <label className="block text-xs font-semibold text-text-muted mb-1">Base Duration (Minutes: 30 - 1440)</label>
  <input
  type="number"
  value={durationMinutes}
  onChange={e => setDurationMinutes(e.target.value)}
- min={5}
+ min={30}
  max={1440}
  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
  required

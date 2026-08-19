@@ -30,6 +30,7 @@ export const CustomerSessionsManager: React.FC = () => {
 
   // Extend Session Modal State
   const [extendingToken, setExtendingToken] = useState<any | null>(null);
+  const [showExtendPaymentConfirm, setShowExtendPaymentConfirm] = useState(false);
   const [extraMinutes, setExtraMinutes] = useState(20);
   const [additionalAmount, setAdditionalAmount] = useState(500);
   const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
@@ -65,7 +66,12 @@ export const CustomerSessionsManager: React.FC = () => {
   const handleExtendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!extendingToken) return;
+    setShowExtendPaymentConfirm(true);
+  };
 
+  const executeExtend = async () => {
+    setShowExtendPaymentConfirm(false);
+    if (!extendingToken) return;
     setIsSubmittingExtend(true);
     try {
       await api.extendToken(extendingToken.tokenNumber, extraMinutes, additionalAmount, false, 'CASH');
@@ -152,7 +158,6 @@ export const CustomerSessionsManager: React.FC = () => {
                   <th className="pb-3 px-3">Contact Details</th>
                   <th className="pb-3 px-3">Guests</th>
                   <th className="pb-3 px-3">Redemptions</th>
-                  <th className="pb-3 px-3">Delivery Mode</th>
                   <th className="pb-3 px-3">Status</th>
                   <th className="pb-3 px-3">Admin Actions</th>
                 </tr>
@@ -173,11 +178,6 @@ export const CustomerSessionsManager: React.FC = () => {
                     <td className="py-3 px-3 font-semibold text-text-main">{tk.personsCount} Guests</td>
                     <td className="py-3 px-3">
                       <span className="font-mono dark:text-amber-300 text-amber-700 font-bold">{tk.redemptionsUsed}</span> / {tk.totalRedemptionsAllowed} Drinks
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-bg-card text-text-muted border border-border-main">
-                        {tk.deliveryMode}
-                      </span>
                     </td>
                     <td className="py-3 px-3">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-active uppercase">
@@ -247,7 +247,32 @@ export const CustomerSessionsManager: React.FC = () => {
         )}
       </div>
 
-      {/* EXTEND SESSION MODAL */}
+      {showExtendPaymentConfirm && (
+      <div className="fixed inset-0 z-[110] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
+        <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn text-left">
+          <h3 className="text-base font-black uppercase tracking-wider text-primary">Confirm Extension Payment?</h3>
+          <p className="text-xs text-text-muted">
+            Payment has been collected. Do you want to confirm the session extension?
+          </p>
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={executeExtend}
+              className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider cursor-pointer"
+            >
+              YES — Confirm Extension
+            </button>
+            <button
+              onClick={() => setShowExtendPaymentConfirm(false)}
+              className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card border border-border-main text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
+            >
+              NO — Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* EXTEND SESSION MODAL */}
       {extendingToken && (
         <div className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0 animate-none">
           <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main h-[100dvh] pointer-events-auto flex flex-col">
