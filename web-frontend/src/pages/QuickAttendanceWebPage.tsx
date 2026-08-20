@@ -189,7 +189,7 @@ export const QuickAttendanceWebPage: React.FC = () => {
  };
 
  return (
- <div className="max-w-2xl mx-auto space-y-3 sm:space-y-4" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+ <div className="max-w-2xl mx-auto px-4 sm:px-0 space-y-3 sm:space-y-4" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
  <div className="glass-panel p-3 sm:p-5 rounded-3xl border border-border-main relative overflow-hidden">
  
  {/* Header Title & Camera Enable / Disable Controls */}
@@ -248,7 +248,7 @@ export const QuickAttendanceWebPage: React.FC = () => {
 
  {/* Result Card Overlay */}
  {attendanceResult && (
- <div className="absolute inset-0 dark:bg-black/80 bg-slate-900/40 p-5 flex flex-col items-center justify-center text-center space-y-3">
+ <div className="absolute inset-0 dark:bg-black/80 bg-slate-900/40 p-5 flex flex-col items-center justify-center text-center space-y-3 overflow-y-auto">
  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
  attendanceResult.action === 'check-in' ? 'bg-emerald-500/20 dark:text-emerald-400 text-emerald-300 border border-emerald-500' : 'dark:bg-blue-500/20 bg-blue-500/10 dark:text-blue-300 text-blue-700 border dark:border-blue-500/40 border-blue-500/30'
  }`}>
@@ -282,7 +282,7 @@ export const QuickAttendanceWebPage: React.FC = () => {
 
  {/* Error State Overlay */}
  {errorMessage && (
- <div className="absolute inset-0 dark:bg-black/85 bg-slate-900/45 p-5 flex flex-col items-center justify-center text-center space-y-3">
+ <div className="absolute inset-0 dark:bg-black/85 bg-slate-900/45 p-5 flex flex-col items-center justify-center text-center space-y-3 overflow-y-auto">
  <div className="w-12 h-12 rounded-full dark:bg-red-500/20 bg-red-500/10 border border-red-500 dark:text-red-400 text-red-700 flex items-center justify-center text-xl">
  <AlertTriangle size={24} />
  </div>
@@ -292,7 +292,7 @@ export const QuickAttendanceWebPage: React.FC = () => {
 
  <button
  onClick={handleReset}
- className="mt-2 px-6 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+ className="mt-2 px-6 py-2 rounded-xl premium-btn-secondary text-[10px] font-bold uppercase tracking-wider cursor-pointer"
  >
  Try Again
  </button>
@@ -302,37 +302,35 @@ export const QuickAttendanceWebPage: React.FC = () => {
 
  {/* Shutter Controls & Employee Code Option */}
  {!attendanceResult && !errorMessage && (
- <div className="mt-3 sm:mt-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-3">
- <div className="w-full md:w-64 shrink-0">
- <label className="block md:hidden text-[10px] font-bold text-text-muted mb-1 uppercase tracking-wider ml-1">Manual Override</label>
+ <div className="mt-3 sm:mt-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 lg:gap-3">
+ <div className="w-full lg:w-64 shrink-0">
+ <label className="block lg:hidden text-[10px] font-bold text-text-muted mb-1 uppercase tracking-wider ml-1">Manual Override</label>
  <input
  type="text"
  value={employeeCode}
  onChange={e => setEmployeeCode(e.target.value)}
  placeholder="Optional Employee ID (e.g. EMP-99)"
- className="w-full bg-bg-primary border border-border-main rounded-xl px-4 py-2.5 md:py-2 text-sm md:text-xs text-text-main placeholder-gray-500 focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary font-mono"
+ className="w-full bg-bg-primary border border-border-main rounded-xl px-4 py-2.5 lg:py-2 text-sm lg:text-xs text-text-main placeholder-gray-500 focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary font-mono"
  />
  </div>
 
- <div className="flex flex-row flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full md:w-auto">
+ <div className="flex flex-row flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full lg:w-auto">
  {!cameraActive ? (
  <button
  type="button"
  onClick={startCamera}
- className={`flex-1 md:w-auto px-4 md:px-6 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-[11px] md:text-xs uppercase font-black tracking-wider transition-all cursor-pointer ${
- isDark ? 'primary-btn bg-emerald-500 text-text-main' : 'bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 border border-emerald-500/30'
+ className={`flex-1 lg:w-auto px-4 lg:px-6 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-[11px] lg:text-xs uppercase font-black tracking-wider transition-all cursor-pointer ${
+ isDark ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
  }`}
  >
- <div className="nav-icon-badge">
- <Video size={14} />
- </div>
+ <Video size={14} className="shrink-0" />
  <span>Enable Camera</span>
  </button>
  ) : (
  <button
  type="button"
  onClick={stopCamera}
- className="flex-1 md:w-auto px-3 sm:px-4 md:px-6 py-2.5 rounded-xl premium-btn-secondary cancellation-btn dark:text-red-400 text-red-700 dark:border-red-500/30 border-red-500/30 dark:bg-red-500/5 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 flex items-center justify-center gap-1.5 text-[11px] md:text-xs uppercase font-bold tracking-wider transition-all cursor-pointer"
+ className="flex-1 lg:w-auto px-3 sm:px-4 lg:px-6 py-2.5 rounded-xl premium-btn-secondary flex items-center justify-center gap-1.5 text-[11px] lg:text-xs uppercase font-bold tracking-wider transition-all cursor-pointer"
  >
  <div className="nav-icon-badge hidden sm:block">
  <VideoOff size={14} />
@@ -345,7 +343,7 @@ export const QuickAttendanceWebPage: React.FC = () => {
  onClick={handleCaptureAndSubmit}
  disabled={isSubmitting || !cameraActive}
  title={isSubmitting ? "Verifying..." : !cameraActive ? "Enable camera first" : undefined}
- className="flex-1 md:w-auto px-3 sm:px-4 md:px-6 py-2.5 rounded-xl primary-btn flex items-center justify-center gap-1.5 text-[11px] md:text-xs uppercase font-black tracking-wider disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+ className="flex-1 lg:w-auto px-3 sm:px-4 lg:px-6 py-2.5 rounded-xl primary-btn flex items-center justify-center gap-1.5 text-[11px] lg:text-xs uppercase font-black tracking-wider disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
  >
  <div className="nav-icon-badge hidden sm:block">
  <Camera size={14} />
@@ -360,4 +358,3 @@ export const QuickAttendanceWebPage: React.FC = () => {
  </div>
  );
 };
-

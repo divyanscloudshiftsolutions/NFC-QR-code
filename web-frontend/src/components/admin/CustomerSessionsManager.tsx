@@ -103,7 +103,7 @@ export const CustomerSessionsManager: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Search & Filter Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border-b border-border-main pb-4 mb-6">
         <div className="relative w-full md:w-auto md:flex-1 max-w-md">
           <Search className="absolute left-3.5 top-3 text-text-muted" size={16} />
           <input
@@ -111,7 +111,7 @@ export const CustomerSessionsManager: React.FC = () => {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search token, name, or phone..."
-            className="w-full bg-bg-primary border border-border-main rounded-xl pl-10 pr-4 py-2 text-xs text-text-main placeholder-gray-500 focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary"
+            className="w-full bg-bg-primary border border-border-main rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-main placeholder-gray-500 focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary"
           />
         </div>
 
@@ -274,8 +274,14 @@ export const CustomerSessionsManager: React.FC = () => {
 
     {/* EXTEND SESSION MODAL */}
       {extendingToken && (
-        <div className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0 animate-none">
-          <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main h-[100dvh] pointer-events-auto flex flex-col">
+        <div 
+          onClick={() => setExtendingToken(null)}
+          className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0 cursor-pointer animate-none"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main h-[100dvh] flex flex-col cursor-default"
+          >
             <button 
               onClick={() => setExtendingToken(null)}
               className="absolute top-4 sm:top-6 right-4 sm:right-6 text-text-muted hover:text-text-main bg-bg-surface rounded-full z-10 p-1.5 hover:bg-bg-card cursor-pointer"
@@ -318,7 +324,7 @@ export const CustomerSessionsManager: React.FC = () => {
                 />
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-3 sm:pt-4">
+              <div className="flex flex-row gap-3 pt-3 sm:pt-4">
                 <button
                   type="button"
                   onClick={() => setExtendingToken(null)}
@@ -342,8 +348,14 @@ export const CustomerSessionsManager: React.FC = () => {
 
       {/* CLOSE SESSION MODAL */}
       {deactivatingToken && (
-        <div className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0 animate-none">
-          <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main h-[100dvh] pointer-events-auto flex flex-col">
+        <div 
+          onClick={() => setDeactivatingToken(null)}
+          className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0 cursor-pointer animate-none"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main h-[100dvh] flex flex-col cursor-default"
+          >
             <button 
               onClick={() => setDeactivatingToken(null)}
               className="absolute top-4 sm:top-6 right-4 sm:right-6 text-text-muted hover:text-text-main bg-bg-surface rounded-full z-10 p-1.5 hover:bg-bg-card cursor-pointer"
@@ -388,7 +400,7 @@ export const CustomerSessionsManager: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-3 sm:pt-4">
+              <div className="flex flex-row gap-3 pt-3 sm:pt-4">
                 <button
                   type="button"
                   onClick={() => setDeactivatingToken(null)}
@@ -414,8 +426,14 @@ export const CustomerSessionsManager: React.FC = () => {
 
       {/* VIEW HISTORY / DETAILS MODAL */}
       {viewingHistoryToken && (
-        <div className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-bg-surface border border-border-main dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-3xl p-6 w-full max-w-2xl relative text-text-main max-h-[85vh] flex flex-col animate-fadeIn font-sans">
+        <div 
+          onClick={() => setViewingHistoryToken(null)}
+          className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-bg-surface border border-border-main dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-3xl p-6 w-full max-w-2xl relative text-text-main max-h-[85vh] flex flex-col animate-fadeIn font-sans cursor-default"
+          >
             <button 
               onClick={() => setViewingHistoryToken(null)}
               className="absolute top-4 right-4 text-text-muted hover:text-text-main bg-bg-surface rounded-full p-1.5 hover:bg-bg-card cursor-pointer"
@@ -443,6 +461,15 @@ export const CustomerSessionsManager: React.FC = () => {
                   <div>
                     <span className="text-text-muted block">Phone Number</span>
                     <span className="font-mono font-semibold text-text-main">{viewingHistoryToken.customer?.phoneNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-muted block">Email Address</span>
+                    <span className="font-mono font-semibold text-text-main truncate block" title={viewingHistoryToken.customer?.email}>{viewingHistoryToken.customer?.email || '—'}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-text-muted block">Issued By</span>
+                    <span className="font-semibold text-text-main">{viewingHistoryToken.createdBy || '—'}</span>
                   </div>
                   <div>
                     <span className="text-text-muted block">Table Assigned</span>

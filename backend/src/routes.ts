@@ -4048,11 +4048,19 @@ router.get('/reports/dashboard', authenticate, authorize(['admin', 'manager']), 
 
       const averageActiveTokens = dayCount > 0 ? Number((activeTokensSum / dayCount).toFixed(1)) : 0;
 
+      const hrRevenueTokens = activeTokens.filter(t => 
+        new Date(t.startTime).getHours() === hour && 
+        t.startTime.getTime() >= startDate.getTime() && 
+        t.startTime.getTime() <= endDate.getTime()
+      );
+      const hrRevenue = hrRevenueTokens.reduce((acc, t) => acc + parseFloat(t.amountPaid.toString()), 0);
+
       hourlyData.push({
         hour,
         redemptions: hrRedemptions,
         newTokens: hrNewTokens,
-        activeTokens: averageActiveTokens
+        activeTokens: averageActiveTokens,
+        revenue: hrRevenue
       });
     }
 
@@ -4452,11 +4460,19 @@ router.get('/reports/hourly-breakdown', authenticate, authorize(['admin', 'manag
 
       const averageActiveTokens = dayCount > 0 ? Number((activeTokensSum / dayCount).toFixed(1)) : 0;
 
+      const hrRevenueTokens = tokens.filter(t => 
+        new Date(t.startTime).getHours() === hour && 
+        t.startTime.getTime() >= startDate.getTime() && 
+        t.startTime.getTime() <= endDate.getTime()
+      );
+      const hrRevenue = hrRevenueTokens.reduce((acc, t) => acc + parseFloat(t.amountPaid.toString()), 0);
+
       hourlyData.push({
         hour,
         redemptions: hrRedemptions,
         newTokens: hrNewTokens,
-        activeTokens: averageActiveTokens
+        activeTokens: averageActiveTokens,
+        revenue: hrRevenue
       });
     }
 

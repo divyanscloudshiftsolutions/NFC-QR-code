@@ -1,4 +1,4 @@
-import type { User, Table, Token } from '../types';
+import type { User, Table, Token, DashboardReport } from '../types';
 
 export const DEPLOYED_API_BASE_URL = 'https://api.nfc-qr.app.cloudshiftsolutions.in/api';
 export const getLocalApiBaseUrl = () => {
@@ -378,7 +378,19 @@ class ApiService {
   async getAllSessions(): Promise<any[]> {
     try {
       const res = await this.request<any>('/admin/sessions');
-      return Array.isArray(res) ? res : [];
+      const rawList = Array.isArray(res) ? res : [];
+      return rawList.map((t: any) => ({
+        ...t,
+        personsCount: t.persons || t.personsCount || 1,
+        redemptionsUsed: t.redemptionCount || t.redemptionsUsed || 0,
+        totalRedemptionsAllowed: t.redemptionLimit || t.totalRedemptionsAllowed || 2,
+        customer: {
+          id: t.customerId || '',
+          name: t.customerName || t.customer?.name || 'Walk-in Guest',
+          phoneNumber: t.phoneNumber || t.customer?.phoneNumber || t.customerPhone || 'N/A',
+          email: t.email || t.customer?.email || '',
+        }
+      }));
     } catch {
       return [];
     }
@@ -551,7 +563,7 @@ class ApiService {
           id: r.id || r.placeTypeId || (r.name ? r.name.toLowerCase().replace(/\s+/g, '_') : 'standing_bar'),
           name: r.name || r.categoryName || (r.id === 'premium_lounge' ? 'Premium Lounge' : 'Standing Bar'),
           ratePerPerson: r.ratePerPerson ?? r.pricePerPerson ?? r.rate ?? (r.id === 'premium_lounge' ? 1200 : 500),
-          baseTimeMinutes: r.baseTimeMinutes ?? r.durationMinutes ?? (r.id === 'premium_lounge' ? 30 : 20),
+          baseTimeMinutes: r.baseTimeMinutes ?? r.durationMinutes ?? (r.id === 'premium_lounge' ? 30 : 30),
           redemptionsPerPerson: r.redemptionsPerPerson ?? r.drinksPerPerson ?? (r.id === 'premium_lounge' ? 3 : 2),
         }));
       }
@@ -620,6 +632,10 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
+  }
+
+  async getDashboardReport(filter: string = 'day') {
+    return this.request<DashboardReport>(`/reports/dashboard?filter=${filter}`);
   }
 }
 

@@ -114,6 +114,21 @@ export const RevenueAnalyticsChart: React.FC = () => {
     return amt > 0 ? amt : 1; // Prevent division by zero
   }, [hourlyData]);
 
+  const yAxisLabels = useMemo(() => {
+    const formatYLabel = (val: number) => {
+      if (val >= 100000) return `₹${(val / 1000).toFixed(0)}k`;
+      if (val >= 1000) return `₹${(val / 1000).toFixed(1)}k`;
+      return `₹${Math.round(val)}`;
+    };
+    return [
+      formatYLabel(maxVal),
+      formatYLabel(maxVal * 0.75),
+      formatYLabel(maxVal * 0.5),
+      formatYLabel(maxVal * 0.25),
+      formatYLabel(0)
+    ];
+  }, [maxVal]);
+
   const handleExportCSV = () => {
     try {
       const headers = 'TokenNumber,CustomerName,PhoneNumber,EmailAddress,Persons,RedemptionsUsed,TotalRedemptions,DeliveryMode,AmountPaid,TodayRevenueContribution,Status\n';
@@ -177,8 +192,8 @@ export const RevenueAnalyticsChart: React.FC = () => {
 
       {/* Hourly Sales Bar Chart Component */}
       <div className="glass-panel p-3 sm:p-6 rounded-2xl border border-border-main space-y-4 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 pb-3 border-b border-border-main">
-          <div className="flex items-center gap-2 text-text-main font-bold text-sm animate-fadeIn min-w-0 w-full sm:w-auto">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 md:gap-3 pb-3 border-b border-border-main">
+          <div className="flex items-center gap-2 text-text-main font-bold text-sm animate-fadeIn min-w-0 w-full md:w-auto">
             <BarChart3 size={18} className="shrink-0" /> <span className="truncate">Hourly Revenue Breakdown & Peak Collections</span>
           </div>
           <span className="text-xs font-bold dark:text-emerald-400 text-emerald-700 flex items-center gap-1 shrink-0">
@@ -187,29 +202,27 @@ export const RevenueAnalyticsChart: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto custom-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
- <div className="flex gap-4 items-stretch h-64 mt-4 min-w-[500px]">
- {/* Y-Axis Labels Column */}
- <div className="flex flex-col justify-between text-[10px] font-mono text-text-muted font-bold py-3.5 select-none text-right w-10">
- <span>₹100k</span>
- <span>₹75k</span>
- <span>₹50k</span>
- <span>₹25k</span>
- <span>₹0</span>
- </div>
+  <div className="flex gap-2 sm:gap-4 items-stretch h-64 mt-4 min-w-[420px] sm:min-w-[500px]">
+  {/* Y-Axis Labels Column */}
+  <div className="flex flex-col justify-between text-[10px] font-mono text-text-muted font-bold py-3.5 select-none text-right w-10 shrink-0">
+  {yAxisLabels.map((lbl, idx) => (
+    <span key={idx}>{lbl}</span>
+  ))}
+  </div>
 
- {/* Chart Content Base Grid Area */}
- <div className="flex-1 relative border-l border-b border-border-main/60 pb-6 px-1.5">
- {/* Background Grid lines */}
- <div className="absolute inset-0 flex flex-col justify-between pointer-events-none select-none pb-6">
- <div className="w-full border-t border-border-main/20 h-0" />
- <div className="w-full border-t border-border-main/20 h-0" />
- <div className="w-full border-t border-border-main/20 h-0" />
- <div className="w-full border-t border-border-main/20 h-0" />
- <div className="w-full h-0" />
- </div>
+  {/* Chart Content Base Grid Area */}
+  <div className="flex-1 relative border-l border-b border-border-main/60 pb-6 px-1.5">
+  {/* Background Grid lines */}
+  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none select-none pb-6">
+  <div className="w-full border-t border-border-main/20 h-0" />
+  <div className="w-full border-t border-border-main/20 h-0" />
+  <div className="w-full border-t border-border-main/20 h-0" />
+  <div className="w-full border-t border-border-main/20 h-0" />
+  <div className="w-full h-0" />
+  </div>
 
- {/* Columns Container */}
- <div className="relative z-10 flex items-end justify-between gap-3 h-full">
+  {/* Columns Container */}
+  <div className="relative z-10 flex items-end justify-between gap-1.5 sm:gap-3 h-full">
  {hourlyData.map(d => {
  const heightPercent = Math.round((d.amount / maxVal) * 100);
  return (

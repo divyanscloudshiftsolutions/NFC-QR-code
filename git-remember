@@ -78,7 +78,7 @@ A. PERSONAL / CENTRAL REPOSITORY
 
 Repository:
 
-https://github.com/divyanscloudshiftsolutions/NFC-QR-code
+https://github.com/divyanscloudshiftsolutions/F-B-Registration
 
 SOURCE:
 
@@ -115,7 +115,7 @@ B. WEB FRONTEND REPOSITORY
 
 Repository:
 
-https://github.com/cloudshiftsolutions-dev/Web-Frontend---NFC-QR-code-Management
+https://github.com/cloudshiftsolutions-dev/F-B-Registration-Web-Frontend
 
 SOURCE:
 
@@ -171,7 +171,7 @@ C. BACKEND REPOSITORY
 
 Repository:
 
-https://github.com/cloudshiftsolutions-dev/Backend---NFC-QR-code-Management
+https://github.com/cloudshiftsolutions-dev/F-B-Registration-Backend
 
 SOURCE:
 
@@ -217,7 +217,7 @@ D. REACT NATIVE FRONTEND REPOSITORY
 
 Repository:
 
-https://github.com/cloudshiftsolutions-dev/Frontend---NFC-QR-code-Management
+https://github.com/cloudshiftsolutions-dev/F-B-Registration-Frontend
 
 SOURCE:
 
@@ -428,7 +428,7 @@ Synchronize all four repositories.
 
 Repository:
 
-https://github.com/divyanscloudshiftsolutions/NFC-QR-code
+https://github.com/divyanscloudshiftsolutions/F-B-Registration
 
 Source:
 
@@ -455,7 +455,7 @@ Do NOT create another branch.
 
 Repository:
 
-https://github.com/cloudshiftsolutions-dev/Web-Frontend---NFC-QR-code-Management
+https://github.com/cloudshiftsolutions-dev/F-B-Registration-Web-Frontend
 
 Source:
 
@@ -494,7 +494,7 @@ Push directly to origin/main.
 
 Repository:
 
-https://github.com/cloudshiftsolutions-dev/Backend---NFC-QR-code-Management
+https://github.com/cloudshiftsolutions-dev/F-B-Registration-Backend
 
 Source:
 
@@ -531,7 +531,7 @@ Push directly to origin/main.
 
 Repository:
 
-https://github.com/cloudshiftsolutions-dev/Frontend---NFC-QR-code-Management
+https://github.com/cloudshiftsolutions-dev/F-B-Registration-Frontend
 
 Source:
 

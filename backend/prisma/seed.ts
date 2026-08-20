@@ -224,7 +224,7 @@ async function main() {
     {
       name: 'STANDING_BAR',
       ratePerPerson: 500.0,
-      baseTimeMinutes: 20,
+      baseTimeMinutes: 30,
       redemptionsPerPerson: 2,
       isActive: true,
     },

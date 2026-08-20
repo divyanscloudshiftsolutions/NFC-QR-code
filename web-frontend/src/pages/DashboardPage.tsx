@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
  Users, 
  Grid3X3, 
@@ -17,7 +17,7 @@ import {
  AlertCircle
 } from 'lucide-react';
 import { api } from '../services/api';
-import type { Token } from '../types';
+import type { Token, DashboardReport } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
@@ -28,7 +28,7 @@ interface DashboardPageProps {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  const { showToast } = useAuth();
- const { tokens, tables, isLoading, refreshTokens, refreshTables, sessionAlerts, dismissAlert } = useData();
+ const { tokens, allSessions, tables, isLoading, refreshTokens, refreshAllSessions, refreshTables, sessionAlerts, dismissAlert } = useData();
 
 
  // Extend Modal State
@@ -42,6 +42,33 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  const [closingToken, setClosingToken] = useState<Token | null>(null);
  const [closeReason, setCloseReason] = useState('CHECKOUT');
  const [isSubmittingClose, setIsSubmittingClose] = useState(false);
+
+ // Dashboard Report Analytics State
+ const [reportData, setReportData] = useState<DashboardReport['data'] | null>(null);
+ const [isReportLoading, setIsReportLoading] = useState(false);
+ const [reportError, setReportError] = useState<string | null>(null);
+
+ const fetchReport = async () => {
+   setIsReportLoading(true);
+   setReportError(null);
+   try {
+     const res = await api.getDashboardReport('day');
+     if (res && res.success) {
+       setReportData(res.data);
+     } else {
+       setReportError('Failed to load report data.');
+     }
+   } catch (err: any) {
+     setReportError(err.message || 'Failed to load report data.');
+   } finally {
+     setIsReportLoading(false);
+   }
+ };
+
+ useEffect(() => {
+   fetchReport();
+   refreshAllSessions();
+ }, []);
 
  const handleExtendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,18 +110,144 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  }
  };
 
- const activeTokens = tokens;
- const activeTokensCount = tokens.length;
- const occupiedTablesCount = tables.filter(t => t.status === 'occupied').length;
- const displayTablesCount = tables.length;
- const totalCapacity = tables.reduce((acc, t) => acc + t.capacity, 0);
- const totalGuestsInHouse = tokens.reduce((acc, tk) => acc + tk.personsCount, 0);
- const totalRedemptionsUsed = tokens.reduce((acc, tk) => acc + tk.redemptionsUsed, 0);
- const totalRevenue = tokens.reduce((acc, tk) => acc + (tk.amountPaid || 0), 0);
- 
- const revenueTrends: any[] = [];
- const notifications = sessionAlerts.filter(a => !a.dismissed);
- const activities: any[] = [];
+  const activeTokens = tokens;
+  const activeTokensCount = tokens.length;
+  const occupiedTablesCount = tables.filter(t => t.status === 'occupied').length;
+  const displayTablesCount = tables.length;
+  const totalCapacity = tables.reduce((acc, t) => acc + t.capacity, 0);
+  const totalGuestsInHouse = tokens.reduce((acc, tk) => acc + tk.personsCount, 0);
+  const totalRedemptionsUsed = tokens.reduce((acc, tk) => acc + tk.redemptionsUsed, 0);
+  const totalRevenue = tokens.reduce((acc, tk) => acc + (tk.amountPaid || 0), 0);
+  
+  // KPI Calculations
+  const avgCheckoutVal = reportData && reportData.salesSummary.checkoutCount > 0
+    ? (reportData.salesSummary.todaySales / reportData.salesSummary.checkoutCount)
+    : 0;
+  const avgCheckoutDisplay = reportData 
+    ? (avgCheckoutVal > 0 ? `₹${Math.round(avgCheckoutVal).toLocaleString()}` : '—') 
+    : (isReportLoading ? '...' : '--');
+
+  const drinkConversionVal = reportData && reportData.salesSummary.totalCustomers > 0
+    ? (reportData.salesSummary.todayRedemptions / reportData.salesSummary.totalCustomers)
+    : 0;
+  const drinkConversionDisplay = reportData
+    ? `${drinkConversionVal.toFixed(2)}`
+    : (isReportLoading ? '...' : '--');
+
+  const qrPassActiveDisplay = String(activeTokensCount);
+
+  let peakSeatingCount = 0;
+  if (reportData && reportData.hourlyBreakdown?.hourlyData) {
+    reportData.hourlyBreakdown.hourlyData.forEach((h: any) => {
+      if (h.activeTokens > peakSeatingCount) {
+        peakSeatingCount = h.activeTokens;
+      }
+    });
+  }
+  const peakSeatingDisplay = reportData
+    ? (peakSeatingCount > 0 ? `${Math.round(peakSeatingCount)} Sessions` : '—')
+    : (isReportLoading ? '...' : '--');
+
+  // Chart Mapping (Hourly Revenue Trends)
+  const revenueTrends = React.useMemo(() => {
+    if (!reportData || !reportData.hourlyBreakdown?.hourlyData) return [];
+    return reportData.hourlyBreakdown.hourlyData.map((h: any) => {
+      const ampm = h.hour >= 12 ? 'PM' : 'AM';
+      const displayHour = h.hour % 12 || 12;
+      return {
+        time: `${displayHour}:00 ${ampm}`,
+        value: h.revenue || 0
+      };
+    });
+  }, [reportData]);
+
+  // Max value of revenueTrends to scale the height of chart bars dynamically
+  const maxChartVal = React.useMemo(() => {
+    if (revenueTrends.length === 0) return 60000;
+    const max = Math.max(...revenueTrends.map(t => t.value));
+    return max > 0 ? max : 60000;
+  }, [revenueTrends]);
+
+  // Dynamic Y-Axis Labels based on maxChartVal
+  const yAxisLabels = React.useMemo(() => {
+    const step = maxChartVal / 4;
+    return Array.from({ length: 5 }, (_, i) => {
+      const val = maxChartVal - (i * step);
+      if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
+      return `₹${Math.round(val)}`;
+    });
+  }, [maxChartVal]);
+
+  // Peak Sales Hour string calculation
+  const peakSalesHourStr = React.useMemo(() => {
+    if (!reportData || !reportData.hourlyBreakdown?.hourlyData) return 'No Data';
+    let maxRevenue = -1;
+    let peakHourIndex = -1;
+    reportData.hourlyBreakdown.hourlyData.forEach((h: any) => {
+      if ((h.revenue || 0) > maxRevenue) {
+        maxRevenue = h.revenue || 0;
+        peakHourIndex = h.hour;
+      }
+    });
+    if (peakHourIndex !== -1 && maxRevenue > 0) {
+      const ampm = peakHourIndex >= 12 ? 'PM' : 'AM';
+      const displayHour = peakHourIndex % 12 || 12;
+      return `Peak Sales Hour (${displayHour}:00 ${ampm})`;
+    }
+    return 'No Sales Today';
+  }, [reportData]);
+
+  const notifications = sessionAlerts.filter(a => !a.dismissed);
+
+  // Activities Stream generated dynamically from real session database logs (allSessions)
+  const activities = React.useMemo(() => {
+    const list: Array<{ id: string; desc: string; time: string; timestampVal: number }> = [];
+
+    // Filter to today's events (local timezone)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    allSessions.forEach((s: any) => {
+      const start = new Date(s.startTime);
+      if (start >= today) {
+        list.push({
+          id: `checkin-${s.id}`,
+          desc: `Token ${s.tokenNumber} checked in at ${s.tableNumber ? `Table ${s.tableNumber}` : 'Standing Bar'} (${s.persons || s.personsCount} guests)`,
+          time: new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestampVal: start.getTime()
+        });
+      }
+
+      if (s.closedAt) {
+        const closed = new Date(s.closedAt);
+        if (closed >= today) {
+          list.push({
+            id: `checkout-${s.id}`,
+            desc: `Token ${s.tokenNumber} checked out from ${s.tableNumber ? `Table ${s.tableNumber}` : 'Standing Bar'}`,
+            time: closed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestampVal: closed.getTime()
+          });
+        }
+      }
+
+      if (Array.isArray(s.extensions)) {
+        s.extensions.forEach((ext: any) => {
+          const extTime = new Date(ext.extendedAt);
+          if (extTime >= today) {
+            list.push({
+              id: `ext-${ext.id || Math.random()}`,
+              desc: `Token ${s.tokenNumber} session extended by ${ext.extraMinutes} minutes`,
+              time: extTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              timestampVal: extTime.getTime()
+            });
+          }
+        });
+      }
+    });
+
+    // Sort descending by timestamp, take top 5
+    return list.sort((a, b) => b.timestampVal - a.timestampVal).slice(0, 5);
+  }, [allSessions]);
 
  return (
  <div className="space-y-6 text-text-main animate-fadeIn">
@@ -219,7 +372,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <p className="text-xs text-text-muted">Real-time QR active seating tickets</p>
  </div>
  <button 
- onClick={() => { refreshTokens(); refreshTables(); }}
+ onClick={() => { refreshTokens(); refreshTables(); refreshAllSessions(); fetchReport(); }}
  className="w-full sm:w-auto justify-center px-4 py-2 text-xs font-semibold transition-all premium-btn-secondary flex items-center gap-1.5"
  >
  <div className="nav-icon-badge">
@@ -292,7 +445,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  </table>
  </div>
  )}
- </div> {/* Main Content Layout Grid */}
+ </div>
+
  {/* KPI Summary Details - FULL WORKSPACE WIDTH */}
  <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-border-main space-y-4">
  <div className="flex items-center justify-between pb-3 border-b border-border-main">
@@ -303,19 +457,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 text-left">
  <div className="p-3.5 bg-bg-secondary-surface dark:bg-black/10 rounded-xl border border-border-main/50 flex flex-col justify-between">
  <span className="text-[9px] text-text-muted block uppercase font-semibold tracking-wider">Avg Checkout</span>
- <span className="text-sm font-black text-text-main block mt-1">--</span>
+ <span className="text-sm font-black text-text-main block mt-1">{avgCheckoutDisplay}</span>
  </div>
  <div className="p-3.5 bg-bg-secondary-surface dark:bg-black/10 rounded-xl border border-border-main/50 flex flex-col justify-between">
  <span className="text-[9px] text-text-muted block uppercase font-semibold tracking-wider">Drink Conversion</span>
- <span className="text-sm font-black text-text-main block mt-1">--</span>
+ <span className="text-sm font-black text-text-main block mt-1">{drinkConversionDisplay}</span>
  </div>
  <div className="p-3.5 bg-bg-secondary-surface dark:bg-black/10 rounded-xl border border-border-main/50 flex flex-col justify-between">
  <span className="text-[9px] text-text-muted block uppercase font-semibold tracking-wider">QR Pass Active</span>
- <span className="text-sm font-black text-text-main block mt-1">--</span>
+ <span className="text-sm font-black text-text-main block mt-1">{qrPassActiveDisplay}</span>
  </div>
  <div className="p-3.5 bg-bg-secondary-surface dark:bg-black/10 rounded-xl border border-border-main/50 flex flex-col justify-between">
  <span className="text-[9px] text-text-muted block uppercase font-semibold tracking-wider">Peak Seating</span>
- <span className="text-sm font-black text-text-main block mt-1">--</span>
+ <span className="text-sm font-black text-text-main block mt-1">{peakSeatingDisplay}</span>
  </div>
  </div>
  </div>
@@ -330,7 +484,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <BarChart3 size={18} className="shrink-0" /> <span className="truncate">Hourly Revenue Analytics & Seating Peaks</span>
  </div>
  <span className="text-xs font-bold dark:text-emerald-400 text-emerald-700 flex items-center gap-1 shrink-0">
- <TrendingUp size={14} /> Peak Sales Hour (10:00 PM)
+ <TrendingUp size={14} /> {peakSalesHourStr}
  </span>
  </div>
 
@@ -345,11 +499,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <div className="flex gap-4 items-stretch h-36">
  {/* Y-Axis */}
  <div className="flex flex-col justify-between text-[9px] font-mono text-text-muted font-bold py-1 select-none text-right w-10">
- <span>₹60k</span>
- <span>₹45k</span>
- <span>₹30k</span>
- <span>₹15k</span>
- <span>₹0</span>
+ {yAxisLabels.map((lbl, idx) => (
+ <span key={idx}>{lbl}</span>
+ ))}
  </div>
 
  {/* Bars Container */}
@@ -364,14 +516,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  </div>
 
  {revenueTrends.map((trend, idx) => {
- const maxVal = Math.max(...revenueTrends.map(t => t.value));
- const isPeak = trend.value === maxVal;
- const percent = Math.min(100, (trend.value / 62000) * 100);
+ const isPeak = trend.value === maxChartVal;
+ const percent = Math.min(100, (trend.value / maxChartVal) * 100);
  return (
  <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative z-10">
  {/* Tooltip amount on hover */}
  <div className="absolute -top-6 text-[9px] font-mono font-bold text-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity bg-bg-surface px-1.5 py-0.5 rounded border border-border-main z-20 pointer-events-none whitespace-nowrap">
- ₹{(trend.value / 1000).toFixed(1)}k
+ ₹{trend.value.toLocaleString()}
  </div>
  <div 
  style={{ height: `${percent}%` }}

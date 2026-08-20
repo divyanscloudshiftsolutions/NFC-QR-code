@@ -213,7 +213,7 @@ export const TableManagement: React.FC = () => {
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* Control Panel Container */}
-      <div className="dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6 space-y-4 w-full">
+      <div className="border-b border-border-main pb-4 mb-6 space-y-4 w-full">
         {/* Tier 1: Primary Zone Switcher Tabs & Total Tables */}
         <div className="flex flex-wrap items-center justify-between gap-4 pt-3 pb-4 border-b border-border-main w-full">
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto px-4">

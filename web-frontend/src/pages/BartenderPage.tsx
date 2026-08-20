@@ -714,7 +714,7 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  <div className="space-y-6">
  
  {/* Global Search Bar */}
- <div className="dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6">
+ <div className="border-b border-border-main pb-4 mb-6">
  <div className="relative">
  <Search className="absolute left-4 top-3.5 text-text-muted" size={20} />
  <input
@@ -773,104 +773,99 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
  {tk.deliveryMode || 'EMAIL_QR'}
  </span>
  </div>
-
- {/* Phone, Email, Table, and headcount grids */}
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-4 text-xs text-text-muted">
- <div className="flex items-center gap-1.5 min-w-0">
- <Phone size={12} className="shrink-0 text-text-muted" />
- <span className="font-mono truncate">{tk.customer?.phoneNumber || 'N/A'}</span>
- </div>
- <div className="flex items-center gap-1.5 min-w-0">
- <Mail size={12} className="shrink-0 text-text-muted" />
- <span className="font-mono truncate" title={tk.customer?.email}>{tk.customer?.email || '—'}</span>
- </div>
- <div className="flex items-center gap-1.5">
- <Users size={12} className="shrink-0 text-text-muted" />
- <span>Party Size: <span className="font-bold text-text-main">{tk.personsCount} Guests</span></span>
- </div>
- </div>
-
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-1 gap-x-4 text-xs text-text-muted pt-1 border-t border-border-main/20">
- <div>
- Table/Zone: <span className="font-bold text-text-main">{tk.tableNumber || 'Walking / Bar'}</span>
- </div>
- <div>
- Checked In: <span className="font-bold text-text-main">{new Date(tk.createdAt || tk.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
- </div>
- <div>
- Session Duration: <span className="font-bold text-text-main">{getSessionDuration(tk.createdAt || tk.startTime)}</span>
- </div>
- </div>
- </div>
-
- {/* Pricing, Redemptions progress, and Actions layout */}
- <div className="flex flex-col sm:flex-row items-start sm:items-center lg:justify-end gap-4 sm:gap-6 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-border-main/30 w-full lg:w-auto">
  
- <div className="flex items-center justify-between w-full sm:w-auto sm:justify-end gap-6 border-b sm:border-b-0 border-border-main/20 pb-4 sm:pb-0">
- {/* Drink Quota Status */}
- <div className="text-left sm:text-right space-y-1 flex-1 sm:flex-initial">
- <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider block">Redemption Progress</span>
- <div className="flex items-center sm:justify-end gap-2">
- <span className={`text-sm font-black font-mono ${isTokenQuotaDepleted ? 'dark:text-red-400 text-red-700' : 'dark:text-emerald-400 text-emerald-700'}`}>
- {tk.redemptionsUsed} / {tk.totalRedemptionsAllowed}
- </span>
- <span className="text-[10px] text-text-muted font-semibold">Drinks Used</span>
- </div>
- <div className="w-full sm:w-24 h-1.5 rounded-full bg-bg-card overflow-hidden ml-0 sm:ml-auto mt-2">
- <div 
- className={`h-full ${isTokenQuotaDepleted ? 'bg-red-500' : 'bg-emerald-500'}`}
- style={{ width: `${Math.min(100, (tk.redemptionsUsed / tk.totalRedemptionsAllowed) * 100)}%` }}
- />
- </div>
- </div>
+  {/* Combined Phone, Email, Table, and headcount responsive grid */}
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-1.5 gap-x-4 text-xs text-text-muted pt-2 border-t border-border-main/10 mt-2">
+  <div className="flex items-center gap-1.5 min-w-0">
+  <Phone size={12} className="shrink-0 text-text-muted" />
+  <span className="font-mono truncate">{tk.customer?.phoneNumber || 'N/A'}</span>
+  </div>
+  <div className="flex items-center gap-1.5 min-w-0">
+  <Mail size={12} className="shrink-0 text-text-muted" />
+  <span className="font-mono truncate" title={tk.customer?.email}>{tk.customer?.email || '—'}</span>
+  </div>
+  <div className="flex items-center gap-1.5">
+  <Users size={12} className="shrink-0 text-text-muted" />
+  <span>Party Size: <span className="font-bold text-text-main">{tk.personsCount} Guests</span></span>
+  </div>
+  <div>
+  Table/Zone: <span className="font-bold text-text-main">{tk.tableNumber || 'Walking / Bar'}</span>
+  </div>
+  <div>
+  Checked In: <span className="font-bold text-text-main">{new Date(tk.createdAt || tk.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+  </div>
+  <div>
+  Session Duration: <span className="font-bold text-text-main">{getSessionDuration(tk.createdAt || tk.startTime)}</span>
+  </div>
+  </div>
+  </div>
 
- {/* Total Amount Paid */}
- <div className="text-right space-y-1 flex-1 sm:flex-initial border-l border-border-main/20 pl-4 sm:border-l-0 sm:pl-0">
- <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider block">Gate Payment</span>
- <span className="text-sm font-black text-text-main font-mono">₹{tk.amountPaid}</span>
- </div>
- </div>
+  {/* Pricing, Redemptions progress, and Actions layout */}
+  <div className="flex flex-col sm:flex-row items-start sm:items-center lg:justify-end gap-4 sm:gap-6 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-border-main/30 w-full lg:w-auto">
+  
+  <div className="flex items-center justify-between w-full sm:w-auto sm:justify-end gap-6 border-b sm:border-b-0 border-border-main/20 pb-4 sm:pb-0">
+  {/* Drink Quota Status */}
+  <div className="text-left sm:text-right space-y-1 flex-1 sm:flex-initial">
+  <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider block">Redemption Progress</span>
+  <div className="flex items-center sm:justify-end gap-2">
+  <span className={`text-sm font-black font-mono ${isTokenQuotaDepleted ? 'dark:text-red-400 text-red-700' : 'dark:text-emerald-400 text-emerald-700'}`}>
+  {tk.redemptionsUsed} / {tk.totalRedemptionsAllowed}
+  </span>
+  <span className="text-[10px] text-text-muted font-semibold">Drinks Used</span>
+  </div>
+  <div className="w-full sm:w-24 h-1.5 rounded-full bg-bg-card overflow-hidden ml-0 sm:ml-auto mt-2">
+  <div 
+  className={`h-full ${isTokenQuotaDepleted ? 'bg-red-500' : 'bg-emerald-500'}`}
+  style={{ width: `${Math.min(100, (tk.redemptionsUsed / tk.totalRedemptionsAllowed) * 100)}%` }}
+  />
+  </div>
+  </div>
 
- {/* Action Buttons */}
- <div className="flex flex-wrap gap-2 w-full sm:w-auto">
- <button
- onClick={() => handleRedeemForToken(tk)}
- disabled={isRedeeming || isTokenQuotaDepleted}
- title={isTokenQuotaDepleted ? "Drink quota limit reached for this session." : "Dispense 1 Drink"}
- className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-emerald-500/20 bg-emerald-500/10 dark:hover:bg-emerald-600 hover:bg-emerald-600 dark:text-emerald-200 text-emerald-700 dark:hover:text-white hover:text-white text-xs font-bold uppercase tracking-wider border border-emerald-500/30 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer flex-1 sm:flex-none"
- >
- <Wine size={14} /> Redeem
- </button>
+  {/* Total Amount Paid */}
+  <div className="text-right space-y-1 flex-1 sm:flex-initial border-l border-border-main/20 pl-4 sm:border-l-0 sm:pl-0">
+  <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider block">Gate Payment</span>
+  <span className="text-sm font-black text-text-main font-mono">₹{tk.amountPaid}</span>
+  </div>
+  </div>
 
- <button
- onClick={() => setExtendingToken(tk)}
- className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-amber-500/10 bg-amber-500/5 hover:dark:bg-amber-500/20 hover:bg-amber-500/10 dark:text-amber-300 text-amber-700 text-xs font-bold border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-1 sm:flex-none"
- title="Extend Session"
- >
- <Clock size={14} /> Extend
- </button>
-
- <button
-  onClick={() => setCancellingToken(tk)}
-  className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/20 flex-1 sm:flex-none"
-  title="Cancel Session"
+  {/* Action Buttons */}
+  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+  <button
+  onClick={() => handleRedeemForToken(tk)}
+  disabled={isRedeeming || isTokenQuotaDepleted}
+  title={isTokenQuotaDepleted ? "Drink quota limit reached for this session." : "Dispense 1 Drink"}
+  className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-emerald-500/20 bg-emerald-500/10 dark:hover:bg-emerald-600 hover:bg-emerald-600 dark:text-emerald-200 text-emerald-700 dark:hover:text-white hover:text-white text-xs font-bold uppercase tracking-wider border border-emerald-500/30 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer flex-1 sm:flex-none"
   >
-  <AlertTriangle size={14} /> Cancel
+  <Wine size={14} /> Redeem
   </button>
 
- <button
- onClick={() => {
- setScannedToken(tk);
- setActiveTab('bartender/scan');
- }}
- className="px-3 py-3 sm:py-2 rounded-xl text-xs font-bold transition-all premium-btn-secondary flex items-center justify-center gap-1.5 cursor-pointer"
- title="Enable Focused QR Scan View"
- >
- <QrCode size={14} /> Scan Mode
- </button>
- </div>
+  <button
+  onClick={() => setExtendingToken(tk)}
+  className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-amber-500/10 bg-amber-500/5 hover:dark:bg-amber-500/20 hover:bg-amber-500/10 dark:text-amber-300 text-amber-700 text-xs font-bold border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-1 sm:flex-none"
+  >
+  <Clock size={14} /> Extend
+  </button>
 
- </div>
+  <button
+   onClick={() => setCancellingToken(tk)}
+   className="px-3 py-2.5 sm:py-2 rounded-xl dark:bg-red-500/10 bg-red-500/5 hover:dark:bg-red-500/20 hover:bg-red-500/15 hover:border-red-500/50 hover:text-red-800 active:bg-red-500/25 active:text-red-900 dark:text-red-400 text-red-700 text-xs font-bold border border-red-500/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/20 flex-1 sm:flex-none"
+   title="Cancel Session"
+   >
+   <AlertTriangle size={14} /> Cancel
+   </button>
+
+  <button
+  onClick={() => {
+  setScannedToken(tk);
+  setActiveTab('bartender/scan');
+  }}
+  className="px-3 py-3 sm:py-2 rounded-xl text-xs font-bold transition-all premium-btn-secondary flex items-center justify-center gap-1.5 cursor-pointer flex-1 sm:flex-none"
+  title="Enable Focused QR Scan View"
+  >
+  <QrCode size={14} /> <span className="hidden sm:inline">Scan Mode</span><span className="sm:hidden">Scan</span>
+  </button>
+  </div>
+  </div>
  </div>
  );
  })}

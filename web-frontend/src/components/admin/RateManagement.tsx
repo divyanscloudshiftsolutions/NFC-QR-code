@@ -25,7 +25,7 @@ export const RateManagement: React.FC = () => {
  const openEditModal = (r: any) => {
  setEditingRate(r);
  setRatePerPerson(String(r.ratePerPerson || 500));
- setDurationMinutes(String(r.baseTimeMinutes || 20));
+ setDurationMinutes(String(r.baseTimeMinutes || 30));
  setDrinkAllowance(String(r.redemptionsPerPerson || 2));
  };
 
@@ -62,7 +62,7 @@ export const RateManagement: React.FC = () => {
  return (
  <div className="space-y-6">
  {/* Top Header */}
- <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 dark:bg-transparent glass-panel border border-border-main border-x-0 border-t-0 rounded-none p-0 pb-4 mb-6">
+ <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-b border-border-main pb-4 mb-6">
  <div>
  <h3 className="text-sm font-bold text-text-main uppercase tracking-wider">Place Type Rate Cards & Pricing Config</h3>
  <p className="text-xs text-text-muted">Configure cover charge rates, base hours, and drink allowances</p>
@@ -106,7 +106,7 @@ export const RateManagement: React.FC = () => {
  <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border-main text-xs text-text-muted space-y-1.5 sm:space-y-2">
  <p className="flex items-center justify-between">
  <span className="text-text-muted flex items-center gap-1.5"><Clock size={14} /> Base Duration:</span>
- <span className="font-bold text-text-main">{r.baseTimeMinutes || 20} Minutes</span>
+ <span className="font-bold text-text-main">{r.baseTimeMinutes || 30} Minutes</span>
  </p>
  <p className="flex items-center justify-between">
  <span className="text-text-muted flex items-center gap-1.5"><Wine size={14} /> Drink Allowance:</span>
@@ -121,8 +121,14 @@ export const RateManagement: React.FC = () => {
 
  {/* EDIT RATE CARD MODAL */}
  {editingRate && (
- <div className="fixed inset-0 z-50 dark:bg-transparent bg-black/75 flex items-center justify-end p-0 pointer-events-none animate-fadeIn">
- <div className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] space-y-4 relative text-text-main animate-none h-[100dvh] pointer-events-auto flex flex-col">
+ <div 
+   onClick={() => setEditingRate(null)}
+   className="fixed inset-0 z-50 dark:bg-transparent bg-black/75 flex items-center justify-end p-0 cursor-pointer animate-fadeIn"
+ >
+ <div 
+   onClick={e => e.stopPropagation()}
+   className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] space-y-4 relative text-text-main animate-none h-[100dvh] flex flex-col cursor-default"
+ >
  
  <div className="flex items-center justify-between pb-4 dark:pb-5 border-b border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
  <div className="flex items-center gap-2 text-text-main font-bold text-sm">
@@ -176,7 +182,7 @@ export const RateManagement: React.FC = () => {
  />
  </div>
 
- <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
+ <div className="flex flex-row gap-3 pt-4 border-t border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
  <button
  type="button"
  onClick={() => setEditingRate(null)}
@@ -206,4 +212,3 @@ export const RateManagement: React.FC = () => {
  </div>
  );
 };
-
