@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
  LayoutDashboard, 
  UserCheck, 
@@ -33,6 +33,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
  administration: false,
  });
  const [prevCategory, setPrevCategory] = useState('');
+ const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+ const sidebarConfirmRef = useRef<HTMLDivElement>(null);
+
+ useEffect(() => {
+   setShowLogoutConfirm(false);
+ }, [collapsed, activeTab]);
+
+ useEffect(() => {
+   const handleClickOutside = (event: MouseEvent) => {
+     if (sidebarConfirmRef.current && !sidebarConfirmRef.current.contains(event.target as Node)) {
+       setShowLogoutConfirm(false);
+     }
+   };
+   if (showLogoutConfirm) {
+     document.addEventListener('mousedown', handleClickOutside);
+   }
+   return () => {
+     document.removeEventListener('mousedown', handleClickOutside);
+   };
+ }, [showLogoutConfirm]);
+
+ useEffect(() => {
+   if (!showLogoutConfirm) return;
+   const handleKeyDown = (e: KeyboardEvent) => {
+     if (e.key === 'Enter') {
+       e.preventDefault();
+       setShowLogoutConfirm(false);
+       logout();
+     } else if (e.key === 'Escape') {
+       e.preventDefault();
+       setShowLogoutConfirm(false);
+     }
+   };
+   window.addEventListener('keydown', handleKeyDown);
+   return () => window.removeEventListener('keydown', handleKeyDown);
+ }, [showLogoutConfirm, logout]);
 
  useEffect(() => {
  const getCategory = (tab: string) => {
@@ -271,31 +307,62 @@ export const Sidebar: React.FC<SidebarProps> = ({
  <div className="shrink-0 pb-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
  {/* User Profile / Logout */}
  {user && (
- <div className="px-4">
- <button
- onClick={logout}
- className={`w-full flex items-center justify-between p-2.5 rounded-[6px] transition-colors cursor-pointer border border-transparent ${
- collapsed ? 'justify-center' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:border-black/5 dark:hover:border-white/5'
- }`}
- title="Sign Out"
- >
- <div className="flex items-center gap-3">
- <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
- {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
- </div>
- {!collapsed && (
- <div className="flex flex-col text-left min-w-0 flex-1">
- <span className="text-[13px] font-bold text-text-primary flex items-center gap-1.5 min-w-0">
- <span className="truncate">{user.fullName || user.username}</span>
- <span className="shrink-0 text-white text-[9px] bg-[#2A85FF] w-3.5 h-3.5 rounded-full flex items-center justify-center ">✓</span>
- </span>
- <span className="text-[11px] text-text-muted capitalize font-medium">{user.role} Account</span>
- </div>
- )}
- </div>
- {!collapsed && <ChevronRight size={16} className="text-text-muted" />}
- </button>
- </div>
+   showLogoutConfirm ? (
+     <div 
+       ref={sidebarConfirmRef}
+       title={collapsed ? "Confirm Logout" : undefined}
+       className={`mx-4 p-2.5 rounded-[6px] border border-border-sidebar dark:bg-black/10 bg-black/5 text-center space-y-2 animate-fadeIn`}
+     >
+       {!collapsed && <p className="text-[10px] font-bold text-text-muted">Are you sure you want to log out?</p>}
+       <div className={`flex ${collapsed ? 'flex-col' : 'flex-row'} gap-2 w-full`}>
+         <button
+           autoFocus
+           onClick={() => {
+             setShowLogoutConfirm(false);
+             logout();
+           }}
+           className="flex-1 py-2 px-3 rounded bg-primary hover:bg-primary-hover text-white text-[10px] font-bold cursor-pointer"
+           title="Confirm Logout (Yes)"
+         >
+           Yes
+         </button>
+         <button
+           id="sidebar-logout-confirm-no-btn"
+           onClick={() => setShowLogoutConfirm(false)}
+           className="flex-1 py-2 px-3 rounded bg-bg-surface border border-border-main text-text-muted hover:text-text-main text-[10px] font-bold cursor-pointer"
+           title="Cancel (No)"
+         >
+           No
+         </button>
+       </div>
+     </div>
+   ) : (
+     <div className="px-4">
+       <button
+         onClick={() => setShowLogoutConfirm(true)}
+         className={`w-full flex items-center justify-between p-2.5 rounded-[6px] transition-colors cursor-pointer border border-transparent ${
+           collapsed ? 'justify-center' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:border-black/5 dark:hover:border-white/5'
+         }`}
+         title="Sign Out"
+       >
+         <div className="flex items-center gap-3">
+           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+             {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+           </div>
+           {!collapsed && (
+             <div className="flex flex-col text-left min-w-0 flex-1">
+               <span className="text-[13px] font-bold text-text-primary flex items-center gap-1.5 min-w-0">
+                 <span className="truncate">{user.fullName || user.username}</span>
+                 <span className="shrink-0 text-white text-[9px] bg-[#2A85FF] w-3.5 h-3.5 rounded-full flex items-center justify-center ">✓</span>
+               </span>
+               <span className="text-[11px] text-text-muted capitalize font-medium">{user.role} Account</span>
+             </div>
+           )}
+         </div>
+         {!collapsed && <ChevronRight size={16} className="text-text-muted" />}
+       </button>
+     </div>
+   )
  )}
  </div>
  </aside>

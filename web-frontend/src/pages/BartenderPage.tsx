@@ -14,6 +14,56 @@ interface BartenderPageProps {
  setActiveTab: (tab: string) => void;
 }
 
+interface LiveSessionTimerProps {
+  endTime: string | Date;
+  status: string;
+}
+
+const LiveSessionTimer: React.FC<LiveSessionTimerProps> = ({ endTime, status }) => {
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const diffMs = new Date(endTime).getTime() - Date.now();
+      return Math.max(0, Math.floor(diffMs / 1000));
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const timer = setInterval(() => {
+      const remaining = calculateTimeLeft();
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [endTime]);
+
+  const upperStatus = String(status).toUpperCase();
+  if (upperStatus === 'CLOSED' || upperStatus === 'COMPLETED') {
+    return <span className="text-text-muted font-bold">Closed</span>;
+  }
+  if (upperStatus === 'EXPIRED' || timeLeft <= 0) {
+    return <span className="text-red-500 font-bold">Expired</span>;
+  }
+
+  const hours = Math.floor(timeLeft / 3600);
+  const minutes = Math.floor((timeLeft % 3600) / 60);
+  const seconds = timeLeft % 60;
+
+  const paddedMins = String(minutes).padStart(2, '0');
+  const paddedSecs = String(seconds).padStart(2, '0');
+
+  if (hours > 0) {
+    const paddedHours = String(hours).padStart(2, '0');
+    return <span className="font-mono font-bold text-primary">{paddedHours}:{paddedMins}:{paddedSecs}</span>;
+  }
+
+  return <span className="font-mono font-bold text-primary">{paddedMins}:{paddedSecs}</span>;
+};
+
 export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActiveTab }) => {
  const { showToast } = useAuth();
  const { refreshTokens, refreshTables, rates } = useData();
@@ -796,6 +846,10 @@ export const BartenderPage: React.FC<BartenderPageProps> = ({ activeTab, setActi
   </div>
   <div>
   Session Duration: <span className="font-bold text-text-main">{getSessionDuration(tk.createdAt || tk.startTime)}</span>
+  </div>
+  <div className="flex items-center gap-1.5">
+  <Clock size={12} className="shrink-0 text-text-muted" />
+  <span>Remaining: <LiveSessionTimer endTime={tk.endTime} status={tk.status} /></span>
   </div>
   </div>
   </div>

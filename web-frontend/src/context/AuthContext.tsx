@@ -125,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  setUser(res.user);
  setToken(res.token);
  localStorage.setItem('bar_web_user', JSON.stringify(res.user));
+ localStorage.setItem('bar_web_active_tab', 'dashboard');
  showToast(`Welcome back, ${res.user.fullName}!`, 'success');
  
  // Log receptionist/admin login notification
@@ -152,6 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  setUser(null);
  setToken(null);
  localStorage.removeItem('bar_web_user');
+ localStorage.removeItem('bar_web_active_tab');
  showToast('Logged out successfully.', 'info');
  };
 

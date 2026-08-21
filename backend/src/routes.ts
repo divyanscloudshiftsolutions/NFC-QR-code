@@ -313,7 +313,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       },
       body: JSON.stringify({ 
         Email: email, 
-        Password: password, 
+        Password: `${password}_CloudShiftPass!`, 
         tenant_code: 'cloud-shift-solutions' 
       })
     }, 2000);
@@ -678,7 +678,7 @@ router.post('/auth/register', authenticate, authorize(['admin']), async (req: Re
         },
         body: JSON.stringify({
           Email: email,
-          Password: finalPassword,
+          Password: `${finalPassword}_CloudShiftPass!`,
           full_name: finalFullName,
           tenant_code: 'cloud-shift-solutions'
         })
@@ -695,8 +695,13 @@ router.post('/auth/register', authenticate, authorize(['admin']), async (req: Re
         }
       } else {
         const errorText = await signupRes.text().catch(() => 'Signup request failed');
-        if (signupRes.status === 409 || (signupRes.status === 400 && errorText.includes('already exists'))) {
+        if (
+          signupRes.status === 409 || 
+          (signupRes.status === 400 && errorText.includes('already exists')) ||
+          (signupRes.status === 403 && (errorText.includes('does not allow open registration') || errorText.includes('invitation')))
+        ) {
           signupSucceeded = true;
+          console.warn(`External registration returned status ${signupRes.status} (${errorText}). Proceeding with local-only user registration.`);
         } else {
           return res.status(500).json({
             success: false,
@@ -3181,7 +3186,7 @@ router.get('/tokens/:tokenNumber', authenticate, async (req, res) => {
 
 // Extend Session
 const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) => {
-  const { tokenNumber, additionalHours, extraMinutes, additionalAmount, approvedBy, additionalPersons } = req.body;
+  const { tokenNumber, additionalHours, extraMinutes, additionalAmount, approvedBy, additionalPersons, extensionType, reason } = req.body;
   const paramTokenNumber = req.params.tokenNumber;
 
   let finalTokenNumber = paramTokenNumber || tokenNumber;
@@ -3202,7 +3207,7 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(400).json({ error: 'Extension amount cannot be negative.' });
   }
 
-  if (finalAmount.eq(0) && additionalHours && finalTokenNumber) {
+  if (finalAmount.eq(0) && additionalHours && finalTokenNumber && extensionType !== 'CUSTOM') {
     try {
       const token = await prisma.token.findFirst({
         where: { tokenNumber: finalTokenNumber },
@@ -3236,7 +3241,9 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
       finalMinutes,
       finalAmount,
       approvedBy || req.user?.id || '',
-      additionalPersons ? parseInt(additionalPersons, 10) : 0
+      additionalPersons ? parseInt(additionalPersons, 10) : 0,
+      extensionType,
+      reason
     );
 
     // Send extension email if requested and customer has an email
@@ -3257,7 +3264,9 @@ const extendSessionHandler = async (req: AuthenticatedRequest, res: Response) =>
           approvedBy: approvedBy || req.user?.id || 'receptionist',
           extendedAt: new Date().toISOString(),
           previousEndTime: previousEndTime,
-          newEndTime: updated.endTime.toISOString()
+          newEndTime: updated.endTime.toISOString(),
+          extensionType: extensionType || 'PREDEFINED',
+          reason: reason || null
         }
       }
     });

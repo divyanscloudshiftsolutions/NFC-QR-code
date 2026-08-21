@@ -1,47 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import { 
- Users, 
- Grid3X3, 
- Wine, 
- DollarSign, 
- TrendingUp,
- Clock,
- LogOut,
- X,
- UserCheck,
- CalendarRange,
- RefreshCw,
- Activity,
- Bell,
- BarChart3,
- AlertCircle
+  Users, 
+  Grid3X3, 
+  Wine, 
+  DollarSign, 
+  TrendingUp,
+  Clock,
+  LogOut,
+  X,
+  UserCheck,
+  CalendarRange,
+  RefreshCw,
+  Activity,
+  Bell,
+  BarChart3,
+  AlertCircle,
+  Camera
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Token, DashboardReport } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { ExtendSessionModal } from '../components/modals/ExtendSessionModal';
 
+
+interface LiveSessionTimerProps {
+  endTime: string | Date;
+  status: string;
+}
+
+const LiveSessionTimer: React.FC<LiveSessionTimerProps> = ({ endTime, status }) => {
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const diffMs = new Date(endTime).getTime() - Date.now();
+      return Math.max(0, Math.floor(diffMs / 1000));
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const timer = setInterval(() => {
+      const remaining = calculateTimeLeft();
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [endTime]);
+
+  const upperStatus = String(status).toUpperCase();
+  if (upperStatus === 'CLOSED' || upperStatus === 'COMPLETED') {
+    return <span className="text-text-muted font-bold">Closed</span>;
+  }
+  if (upperStatus === 'EXPIRED' || timeLeft <= 0) {
+    return <span className="text-red-500 font-bold">Expired</span>;
+  }
+
+  const hours = Math.floor(timeLeft / 3600);
+  const minutes = Math.floor((timeLeft % 3600) / 60);
+  const seconds = timeLeft % 60;
+
+  const paddedMins = String(minutes).padStart(2, '0');
+  const paddedSecs = String(seconds).padStart(2, '0');
+
+  if (hours > 0) {
+    const paddedHours = String(hours).padStart(2, '0');
+    return <span className="font-mono font-bold text-primary">{paddedHours}:{paddedMins}:{paddedSecs}</span>;
+  }
+
+  return <span className="font-mono font-bold text-primary">{paddedMins}:{paddedSecs}</span>;
+};
 
 interface DashboardPageProps {
  onNavigate?: (tabId: string, adminSubtab?: string) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
- const { showToast } = useAuth();
- const { tokens, allSessions, tables, isLoading, refreshTokens, refreshAllSessions, refreshTables, sessionAlerts, dismissAlert } = useData();
+  const { showToast, user } = useAuth();
+  const { tokens, allSessions, tables, isLoading, refreshTokens, refreshAllSessions, refreshTables, sessionAlerts, dismissAlert, rates } = useData();
 
 
- // Extend Modal State
- const [extendingToken, setExtendingToken] = useState<Token | null>(null);
-  const [showExtendPaymentConfirm, setShowExtendPaymentConfirm] = useState(false);
- const [extraMinutes, setExtraMinutes] = useState(20);
- const [additionalAmount, setAdditionalAmount] = useState(500);
- const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
+  // Extend Modal State
+  const [extendingToken, setExtendingToken] = useState<Token | null>(null);
 
- // Close Modal State
- const [closingToken, setClosingToken] = useState<Token | null>(null);
- const [closeReason, setCloseReason] = useState('CHECKOUT');
- const [isSubmittingClose, setIsSubmittingClose] = useState(false);
+  // Close Modal State
+  const [closingToken, setClosingToken] = useState<Token | null>(null);
+  const [closeReason, setCloseReason] = useState('CHECKOUT');
+  const [isSubmittingClose, setIsSubmittingClose] = useState(false);
 
  // Dashboard Report Analytics State
  const [reportData, setReportData] = useState<DashboardReport['data'] | null>(null);
@@ -70,28 +118,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
    refreshAllSessions();
  }, []);
 
- const handleExtendSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!extendingToken) return;
-    setShowExtendPaymentConfirm(true);
-  };
-
-  const executeExtend = async () => {
-    setShowExtendPaymentConfirm(false);
-    if (!extendingToken) return;
-    setIsSubmittingExtend(true);
-    try {
-      await api.extendToken(extendingToken.tokenNumber, extraMinutes, additionalAmount);
-      showToast(`Session for ${extendingToken.tokenNumber} extended by ${extraMinutes} mins.`, 'success');
-      setExtendingToken(null);
-      refreshTokens();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to extend session.', 'danger');
-    } finally {
-      setIsSubmittingExtend(false);
-    }
-  };
-
  const handleCloseSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
  if (!closingToken) return;
@@ -117,7 +143,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const totalCapacity = tables.reduce((acc, t) => acc + t.capacity, 0);
   const totalGuestsInHouse = tokens.reduce((acc, tk) => acc + tk.personsCount, 0);
   const totalRedemptionsUsed = tokens.reduce((acc, tk) => acc + tk.redemptionsUsed, 0);
-  const totalRevenue = tokens.reduce((acc, tk) => acc + (tk.amountPaid || 0), 0);
+  const totalRevenue = reportData ? reportData.salesSummary.todaySales : 0;
   
   // KPI Calculations
   const avgCheckoutVal = reportData && reportData.salesSummary.checkoutCount > 0
@@ -134,7 +160,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     ? `${drinkConversionVal.toFixed(2)}`
     : (isReportLoading ? '...' : '--');
 
-  const qrPassActiveDisplay = String(activeTokensCount);
+  const qrPassActiveDisplay = isReportLoading || isLoading
+    ? '...'
+    : String(activeTokensCount);
 
   let peakSeatingCount = 0;
   if (reportData && reportData.hourlyBreakdown?.hourlyData) {
@@ -255,7 +283,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 sm:p-6 glass-panel rounded-2xl border border-border-main">
  <div>
  <h2 className="text-sm font-bold uppercase tracking-wider text-text-main flex items-center gap-2">
- <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse 0_0_8px_rgba(16,185,129,0.6)]"></span>
+ <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
  System Overview Dashboard
  </h2>
  <p className="text-xs text-text-muted mt-0.5">
@@ -292,24 +320,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  </button>
 
  <button
- onClick={() => onNavigate?.('tables')}
- className="w-full px-2 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 transition-all premium-btn-secondary text-center cursor-pointer focus:outline-none focus:ring-2 dark:focus:ring-[#D4AF37]/50 focus:ring-primary/50"
- >
- <div className="nav-icon-badge">
- <CalendarRange size={14} />
- </div>
- <span>Reservations</span>
- </button>
+  onClick={() => onNavigate?.('tables/occupied')}
+  className="w-full px-2 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 transition-all premium-btn-secondary text-center cursor-pointer focus:outline-none focus:ring-2 dark:focus:ring-[#D4AF37]/50 focus:ring-primary/50"
+  >
+  <div className="nav-icon-badge">
+  <CalendarRange size={14} />
+  </div>
+  <span>Occupied Tables</span>
+  </button>
 
- <button
- onClick={() => onNavigate?.('admin', 'customers')}
- className="w-full px-2 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 transition-all premium-btn-secondary text-center cursor-pointer focus:outline-none focus:ring-2 dark:focus:ring-[#D4AF37]/50 focus:ring-primary/50"
- >
- <div className="nav-icon-badge">
- <Users size={14} />
- </div>
- <span>Customer Sessions</span>
- </button>
+  {user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager' ? (
+    <button
+      onClick={() => onNavigate?.('admin', 'customers')}
+      className="w-full px-2 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 transition-all premium-btn-secondary text-center cursor-pointer focus:outline-none focus:ring-2 dark:focus:ring-[#D4AF37]/50 focus:ring-primary/50"
+    >
+      <div className="nav-icon-badge">
+        <Users size={14} />
+      </div>
+      <span>Customer Sessions</span>
+    </button>
+  ) : (
+    <button
+      onClick={() => onNavigate?.('quick_attendance')}
+      className="w-full px-2 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 transition-all premium-btn-secondary text-center cursor-pointer focus:outline-none focus:ring-2 dark:focus:ring-[#D4AF37]/50 focus:ring-primary/50"
+    >
+      <div className="nav-icon-badge">
+        <Camera size={14} />
+      </div>
+      <span>Attendance</span>
+    </button>
+  )}
  </div>
  </div>
 
@@ -397,6 +437,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <th className="pb-3 px-3">Persons</th>
  <th className="pb-3 px-3">Redemptions</th>
  <th className="pb-3 px-3">Status</th>
+ <th className="pb-3 px-3 text-center">Time Left</th>
  <th className="pb-3 px-3">Actions</th>
  </tr>
  </thead>
@@ -421,6 +462,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-active animate-pulse">
  {tk.status}
  </span>
+ </td>
+ <td className="py-3 px-3 text-center">
+ <LiveSessionTimer endTime={tk.endTime} status={tk.status} />
  </td>
  <td className="py-3 px-3 flex items-center gap-2">
  <button
@@ -521,7 +565,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  return (
  <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative z-10">
  {/* Tooltip amount on hover */}
- <div className="absolute -top-6 text-[9px] font-mono font-bold text-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity bg-bg-surface px-1.5 py-0.5 rounded border border-border-main z-20 pointer-events-none whitespace-nowrap">
+ <div className="absolute -top-6 text-[9px] font-mono font-bold text-[#D4AF37] hidden group-hover:block bg-bg-surface px-1.5 py-0.5 rounded border border-border-main z-20 pointer-events-none whitespace-nowrap">
  ₹{trend.value.toLocaleString()}
  </div>
  <div 
@@ -594,22 +638,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  : 'text-primary bg-primary/10';
 
  return (
- <div key={notif.id} className="p-3 rounded-xl bg-bg-secondary-surface dark:bg-black/10 border border-border-main flex items-start gap-3 relative animate-fadeIn">
+ <div key={notif.id} className="p-3 rounded-xl bg-bg-secondary-surface dark:bg-black/10 border border-border-main flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between animate-fadeIn">
+ <div className="flex items-start gap-3 min-w-0 flex-1">
  <div className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${iconColorClass}`}>
  <AlertCircle size={14} />
  </div>
- <div className="flex-1 min-w-0 pr-14 text-left">
- <h5 className="text-xs font-bold text-text-main flex items-center justify-between">
- <span className="truncate pr-1">{notif.title}</span>
+ <div className="flex-1 min-w-0 text-left">
+ <h5 className="text-xs font-bold text-text-main flex items-center justify-between gap-2">
+ <span className="truncate">{notif.title}</span>
  <span className="text-[9px] font-medium text-text-muted font-mono shrink-0">{notif.timestamp}</span>
  </h5>
  <p className="text-[11px] text-text-muted mt-1 font-bold">Table {notif.tableNumber}</p>
  <p className="text-[11px] text-text-muted">Customer: {notif.customerName}</p>
  <p className="text-[11px] text-red-500 dark:text-red-400 font-extrabold mt-1">Expires in {notif.remainingTimeStr}</p>
  </div>
+ </div>
  <button
  onClick={() => dismissAlert(notif.id)}
- className="absolute right-3 bottom-3 px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold border border-red-500/20 transition-all cursor-pointer"
+ className="w-full sm:w-auto px-2.5 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold border border-red-500/20 transition-all cursor-pointer whitespace-nowrap self-stretch sm:self-center flex items-center justify-center shrink-0"
  >
  Dismiss
  </button>
@@ -638,7 +684,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
  <div className="relative pl-6 space-y-4 border-l border-border-main ml-3 py-1">
  {activities.map((act) => (
  <div key={act.id} className="relative text-xs">
- <div className="absolute -left-[30px] top-1 w-2.5 h-2.5 rounded-full bg-[#D4AF37] border-2 border-bg-surface 0_0_8px_rgba(212,175,55,0.6)] z-10 animate-pulse" />
+ <div className="absolute -left-[30px] top-1 w-2.5 h-2.5 rounded-full bg-[#D4AF37] border-2 border-bg-surface shadow-[0_0_8px_rgba(212,175,55,0.6)] z-10 animate-pulse" />
  <div className="flex-1">
  <p className="text-text-main font-medium">{act.desc}</p>
  <span className="text-[9px] text-text-muted font-mono block mt-0.5">{act.time}</span>
@@ -652,96 +698,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
  </div>
 
- {showExtendPaymentConfirm && (
-      <div className="fixed inset-0 z-[110] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
-        <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
-          <h3 className="text-base font-black uppercase tracking-wider text-primary">Confirm Extension Payment?</h3>
-          <p className="text-xs text-text-muted">
-            Payment has been collected. Do you want to confirm the session extension?
-          </p>
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={executeExtend}
-              className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider cursor-pointer"
-            >
-              YES — Confirm Extension
-            </button>
-            <button
-              onClick={() => setShowExtendPaymentConfirm(false)}
-              className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card border border-border-main text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
-            >
-              NO — Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* EXTEND SESSION MODAL */}
- {extendingToken && (
- <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-4">
- <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn">
- <button 
- onClick={() => setExtendingToken(null)}
- className="absolute top-4 right-4 text-text-muted hover:text-text-main cursor-pointer"
- >
- <X size={18} />
- </button>
-
- <div className="flex items-center gap-2 dark:text-amber-400 text-amber-700 font-bold text-sm">
- <Clock size={18} /> Extend Customer Session
- </div>
-
- <p className="text-xs text-text-muted">
- Token Number: <span className="font-mono font-bold text-text-main">{extendingToken.tokenNumber}</span> ({extendingToken.customer?.name})
- </p>
-
- <form onSubmit={handleExtendSubmit} className="space-y-4">
- <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">Additional Minutes</label>
- <select
- value={extraMinutes}
- onChange={e => setExtraMinutes(Number(e.target.value))}
- className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
- >
- <option value={20}>20 Minutes</option>
- <option value={25}>25 Minutes</option>
- <option value={30}>30 Minutes</option>
- </select>
- </div>
-
- <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">Additional Extension Amount (₹)</label>
- <input
- type="number"
- value={additionalAmount}
- onChange={e => setAdditionalAmount(Number(e.target.value))}
- className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
- required
- />
- </div>
-
- <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
- <button
- type="button"
- onClick={() => setExtendingToken(null)}
- className="flex-1 py-3 rounded-xl bg-bg-primary hover:bg-bg-card text-xs font-semibold text-text-muted hover:text-text-main cursor-pointer"
- >
- Cancel
- </button>
- <button
- type="submit"
- disabled={isSubmittingExtend}
- title={isSubmittingExtend ? "Request in progress" : undefined}
- className="flex-1 py-3 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider cursor-pointer"
- >
- {isSubmittingExtend ? 'Extending...' : 'Confirm Extension'}
- </button>
- </div>
- </form>
- </div>
- </div>
- )}
+ <ExtendSessionModal
+      isOpen={extendingToken !== null}
+      token={extendingToken!}
+      rates={rates}
+      onClose={() => setExtendingToken(null)}
+      onSuccess={() => {
+        setExtendingToken(null);
+        refreshTokens();
+        refreshAllSessions();
+      }}
+    />
 
  {/* CLOSE / CHECKOUT SESSION MODAL */}
  {closingToken && (

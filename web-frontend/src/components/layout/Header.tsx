@@ -22,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onSidebarToggle, onRefres
  } = useAuth();
  
  const [isOpen, setIsOpen] = useState(false);
+ const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
  const unreadNotifications = notifications.filter(n => !n.read).length;
  const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +39,29 @@ export const Header: React.FC<HeaderProps> = ({ title, onSidebarToggle, onRefres
  document.removeEventListener('mousedown', handleClickOutside);
  };
  }, [isOpen]);
+
+ useEffect(() => {
+   if (!isOpen) {
+     setShowLogoutConfirm(false);
+   }
+ }, [isOpen]);
+
+ useEffect(() => {
+    if (!showLogoutConfirm) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setIsOpen(false);
+        setShowLogoutConfirm(false);
+        logout();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowLogoutConfirm(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showLogoutConfirm, logout]);
 
  const handleTogglePanel = () => {
  setIsOpen(!isOpen);
@@ -187,16 +211,39 @@ export const Header: React.FC<HeaderProps> = ({ title, onSidebarToggle, onRefres
  <span className="text-[8px] text-primary border border-primary/30 px-2 py-0.5 rounded-full font-bold uppercase">{user.role}</span>
  </div>
  )}
- <button
- onClick={() => {
- setIsOpen(false);
- logout();
- }}
- className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-primary border border-primary-hover text-white [box-shadow:0_0_8px_rgba(212,175,55,0.25)] hover:bg-[#7B59DD] dark:hover:bg-primary-hover dark:hover:text-black dark:active:bg-primary-hover dark:active:text-black dark:focus:bg-primary-hover dark:focus:text-black focus:outline-none dark:focus:ring-2 dark:focus:ring-primary hover:[box-shadow:0_0_12px_rgba(212,175,55,0.35)] transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
- >
- <LogOut size={14} />
- <span>Sign Out Shift Account</span>
- </button>
+ {showLogoutConfirm ? (
+    <div className="space-y-3 p-2 text-center">
+      <p className="text-[11px] font-bold text-text-primary">Are you sure you want to log out?</p>
+      <div className="flex gap-2">
+        <button
+          autoFocus
+          onClick={() => {
+            setIsOpen(false);
+            setShowLogoutConfirm(false);
+            logout();
+          }}
+          className="flex-1 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-[11px] font-black uppercase tracking-wider cursor-pointer"
+        >
+          Yes
+        </button>
+        <button
+          id="logout-confirm-no-btn"
+          onClick={() => setShowLogoutConfirm(false)}
+          className="flex-1 py-2.5 rounded-lg bg-bg-surface border border-border text-text-muted hover:text-text-main text-[11px] font-black uppercase tracking-wider cursor-pointer"
+        >
+          No
+        </button>
+      </div>
+    </div>
+  ) : (
+    <button
+      onClick={() => setShowLogoutConfirm(true)}
+      className="w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-primary border border-primary-hover text-white [box-shadow:0_0_8px_rgba(212,175,55,0.25)] hover:bg-primary-hover dark:hover:bg-primary-hover dark:hover:text-black dark:active:bg-primary-hover dark:active:text-black dark:focus:bg-primary-hover dark:focus:text-black focus:outline-none dark:focus:ring-2 dark:focus:ring-primary hover:[box-shadow:0_0_12px_rgba(212,175,55,0.35)] transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+    >
+      <LogOut size={14} />
+      <span>Sign Out Shift Account</span>
+    </button>
+  )}
  </div>
 
  </div>

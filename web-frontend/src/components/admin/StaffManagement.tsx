@@ -58,6 +58,7 @@ export const StaffManagement: React.FC = () => {
  showToast(`Staff member ${fullName} (${username}) created successfully!`, 'success');
  setIsModalOpen(false);
  setFullName('');
+ setPin('1234');
  refreshUsers();
  } catch (err: any) {
  showToast(err.message || 'Failed to register staff member.', 'danger');
@@ -298,20 +299,27 @@ export const StaffManagement: React.FC = () => {
  )}
  </div>
 
- <div>
- <label className="block text-xs font-semibold text-text-muted mb-1">
- 4-Digit Access PIN <span className="text-text-muted">(Numeric only)</span>
- </label>
- <input
- type="password"
- value={pin}
- onChange={e => setPin(e.target.value)}
- maxLength={4}
- placeholder="e.g. 1234"
- className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary"
- required
- />
- </div>
+  <div>
+  <label className="block text-xs font-semibold text-text-muted mb-1">
+  4-Digit Access PIN <span className="text-text-muted">(Numeric only)</span>
+  </label>
+  <input
+  type="password"
+  value={pin}
+  onChange={e => setPin(e.target.value)}
+  maxLength={4}
+  placeholder="e.g. 1234"
+  className={`w-full bg-bg-primary border rounded-xl px-3 py-2 text-xs text-text-main font-mono focus:outline-none dark:focus:border-[#D4AF37] focus:border-primary ${
+    pin.trim() && !isPinValid ? 'border-red-500/50 focus:border-red-500' : 'border-border-main'
+  }`}
+  required
+  />
+  {pin.trim() && !isPinValid && (
+    <p className="text-[10px] dark:text-red-400 text-red-700 mt-1 font-medium">
+      PIN must be exactly 4 numeric characters.
+    </p>
+  )}
+  </div>
 
  <div className="flex flex-row gap-3 pt-4 border-t border-border-main dark:border-[rgba(255,255,255,0.1)] shrink-0">
  <button

@@ -39,6 +39,13 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setActiveTabState('dashboard');
+      localStorage.setItem('bar_web_active_tab', 'dashboard');
+    }
+  }, [user]);
+
   if (!user) {
     return <LoginPage />;
   }

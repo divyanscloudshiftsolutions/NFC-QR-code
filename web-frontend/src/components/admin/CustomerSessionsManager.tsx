@@ -3,10 +3,11 @@ import { Clock, Search, RefreshCw, LogOut, X, Eye } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { ExtendSessionModal } from '../modals/ExtendSessionModal';
 
 export const CustomerSessionsManager: React.FC = () => {
   const { showToast, isDark } = useAuth();
-  const { allSessions, isLoading, refreshAllSessions, refreshTables } = useData();
+  const { allSessions, isLoading, refreshAllSessions, refreshTables, rates, refreshTokens } = useData();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -30,10 +31,6 @@ export const CustomerSessionsManager: React.FC = () => {
 
   // Extend Session Modal State
   const [extendingToken, setExtendingToken] = useState<any | null>(null);
-  const [showExtendPaymentConfirm, setShowExtendPaymentConfirm] = useState(false);
-  const [extraMinutes, setExtraMinutes] = useState(20);
-  const [additionalAmount, setAdditionalAmount] = useState(500);
-  const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
 
   // History Details Modal State
   const [viewingHistoryToken, setViewingHistoryToken] = useState<any | null>(null);
@@ -63,27 +60,7 @@ export const CustomerSessionsManager: React.FC = () => {
     }
   };
 
-  const handleExtendSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!extendingToken) return;
-    setShowExtendPaymentConfirm(true);
-  };
 
-  const executeExtend = async () => {
-    setShowExtendPaymentConfirm(false);
-    if (!extendingToken) return;
-    setIsSubmittingExtend(true);
-    try {
-      await api.extendToken(extendingToken.tokenNumber, extraMinutes, additionalAmount, false, 'CASH');
-      showToast(`Session ${extendingToken.tokenNumber} extended by ${extraMinutes} mins.`, 'success');
-      setExtendingToken(null);
-      refreshAllSessions();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to extend session.', 'danger');
-    } finally {
-      setIsSubmittingExtend(false);
-    }
-  };
 
   const filteredTokens = allSessions.filter(t => {
     const query = search.toLowerCase();
@@ -247,104 +224,17 @@ export const CustomerSessionsManager: React.FC = () => {
         )}
       </div>
 
-      {showExtendPaymentConfirm && (
-      <div className="fixed inset-0 z-[110] dark:bg-black/75 bg-slate-900/35 flex items-center justify-center p-4">
-        <div className="bg-bg-surface border border-border-main rounded-3xl p-5 sm:p-6 w-full max-w-md space-y-4 relative text-text-main animate-fadeIn text-left">
-          <h3 className="text-base font-black uppercase tracking-wider text-primary">Confirm Extension Payment?</h3>
-          <p className="text-xs text-text-muted">
-            Payment has been collected. Do you want to confirm the session extension?
-          </p>
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={executeExtend}
-              className="flex-1 py-2.5 rounded-xl primary-btn text-xs font-bold uppercase tracking-wider cursor-pointer"
-            >
-              YES — Confirm Extension
-            </button>
-            <button
-              onClick={() => setShowExtendPaymentConfirm(false)}
-              className="flex-1 py-2.5 rounded-xl bg-bg-primary hover:bg-bg-card border border-border-main text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
-            >
-              NO — Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* EXTEND SESSION MODAL */}
-      {extendingToken && (
-        <div 
-          onClick={() => setExtendingToken(null)}
-          className="fixed inset-0 z-[100] dark:bg-transparent bg-black/75 flex items-center justify-end p-0 cursor-pointer animate-none"
-        >
-          <div 
-            onClick={e => e.stopPropagation()}
-            className="bg-bg-surface border border-border-main border-y-0 border-r-0 border-l-[1px] dark:border-[rgba(255,255,255,0.1)] dark:bg-[#121212] rounded-none p-5 w-full md:w-[380px] relative text-text-main h-[100dvh] flex flex-col cursor-default"
-          >
-            <button 
-              onClick={() => setExtendingToken(null)}
-              className="absolute top-4 sm:top-6 right-4 sm:right-6 text-text-muted hover:text-text-main bg-bg-surface rounded-full z-10 p-1.5 hover:bg-bg-card cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="flex items-start sm:items-center gap-2 dark:text-amber-400 text-amber-700 font-bold text-sm pr-8">
-              <Clock size={18} className="shrink-0 mt-0.5 sm:mt-0" /> 
-              <span>Admin Extend Session Time</span>
-            </div>
-
-            <p className="text-xs text-text-muted mt-1.5">
-              Token Number: <span className="font-mono font-bold text-text-main">{extendingToken.tokenNumber}</span> ({extendingToken.customer?.name})
-            </p>
-
-            <form onSubmit={handleExtendSubmit} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-text-muted mb-1">Additional Minutes</label>
-                <select
-                  value={extraMinutes}
-                  onChange={e => setExtraMinutes(Number(e.target.value))}
-                  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary"
-                >
-                  <option value={20}>20 Minutes</option>
-                  <option value={25}>25 Minutes</option>
-                  <option value={30}>30 Minutes</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-text-muted mb-1">Additional Fee (₹)</label>
-                <input
-                  type="number"
-                  value={additionalAmount}
-                  onChange={e => setAdditionalAmount(Number(e.target.value))}
-                  className="w-full bg-bg-primary border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none dark:focus:border-[#8D6CE5] focus:border-primary font-mono"
-                  min={0}
-                  required
-                />
-              </div>
-
-              <div className="flex flex-row gap-3 pt-3 sm:pt-4">
-                <button
-                  type="button"
-                  onClick={() => setExtendingToken(null)}
-                  className="flex-1 py-2.5 sm:py-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all premium-btn-secondary cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingExtend}
-                  title={isSubmittingExtend ? "Request in progress" : undefined}
-                  className="flex-1 py-2.5 sm:py-3 rounded-xl primary-btn text-[11px] sm:text-xs font-bold uppercase tracking-wider cursor-pointer"
-                >
-                  {isSubmittingExtend ? 'Extending...' : 'Confirm Extension'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ExtendSessionModal
+        isOpen={extendingToken !== null}
+        token={extendingToken!}
+        rates={rates}
+        onClose={() => setExtendingToken(null)}
+        onSuccess={() => {
+          setExtendingToken(null);
+          refreshAllSessions();
+          refreshTokens();
+        }}
+      />
 
       {/* CLOSE SESSION MODAL */}
       {deactivatingToken && (

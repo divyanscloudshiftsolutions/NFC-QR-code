@@ -360,10 +360,18 @@ class ApiService {
 
 
 
-  async extendToken(tokenNumber: string, extraMinutes: number, amount: number, sendEmail?: boolean, paymentMethod?: string) {
+  async extendToken(
+    tokenNumber: string, 
+    extraMinutes: number, 
+    amount: number, 
+    sendEmail?: boolean, 
+    paymentMethod?: string,
+    extensionType?: string,
+    reason?: string
+  ) {
     return this.request<any>(`/tokens/${tokenNumber}/extend`, {
       method: 'PUT',
-      body: JSON.stringify({ extraMinutes, amount, sendEmail, paymentMethod }),
+      body: JSON.stringify({ extraMinutes, amount, sendEmail, paymentMethod, extensionType, reason }),
     });
   }
 

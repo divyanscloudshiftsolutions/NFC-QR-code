@@ -312,7 +312,9 @@ export class TokenService {
     extraMinutes: number,
     additionalAmount: Decimal | number,
     approvedBy: string,
-    additionalPersons: number = 0
+    additionalPersons: number = 0,
+    extensionType?: string,
+    reason?: string
   ): Promise<any> {
     return await prisma.$transaction(async (tx) => {
       // Lock row
@@ -340,18 +342,26 @@ export class TokenService {
       const placeType = tokenObj.placeType;
       const additionalAmountDec = new Decimal(additionalAmount);
       
-      // Calculate server-side computed amount:
-      // cover fee for new persons + extension fee for existing group members
-      const newCoverFee = placeType.ratePerPerson.mul(additionalPersons);
-      const extensionFee = placeType.ratePerPerson
-        .mul(extraMinutes)
-        .mul(tokenObj.personsCount)
-        .div(placeType.baseTimeMinutes);
-      const computedAmount = extensionFee.add(newCoverFee);
+      let finalAdditionalAmount: Decimal;
+      if (extensionType === 'CUSTOM') {
+        if (isNaN(additionalAmountDec.toNumber()) || additionalAmountDec.lt(0)) {
+          throw new Error('Invalid custom extension amount.');
+        }
+        finalAdditionalAmount = additionalAmountDec;
+      } else {
+        // Calculate server-side computed amount:
+        // cover fee for new persons + extension fee for existing group members
+        const newCoverFee = placeType.ratePerPerson.mul(additionalPersons);
+        const extensionFee = placeType.ratePerPerson
+          .mul(extraMinutes)
+          .mul(tokenObj.personsCount)
+          .div(placeType.baseTimeMinutes);
+        const computedAmount = extensionFee.add(newCoverFee);
 
-      // If additionalAmount is explicitly 0, we treat it as a free extension (allowed by rules).
-      // Otherwise, the server is the single source of truth and recalculates it.
-      const finalAdditionalAmount = additionalAmountDec.eq(0) ? new Decimal(0) : computedAmount;
+        // If additionalAmount is explicitly 0, we treat it as a free extension (allowed by rules).
+        // Otherwise, the server is the single source of truth and recalculates it.
+        finalAdditionalAmount = additionalAmountDec.eq(0) ? new Decimal(0) : computedAmount;
+      }
 
       const currentEndTime = new Date(token.endTime);
       // Extend relative to current end_time if not expired yet, or from now if already expired
