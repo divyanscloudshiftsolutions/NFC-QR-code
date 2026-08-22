@@ -544,40 +544,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
   return (
     <div className="space-y-6 text-text-main animate-fadeIn pb-12">
-      {/* 1. Redesigned Dashboard Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-border-main/50">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase select-none">
-            {isManagement 
-              ? 'EXECUTIVE MANAGEMENT DASHBOARD' 
-              : isReceptionist 
-                ? 'RECEPTION OPERATIONAL DASHBOARD' 
-                : 'BARTENDER SERVICE DASHBOARD'}
-          </h1>
-          <p className="text-xs font-semibold tracking-widest text-[#D4AF37] uppercase mt-0.5 select-none">
-            Open The Bottle
-          </p>
-        </div>
-        <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end select-none">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full dark:bg-emerald-500/10 bg-emerald-500/5 dark:text-emerald-400 text-emerald-700 text-xs font-bold border border-emerald-500/20">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
-            <span>System Active</span>
-          </div>
-          <button className="p-2 rounded-lg bg-bg-secondary-surface hover:bg-border-main/40 border border-border-main text-text-main transition-all shrink-0 cursor-pointer focus:outline-none relative">
-            <Bell size={16} />
-            {notifications.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold">
-                {notifications.length}
-              </span>
-            )}
-          </button>
-          <button className="p-2 rounded-lg bg-bg-secondary-surface hover:bg-border-main/40 border border-border-main text-text-main transition-all shrink-0 cursor-pointer focus:outline-none">
-            <Settings size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Priority Actions Section (Mobile optimized compact columns) */}
+      {/* Priority Actions Section (Mobile optimized compact columns) */}
       <div className="space-y-3">
         <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest select-none">Priority Actions</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
