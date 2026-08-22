@@ -542,11 +542,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     return list.sort((a, b) => b.timestampVal - a.timestampVal).slice(0, 5);
   }, [allSessions, isManagement]);
 
-  return (
+   return (
     <div className="space-y-6 text-text-main animate-fadeIn pb-12">
       {/* Priority Actions Section (Mobile optimized compact columns) */}
       <div className="space-y-3">
-        <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest select-none">Priority Actions</h4>
+        <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Priority Actions</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {priorityActionsList.map((act, i) => {
             const Icon = act.icon;
@@ -586,7 +586,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
       {/* 3. Live Overview Metrics Grid */}
       <div className="space-y-3">
-        <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest select-none">Live Overview</h4>
+        <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Live Overview</h4>
         <div className={`grid grid-cols-2 md:grid-cols-3 ${isManagement ? 'xl:grid-cols-5' : 'xl:grid-cols-3'} gap-3 sm:gap-4`}>
           {metricCards.map((card, i) => {
             const Icon = card.icon;
@@ -610,7 +610,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Live Customer Sessions Card */}
         <div className="lg:col-span-2 glass-panel rounded-2xl p-4 sm:p-6 border border-border-main space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-main pb-3 select-none">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-main pb-3">
             <div>
               <h3 className="text-sm font-bold text-text-main">Live Customer Sessions</h3>
               <p className="text-xs text-text-muted mt-0.5">Real-time QR active seating tickets</p>
@@ -629,7 +629,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           {isLoading ? (
             <div className="py-12 text-center text-text-muted text-xs">Loading live session data...</div>
           ) : activeTokens.length === 0 ? (
-            <div className="py-8 sm:py-12 text-center text-text-muted text-xs select-none space-y-3">
+            <div className="py-8 sm:py-12 text-center text-text-muted text-xs space-y-3">
               <p>No active customer sessions found.</p>
               {!isBartender && (
                 <button 
@@ -646,7 +646,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               <div className="hidden sm:block overflow-x-auto overflow-y-auto max-h-[320px] custom-scrollbar">
                 <table className="w-full text-left text-[11px] min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-border-main text-text-muted uppercase font-semibold text-[10px] tracking-wider select-none">
+                    <tr className="border-b border-border-main text-text-muted uppercase font-semibold text-[10px] tracking-wider">
                       <th className="pb-3 px-3">Token #</th>
                       <th className="pb-3 px-3">Customer</th>
                       <th className="pb-3 px-3">Contact</th>
@@ -790,7 +790,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
         {/* Attention Needed Column (Height adjusted dynamically to prevent empty spaces) */}
         <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-border-main flex flex-col justify-between min-h-[180px] lg:h-[396px]">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-border-main shrink-0 select-none">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-border-main shrink-0">
             <div className="flex items-center gap-2 dark:text-red-400 text-red-700 font-bold text-sm">
               <Bell size={18} /> <span>Attention Needed</span>
             </div>
@@ -801,7 +801,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
           <div className="space-y-3 flex-1 overflow-y-auto my-3 pr-1 custom-scrollbar">
             {notifications.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center h-full text-text-muted text-xs select-none py-6">
+              <div className="flex-1 flex items-center justify-center h-full text-text-muted text-xs py-6">
                 No attention required
               </div>
             ) : (
@@ -852,7 +852,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       {/* 5. KPI Analytics Summary (Admin / Manager Only) */}
       {isManagement && (
         <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-border-main space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border-main select-none">
+          <div className="flex items-center justify-between pb-3 border-b border-border-main">
             <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider">KPI Analytics Summary</h4>
             <span className="text-[10px] dark:text-[#D4AF37] text-primary font-bold">Verified Daily Metrics</span>
           </div>
@@ -885,7 +885,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             
             {/* Hourly Revenue Chart Card */}
             <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-border-main flex flex-col justify-between min-h-[340px]">
-              <div className="flex items-center justify-between pb-3 border-b border-border-main select-none shrink-0 text-left">
+              <div className="flex items-center justify-between pb-3 border-b border-border-main shrink-0 text-left">
                 <div className="flex items-center gap-2 text-text-main font-bold text-xs sm:text-sm">
                   <BarChart3 size={16} className="shrink-0" /> <span>Hourly Revenue Trends</span>
                 </div>
@@ -898,7 +898,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
               <div className="flex flex-col space-y-2 mt-4 flex-1 justify-center overflow-x-auto custom-scrollbar">
                 {revenueTrends.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center text-text-muted text-xs select-none">
+                  <div className="flex-1 flex items-center justify-center text-text-muted text-xs">
                     No revenue trends recorded today.
                   </div>
                 ) : (
@@ -906,7 +906,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                     {/* Main Chart Row */}
                     <div className="flex gap-2 items-stretch h-36">
                       {/* Y-Axis */}
-                      <div className="flex flex-col justify-between text-[9px] font-mono text-text-muted font-bold py-1 select-none text-right w-10 shrink-0">
+                      <div className="flex flex-col justify-between text-[9px] font-mono text-text-muted font-bold py-1 text-right w-10 shrink-0">
                         {yAxisLabels.map((lbl, idx) => (
                           <span key={idx}>{lbl}</span>
                         ))}
@@ -915,7 +915,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                       {/* Bars Container */}
                       <div className="flex-1 border-l border-b border-border-main px-2 flex justify-between items-end relative h-full">
                         {/* Background Grid lines */}
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none select-none pb-1">
+                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-1">
                           <div className="w-full border-t border-border-main/15 h-0" />
                           <div className="w-full border-t border-border-main/15 h-0" />
                           <div className="w-full border-t border-border-main/15 h-0" />
@@ -954,7 +954,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                     </div>
 
                     {/* X-Axis labels row (Responsive filter hidden odd entries on mobile) */}
-                    <div className="flex gap-2 pl-12 pr-2 pb-1 mt-1 text-[8px] font-mono text-text-muted font-bold select-none">
+                    <div className="flex gap-2 pl-12 pr-2 pb-1 mt-1 text-[8px] font-mono text-text-muted font-bold">
                       {revenueTrends.map((trend, idx) => (
                         <span key={idx} className={`flex-1 text-center truncate ${idx % 2 === 0 ? 'inline' : 'hidden sm:inline'}`}>
                           {trend.time.replace(':00', '')}
@@ -966,7 +966,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               </div>
 
               {/* Chart Legend */}
-              <div className="flex items-center justify-center gap-4 pt-3 mt-2 border-t border-border-main text-[9px] font-bold text-text-muted select-none shrink-0">
+              <div className="flex items-center justify-center gap-4 pt-3 mt-2 border-t border-border-main text-[9px] font-bold text-text-muted shrink-0">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded bg-gradient-to-t from-[#D4AF37] to-[#F5E08B]" />
                   <span>Peak Hour</span>
@@ -980,7 +980,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
             {/* Seating Peaks Custom SVG Line Chart Card */}
             <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-border-main flex flex-col justify-between min-h-[340px]">
-              <div className="flex items-center justify-between pb-3 border-b border-border-main select-none shrink-0 text-left">
+              <div className="flex items-center justify-between pb-3 border-b border-border-main shrink-0 text-left">
                 <div className="flex items-center gap-2 text-text-main font-bold text-xs sm:text-sm">
                   <Grid3X3 size={16} className="shrink-0 text-[#D4AF37]" /> <span>Seating Peaks Trend</span>
                 </div>
@@ -993,7 +993,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
               <div className="flex flex-col space-y-2 mt-4 flex-1 justify-center overflow-x-auto custom-scrollbar">
                 {seatingPeaksTrends.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center text-text-muted text-xs select-none">
+                  <div className="flex-1 flex items-center justify-center text-text-muted text-xs">
                     No active occupancy trends logged.
                   </div>
                 ) : (
@@ -1054,7 +1054,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                     </div>
 
                     {/* X-Axis labels row (Responsive filter hidden odd entries on mobile) */}
-                    <div className="flex gap-2 pl-2 pr-2 pb-1 mt-1 text-[8px] font-mono text-text-muted font-bold select-none">
+                    <div className="flex gap-2 pl-2 pr-2 pb-1 mt-1 text-[8px] font-mono text-text-muted font-bold">
                       {seatingPeaksTrends.map((trend, idx) => (
                         <span key={idx} className={`flex-1 text-center truncate ${idx % 2 === 0 ? 'inline' : 'hidden sm:inline'}`}>
                           {trend.time.replace(':00', '')}
@@ -1066,7 +1066,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               </div>
 
               {/* Chart Legend */}
-              <div className="flex items-center justify-center gap-4 pt-3 mt-2 border-t border-border-main text-[9px] font-bold text-text-muted select-none shrink-0">
+              <div className="flex items-center justify-center gap-4 pt-3 mt-2 border-t border-border-main text-[9px] font-bold text-text-muted shrink-0">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-0.5 bg-[#D4AF37]" />
                   <span>Guests In-House</span>
@@ -1078,7 +1078,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
           {/* Recent Live Activities Timeline Card (1/3) */}
           <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-border-main flex flex-col justify-between min-h-[180px] lg:h-[340px]">
-            <div className="flex items-center justify-between pb-3 border-b border-border-main select-none shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-border-main shrink-0">
               <div className="flex items-center gap-2 text-text-main font-bold text-xs sm:text-sm">
                 <Activity size={16} className="shrink-0 text-[#D4AF37]" /> <span>Recent Activities</span>
               </div>
@@ -1087,7 +1087,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
             <div className="flex-1 overflow-y-auto my-3 pr-1 custom-scrollbar">
               {activities.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center h-full text-text-muted text-xs select-none py-6">
+                <div className="flex-1 flex items-center justify-center h-full text-text-muted text-xs py-6">
                   No recent activities recorded.
                 </div>
               ) : (
