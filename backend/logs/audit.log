@@ -150,3 +150,7 @@
 {"timestamp":"2026-08-21T18:14:48.697Z","tokenNumber":"BAR-20260821-00004","oldStatus":"ACTIVE","newStatus":"CLOSED","reason":"session closed: MANUAL - Customer Vacated Early","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
 {"timestamp":"2026-08-21T18:19:30.263Z","tokenNumber":"BAR-20260821-00005","oldStatus":"ACTIVE","newStatus":"ACTIVE","reason":"extended by +20 mins","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
 {"timestamp":"2026-08-21T18:23:41.546Z","tokenNumber":"BAR-20260821-00001","oldStatus":"ACTIVE","newStatus":"ACTIVE","reason":"extended by +20 mins","initiatedBy":"9b2f8e62-4704-4ffe-a75b-2d53c856b50d"}
+{"timestamp":"2026-08-22T15:31:37.293Z","tokenNumber":"BAR-20260821-00005","oldStatus":"ACTIVE","newStatus":"EXPIRED","reason":"chronological auto-expiration","initiatedBy":"system_reconciler"}
+{"timestamp":"2026-08-22T15:31:37.317Z","tokenNumber":"BAR-20260821-00002","oldStatus":"ACTIVE","newStatus":"EXPIRED","reason":"chronological auto-expiration","initiatedBy":"system_reconciler"}
+{"timestamp":"2026-08-22T15:31:37.327Z","tokenNumber":"BAR-20260821-00001","oldStatus":"ACTIVE","newStatus":"EXPIRED","reason":"chronological auto-expiration","initiatedBy":"system_reconciler"}
+{"timestamp":"2026-08-22T15:31:37.333Z","tokenNumber":"BAR-20260821-00003","oldStatus":"ACTIVE","newStatus":"EXPIRED","reason":"chronological auto-expiration","initiatedBy":"system_reconciler"}
