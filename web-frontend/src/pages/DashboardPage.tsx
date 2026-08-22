@@ -554,28 +554,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               <button
                 key={i}
                 onClick={act.onClick}
-                className={`w-full p-2.5 sm:p-4 rounded-xl flex flex-col sm:flex-row items-center sm:items-start justify-between gap-1.5 sm:gap-3 transition-all duration-300 text-center sm:text-left cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 ${
-                  act.primary
-                    ? 'bg-gradient-to-br from-[#D4AF37]/10 to-transparent border border-[#D4AF37]/30 hover:border-[#D4AF37] shadow-[0_0_12px_rgba(212,175,55,0.08)] col-span-2 sm:col-span-1'
-                    : 'glass-panel border border-border-main/60 hover:border-border-main hover:bg-bg-card/50'
-                }`}
+                className="w-full p-2.5 sm:p-4 rounded-xl flex flex-col sm:flex-row items-center sm:items-start justify-between gap-1.5 sm:gap-3 transition-all duration-300 text-center sm:text-left cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 bg-gradient-to-br from-[#D4AF37]/10 to-transparent border border-[#D4AF37]/30 hover:border-[#D4AF37] shadow-[0_0_12px_rgba(212,175,55,0.08)] col-span-1"
               >
                 <div className="flex flex-col sm:flex-row items-center gap-1.5 sm:gap-3 w-full min-w-0">
-                  <div className={`p-1.5 sm:p-2.5 rounded-lg shrink-0 ${
-                    act.primary 
-                      ? 'bg-[#D4AF37]/15 text-[#D4AF37]' 
-                      : 'bg-border-main/20 text-text-muted group-hover:text-text-main'
-                  } transition-colors`}>
+                  <div className="p-1.5 sm:p-2.5 rounded-lg shrink-0 bg-[#D4AF37]/15 text-[#D4AF37] transition-colors">
                     <Icon size={14} className="sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0 text-center sm:text-left w-full">
-                    <h5 className={`text-[10px] sm:text-xs font-bold transition-colors truncate ${act.primary ? 'text-white' : 'text-text-main group-hover:text-white'}`}>
+                    <h5 className="text-[10px] sm:text-xs font-bold text-white transition-colors truncate">
                       {act.title}
                     </h5>
                     <p className="text-[8px] sm:text-[10px] text-text-muted mt-0.5 truncate">{act.desc}</p>
                   </div>
                 </div>
-                <div className="hidden sm:block text-xs font-bold transition-transform group-hover:translate-x-1 text-text-muted group-hover:text-text-main">
+                <div className="hidden sm:block text-xs font-bold transition-transform group-hover:translate-x-1 text-[#D4AF37]">
                   →
                 </div>
               </button>
